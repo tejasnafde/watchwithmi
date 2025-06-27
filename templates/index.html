@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}WatchWithMi - Watch Together{% endblock %}
+
+{% block content %}
+<div class="gradient-bg min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-md w-full space-y-8">
+        <!-- Logo/Title -->
+        <div class="text-center">
+            <h1 class="text-4xl font-bold text-white mb-2">🎬 WatchWithMi</h1>
+            <p class="text-indigo-200">Watch videos together in sync with friends</p>
+        </div>
+        
+        <!-- Main Card -->
+        <div class="glass-effect rounded-2xl p-8 space-y-6">
+            <!-- Create Room Section -->
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold text-white text-center">Create New Room</h3>
+                <div>
+                    <label for="createUserName" class="block text-sm font-medium text-white mb-2">
+                        Your Name
+                    </label>
+                    <input 
+                        type="text" 
+                        id="createUserName" 
+                        placeholder="Enter your name"
+                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        maxlength="50"
+                        required
+                    >
+                </div>
+                <button 
+                    id="createRoomBtn"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                >
+                    Create New Room
+                </button>
+                <p class="text-xs text-indigo-200 text-center">
+                    Create a room and get a shareable code
+                </p>
+            </div>
+            
+            <!-- Divider -->
+            <div class="relative">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-white/20"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                    <span class="px-2 bg-transparent text-indigo-200">or</span>
+                </div>
+            </div>
+            
+            <!-- Join Room Section -->
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold text-white text-center">Join Existing Room</h3>
+                <div>
+                    <label for="joinUserName" class="block text-sm font-medium text-white mb-2">
+                        Your Name
+                    </label>
+                    <input 
+                        type="text" 
+                        id="joinUserName" 
+                        placeholder="Enter your name"
+                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        maxlength="50"
+                        required
+                    >
+                </div>
+                <div>
+                    <label for="roomCode" class="block text-sm font-medium text-white mb-2">
+                        Room Code
+                    </label>
+                    <input 
+                        type="text" 
+                        id="roomCode" 
+                        placeholder="Enter 6-character code"
+                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent uppercase"
+                        maxlength="6"
+                        style="text-transform: uppercase;"
+                    >
+                </div>
+                <button 
+                    id="joinRoomBtn"
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                >
+                    Join Room
+                </button>
+            </div>
+        </div>
+        
+        <!-- Features -->
+        <div class="text-center space-y-2">
+            <p class="text-indigo-200 text-sm">✨ Features</p>
+            <div class="flex justify-center space-x-6 text-xs text-indigo-300">
+                <span>🎥 Sync Playback</span>
+                <span>💬 Live Chat</span>
+                <span>👥 Video Chat</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div id="loadingModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="glass-effect rounded-lg p-6 text-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+        <p class="text-white">Connecting...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let socket = null;
+    
+    // Initialize socket connection
+    function initSocket() {
+        socket = io();
+        
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+        });
+        
+        socket.on('error', (data) => {
+            hideLoading();
+            showToast(data.message, 'error');
+        });
+        
+        socket.on('room_created', (data) => {
+            hideLoading();
+            showToast(`Room ${data.room_code} created!`, 'success');
+            // Redirect to room with username
+            const userName = document.getElementById('createUserName').value.trim();
+            window.location.href = `/room/${data.room_code}?name=${encodeURIComponent(userName)}`;
+        });
+        
+        socket.on('room_joined', (data) => {
+            hideLoading();
+            showToast(`Joined room ${data.room_code}!`, 'success');
+            // Redirect to room with username
+            const userName = document.getElementById('joinUserName').value.trim();
+            window.location.href = `/room/${data.room_code}?name=${encodeURIComponent(userName)}`;
+        });
+    }
+    
+    function showLoading() {
+        document.getElementById('loadingModal').classList.remove('hidden');
+    }
+    
+    function hideLoading() {
+        document.getElementById('loadingModal').classList.add('hidden');
+    }
+    
+    function validateCreateInput() {
+        const userName = document.getElementById('createUserName').value.trim();
+        if (!userName) {
+            showToast('Please enter your name', 'warning');
+            return false;
+        }
+        if (userName.length < 2) {
+            showToast('Name must be at least 2 characters', 'warning');
+            return false;
+        }
+        return userName;
+    }
+    
+    function validateJoinInput() {
+        const userName = document.getElementById('joinUserName').value.trim();
+        if (!userName) {
+            showToast('Please enter your name', 'warning');
+            return false;
+        }
+        if (userName.length < 2) {
+            showToast('Name must be at least 2 characters', 'warning');
+            return false;
+        }
+        return userName;
+    }
+    
+    // Create room
+    document.getElementById('createRoomBtn').addEventListener('click', () => {
+        const userName = validateCreateInput();
+        if (!userName) return;
+        
+        showLoading();
+        socket.emit('create_room', { user_name: userName });
+    });
+    
+    // Join room
+    document.getElementById('joinRoomBtn').addEventListener('click', () => {
+        const userName = validateJoinInput();
+        if (!userName) return;
+        
+        const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
+        if (!roomCode) {
+            showToast('Please enter a room code', 'warning');
+            return;
+        }
+        if (roomCode.length !== 6) {
+            showToast('Room code must be 6 characters', 'warning');
+            return;
+        }
+        
+        showLoading();
+        socket.emit('join_room', { 
+            room_code: roomCode, 
+            user_name: userName 
+        });
+    });
+    
+    // Auto-format room code input
+    document.getElementById('roomCode').addEventListener('input', (e) => {
+        e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+    
+    // Enter key handlers
+    document.getElementById('createUserName').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            document.getElementById('createRoomBtn').click();
+        }
+    });
+    
+    document.getElementById('joinUserName').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            document.getElementById('joinRoomBtn').click();
+        }
+    });
+    
+    document.getElementById('roomCode').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            document.getElementById('joinRoomBtn').click();
+        }
+    });
+    
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        initSocket();
+    });
+</script>
+{% endblock %} 

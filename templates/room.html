@@ -1,0 +1,2167 @@
+{% extends "base.html" %}
+
+{% block title %}Room {{ room_code }} - WatchWithMi{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-900 text-white">
+    <!-- Header -->
+    <header class="bg-gray-800 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-xl font-bold">🎬 WatchWithMi</h1>
+                    <button 
+                        id="roomCodeBtn"
+                        class="bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer"
+                        title="Click to copy room code"
+                    >
+                        Room: {{ room_code }}
+                    </button>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button 
+                        id="leaveRoomBtn"
+                        class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                        Leave Room
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Main Content Area -->
+            <div class="lg:col-span-3 space-y-6">
+                <!-- Media Player -->
+                <div class="bg-gray-800 rounded-lg overflow-hidden">
+                    <div id="mediaContainer" class="media-container bg-black flex items-center justify-center">
+                        <!-- YouTube Player -->
+                        <div id="youtubePlayer" class="w-full h-full hidden">
+                            <div id="player"></div>
+                        </div>
+                        
+                        <!-- Video Player -->
+                        <video 
+                            id="videoPlayer" 
+                            class="w-full h-full hidden" 
+                            controls
+                            preload="metadata"
+                        ></video>
+                        
+                        <!-- Placeholder -->
+                        <div id="noMediaPlaceholder" class="text-center text-gray-400">
+                            <div class="text-6xl mb-4">🎬</div>
+                            <h3 class="text-xl font-semibold mb-2">No media selected</h3>
+                            <p class="text-sm">Host can add media using the controls below</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Media Controls -->
+                    <div class="p-4 bg-gray-750 border-t border-gray-700">
+                        <!-- Enhanced Media Controls -->
+                        <div id="mediaControls" class="space-y-4">
+                            <!-- Media Type Tabs -->
+                            <div class="flex space-x-2 mb-4">
+                                <button id="youtubeTab" class="media-tab active bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                                    📺 YouTube
+                                </button>
+                                <button id="torrentTab" class="media-tab bg-gray-700 hover:bg-gray-600 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium">
+                                    🏴‍☠️ Torrent
+                                </button>
+                                <button id="directTab" class="media-tab bg-gray-700 hover:bg-gray-600 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium">
+                                    🔗 Direct URL
+                                </button>
+                            </div>
+
+                            <!-- YouTube Panel -->
+                            <div id="youtubePanel" class="media-panel">
+                                <div class="flex space-x-4">
+                                    <input 
+                                        type="text" 
+                                        id="youtubeUrlInput" 
+                                        placeholder="Paste YouTube URL (youtube.com/watch?v=...)"
+                                        class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                    <button 
+                                        id="loadYoutubeBtn"
+                                        class="bg-indigo-600 hover:bg-indigo-700 px-6 py-2 rounded-lg font-medium transition-colors"
+                                    >
+                                        Load YouTube
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Torrent Panel -->
+                            <div id="torrentPanel" class="media-panel hidden">
+                                <div class="space-y-3">
+                                    <div class="flex space-x-4">
+                                        <input 
+                                            type="text" 
+                                            id="torrentSearchInput" 
+                                            placeholder="Search movies, TV shows, anime..."
+                                            class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
+                                        >
+                                        <button 
+                                            id="searchTorrentBtn"
+                                            class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded-lg font-medium transition-colors"
+                                        >
+                                            🔍 Search
+                                        </button>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        💡 Pro tip: Include quality (1080p, 720p) or year for better results<br/>
+                                        📊 Results are sorted by seeders (most first)
+                                    </div>
+                                    
+                                    <!-- Advanced: WebTorrent Fallback Toggle -->
+                                    <div class="flex items-center space-x-2 text-xs">
+                                        <label class="flex items-center space-x-1 cursor-pointer">
+                                            <input type="checkbox" id="webTorrentToggle" class="h-3 w-3 text-red-600 bg-gray-700 border-gray-600 rounded focus:ring-red-500">
+                                            <span class="text-gray-300">🌐 Force WebTorrent fallback (limited compatibility)</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Search Results -->
+                                <div id="torrentResults" class="mt-4 space-y-2 max-h-60 overflow-y-auto hidden">
+                                    <!-- Results will be populated here -->
+                                </div>
+                            </div>
+
+                            <!-- Direct URL Panel -->
+                            <div id="directPanel" class="media-panel hidden">
+                                <div class="flex space-x-4">
+                                    <input 
+                                        type="text" 
+                                        id="directUrlInput" 
+                                        placeholder="Direct video URL (.mp4, .mkv, .webm, m3u8...)"
+                                        class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    >
+                                    <button 
+                                        id="loadDirectBtn"
+                                        class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-medium transition-colors"
+                                    >
+                                        Load Video
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Current Media Info -->
+                        <div id="currentMediaInfo" class="hidden">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <span id="mediaStatus" class="text-sm text-gray-400">⏸️ Paused</span>
+                                    <span id="mediaTime" class="text-sm text-gray-400">00:00</span>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button id="playPauseBtn" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
+                                        ▶️ Play
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Users List -->
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold mb-3">👥 Users</h3>
+                    <div id="usersList" class="space-y-2">
+                        <!-- Users will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Chat -->
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold mb-3">💬 Chat</h3>
+                    
+                    <!-- Chat Messages -->
+                    <div id="chatMessages" class="chat-container overflow-y-auto mb-4 space-y-2 bg-gray-900 rounded p-3">
+                        <!-- Messages will be added here -->
+                    </div>
+                    
+                    <!-- Chat Input -->
+                    <div class="flex space-x-2">
+                        <input 
+                            type="text" 
+                            id="chatInput" 
+                            placeholder="Type a message..."
+                            class="flex-1 min-w-0 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            maxlength="500"
+                        >
+                        <button 
+                            id="sendChatBtn"
+                            class="bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded-lg font-medium transition-colors flex-shrink-0"
+                        >
+                            Send
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Video Chat Placeholder -->
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold mb-3">📹 Video Chat</h3>
+                    <div class="bg-gray-900 rounded-lg p-8 text-center">
+                        <div class="text-4xl mb-2">📹</div>
+                        <p class="text-sm text-gray-400">Video chat coming soon!</p>
+                        <p class="text-xs text-gray-500 mt-1">WebRTC integration planned</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Connection Status Modal -->
+<div id="connectionModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="glass-effect rounded-lg p-6 text-center max-w-sm">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+        <h3 class="text-lg font-semibold mb-2">Connecting to room...</h3>
+        <p class="text-sm text-gray-300">Please wait while we connect you to the room.</p>
+    </div>
+</div>
+
+<!-- Leave Room Confirmation Modal -->
+<div id="leaveRoomModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-800 rounded-lg p-6 text-center max-w-sm mx-4">
+        <div class="text-4xl mb-4">🚪</div>
+        <h3 class="text-lg font-semibold mb-2">Leave Room?</h3>
+        <p class="text-sm text-gray-300 mb-6">Are you sure you want to leave this room?</p>
+        <div class="flex space-x-3 justify-center">
+            <button 
+                id="confirmLeaveBtn"
+                class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+                Yes, Leave
+            </button>
+            <button 
+                id="cancelLeaveBtn"
+                class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- YouTube API -->
+<script src="https://www.youtube.com/iframe_api"></script>
+
+<script>
+    // Global variables
+    let socket = null;
+    let roomCode = '{{ room_code }}';
+    let currentUser = {
+        id: null,
+        name: null,
+        isHost: false
+    };
+    let ytPlayer = null;
+    let currentMedia = {
+        url: '',
+        type: 'youtube',
+        state: 'paused',
+        timestamp: 0,
+        loading: false
+    };
+    let isUserAction = true;
+        let hasJoinedRoom = false;  // Prevent duplicate joins
+    let statusTimer = null;  // Timer for updating media status
+    
+    // Initialize WebTorrent toggle
+        function initBridgeToggle() {
+            const toggle = document.getElementById('webTorrentToggle');
+            if (toggle) {
+                // Load saved preference (false by default = use bridge)
+                const forceWebTorrent = localStorage.getItem('forceWebTorrent') === 'true';
+                toggle.checked = forceWebTorrent;
+                
+                // Handle toggle changes
+                toggle.addEventListener('change', () => {
+                    localStorage.setItem('forceWebTorrent', toggle.checked.toString());
+                    localStorage.removeItem('forceTorrentBridge'); // Clear opposite setting
+                    
+                    showToast(
+                        toggle.checked 
+                            ? '🌐 WebTorrent fallback enabled - limited torrent compatibility' 
+                            : '🌉 Server bridge enabled (default) - works with all torrents',
+                        'info'
+                    );
+                });
+            }
+        }
+        
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+        // Debug WebTorrent availability
+        console.log('🔍 Checking WebTorrent availability...');
+        if (typeof WebTorrent !== 'undefined') {
+            console.log('✅ WebTorrent is loaded and available');
+            console.log('WebTorrent version:', WebTorrent.VERSION || 'unknown');
+        } else {
+            console.error('❌ WebTorrent is NOT loaded!');
+        }
+        
+        // Get user name from URL parameters first, then localStorage
+        const urlParams = new URLSearchParams(window.location.search);
+        const userName = urlParams.get('name') || localStorage.getItem('userName');
+        
+        if (!userName) {
+            // If no username found, redirect back to home instead of prompting
+            showToast('Please enter your name first', 'warning');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+            return;
+        }
+        
+        localStorage.setItem('userName', userName);
+        initSocket(userName);
+        setupEventListeners();
+        initBridgeToggle();
+    });
+    
+    // Initialize Socket.IO connection
+    function initSocket(userName) {
+        showConnectionModal();
+        
+        // Disconnect existing socket if any
+        if (socket) {
+            socket.disconnect();
+            socket = null;
+        }
+        
+        socket = io();
+        
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            // Join the room only if we haven't already
+            if (!hasJoinedRoom) {
+                hasJoinedRoom = true;
+                socket.emit('join_room', {
+                    room_code: roomCode,
+                    user_name: userName
+                });
+            }
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            showToast('Disconnected from server', 'error');
+        });
+        
+        // Remove any existing listeners to prevent duplicates
+        socket.off('room_joined');
+        socket.off('error');
+        socket.off('user_joined');
+        socket.off('user_left');
+        socket.off('users_updated');
+        socket.off('new_message');
+        socket.off('media_changed');
+        socket.off('media_play');
+        socket.off('media_pause');
+        socket.off('media_seek');
+        
+        socket.on('room_joined', (data) => {
+            hideConnectionModal();
+            currentUser.id = data.user_id;
+            currentUser.name = userName;
+            currentUser.isHost = data.is_host;
+            
+            // Update UI based on host status
+            updateHostControls();
+            
+            // Load existing media
+            if (data.media.url) {
+                loadMedia(data.media.url, data.media.type);
+            }
+            
+            // Load chat history
+            data.chat.forEach(message => addChatMessage(message));
+            
+            // Update users list
+            updateUsersList(data.users, data.room_code);
+            
+            showToast(`Welcome to room ${data.room_code}!`, 'success');
+        });
+        
+        socket.on('error', (data) => {
+            console.error('🚨 Server error:', data);
+            
+            // Don't redirect for media control errors, just show toast
+            if (data.message === 'Only host can change media') {
+                showToast(data.message, 'error');
+                return;
+            }
+            
+            hideConnectionModal();
+            showToast(data.message, 'error');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        });
+        
+        // User events
+        socket.on('user_joined', (data) => {
+            // Only show message if it's not us joining (to avoid duplicate with welcome message)
+            if (data.user_id !== currentUser.id) {
+                addServerMessage(`${data.user_name} joined the room`);
+                showToast(`${data.user_name} joined`, 'info');
+            }
+        });
+        
+        socket.on('user_left', (data) => {
+            addServerMessage(`${data.user_name} left the room`);
+            if (data.new_host === currentUser.id) {
+                currentUser.isHost = true;
+                updateHostControls();
+                showToast('You are now the host!', 'info');
+            }
+        });
+        
+        socket.on('users_updated', (data) => {
+            updateUsersList(data.users, roomCode);
+        });
+        
+        // Chat events
+        socket.on('new_message', (data) => {
+            addChatMessage(data);
+        });
+        
+        // Media events
+        socket.on('media_changed', (data) => {
+            console.log('📨 Received media_changed event:', data);
+            console.log('🎯 About to call loadMedia with:', data.url, data.type);
+            addServerMessage(`${data.user_name} loaded new media`);
+            // Ensure we detect the media type correctly
+            const detectedType = detectMediaType(data.url);
+            const finalType = data.type || detectedType;
+            console.log('Media changed:', { url: data.url, serverType: data.type, detectedType, finalType });
+            loadMedia(data.url, finalType);
+        });
+        
+        socket.on('media_play', (data) => {
+            console.log('📨 Received media_play event:', data);
+            console.log('🎯 Socket connected:', socket.connected, 'User:', data.user_name);
+            addServerMessage(`${data.user_name} started playback`);
+            syncPlay(data.timestamp);
+        });
+        
+        socket.on('media_pause', (data) => {
+            addServerMessage(`${data.user_name} paused playback`);
+            syncPause(data.timestamp);
+        });
+        
+        socket.on('media_seek', (data) => {
+            addServerMessage(`${data.user_name} jumped to ${formatTimestamp(data.timestamp)}`);
+            syncSeek(data.timestamp);
+        });
+
+        // Handle socket disconnection/reconnection
+        socket.on('disconnect', (reason) => {
+            console.log('🔌 Socket disconnected:', reason);
+            showToast('Connection lost - attempting to reconnect...', 'warning');
+        });
+
+        socket.on('connect', () => {
+            console.log('🔌 Socket connected/reconnected');
+            // Re-join the room
+            socket.emit('join_room', { 
+                room_code: roomCode, 
+                user_name: currentUser.name 
+            });
+        });
+    }
+    
+    // Setup event listeners
+    function setupEventListeners() {
+        // Room code button - copy to clipboard
+        document.getElementById('roomCodeBtn').addEventListener('click', () => {
+            copyToClipboard(roomCode);
+        });
+        
+        // Leave room button - show confirmation modal
+        document.getElementById('leaveRoomBtn').addEventListener('click', showLeaveRoomModal);
+        
+        // Leave room modal buttons
+        document.getElementById('confirmLeaveBtn').addEventListener('click', () => {
+            hideLeaveRoomModal();
+            window.location.href = '/';
+        });
+        
+        document.getElementById('cancelLeaveBtn').addEventListener('click', hideLeaveRoomModal);
+        
+        // Media tab switching
+        document.getElementById('youtubeTab').addEventListener('click', () => switchMediaTab('youtube'));
+        document.getElementById('torrentTab').addEventListener('click', () => switchMediaTab('torrent'));
+        document.getElementById('directTab').addEventListener('click', () => switchMediaTab('direct'));
+
+        // YouTube load button
+        document.getElementById('loadYoutubeBtn').addEventListener('click', () => {
+            const url = document.getElementById('youtubeUrlInput').value.trim();
+            if (url) {
+                loadMediaFromUrl(url, 'youtube');
+                document.getElementById('youtubeUrlInput').value = '';
+            }
+        });
+
+        // Direct URL load button
+        document.getElementById('loadDirectBtn').addEventListener('click', () => {
+            const url = document.getElementById('directUrlInput').value.trim();
+            if (url) {
+                loadMediaFromUrl(url, 'video');
+                document.getElementById('directUrlInput').value = '';
+            }
+        });
+
+        // Torrent search button
+        document.getElementById('searchTorrentBtn').addEventListener('click', () => {
+            const query = document.getElementById('torrentSearchInput').value.trim();
+            if (query) {
+                searchTorrents(query);
+            }
+        });
+
+        // Enter key support for inputs
+        document.getElementById('youtubeUrlInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('loadYoutubeBtn').click();
+        });
+        document.getElementById('directUrlInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('loadDirectBtn').click();
+        });
+        document.getElementById('torrentSearchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('searchTorrentBtn').click();
+        });
+        
+        // Play/Pause button
+        document.getElementById('playPauseBtn').addEventListener('click', () => {
+            console.log('🎮 Play/Pause button clicked! Current state:', currentMedia.state);
+            console.log('🔍 Button debugging:', {
+                mediaReady: isMediaReady(),
+                mediaType: currentMedia.type,
+                mediaLoading: currentMedia.loading,
+                socketConnected: socket?.connected,
+                buttonDisabled: document.getElementById('playPauseBtn').disabled,
+                videoSrc: document.getElementById('videoPlayer').src,
+                videoReadyState: document.getElementById('videoPlayer').readyState
+            });
+            
+            if (currentMedia.state === 'playing') {
+                console.log('⏸️ Calling pauseMedia()');
+                pauseMedia();
+            } else {
+                console.log('▶️ Calling playMedia()');
+                playMedia();
+            }
+        });
+        
+        // Chat input
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+        
+        document.getElementById('sendChatBtn').addEventListener('click', sendChatMessage);
+    }
+    
+    // Modal functions
+    function showLeaveRoomModal() {
+        document.getElementById('leaveRoomModal').classList.remove('hidden');
+    }
+    
+    function hideLeaveRoomModal() {
+        document.getElementById('leaveRoomModal').classList.add('hidden');
+    }
+    
+    // Media tab switching
+    function switchMediaTab(tab) {
+        // Remove active from all tabs
+        document.querySelectorAll('.media-tab').forEach(t => {
+            t.classList.remove('active', 'bg-indigo-600', 'bg-red-600', 'bg-green-600', 'text-white');
+            t.classList.add('bg-gray-700', 'text-gray-300');
+        });
+        
+        // Hide all panels
+        document.querySelectorAll('.media-panel').forEach(p => p.classList.add('hidden'));
+        
+        // Show active tab and panel
+        if (tab === 'youtube') {
+            document.getElementById('youtubeTab').classList.remove('bg-gray-700', 'text-gray-300');
+            document.getElementById('youtubeTab').classList.add('active', 'bg-indigo-600', 'text-white');
+            document.getElementById('youtubePanel').classList.remove('hidden');
+        } else if (tab === 'torrent') {
+            document.getElementById('torrentTab').classList.remove('bg-gray-700', 'text-gray-300');
+            document.getElementById('torrentTab').classList.add('active', 'bg-red-600', 'text-white');
+            document.getElementById('torrentPanel').classList.remove('hidden');
+        } else if (tab === 'direct') {
+            document.getElementById('directTab').classList.remove('bg-gray-700', 'text-gray-300');
+            document.getElementById('directTab').classList.add('active', 'bg-green-600', 'text-white');
+            document.getElementById('directPanel').classList.remove('hidden');
+        }
+    }
+
+    // Load media from URL
+    function loadMediaFromUrl(url, type) {
+        socket.emit('media_control', {
+            action: 'change_media',
+            url: url,
+            type: type
+        });
+    }
+
+    // Torrent search function
+    async function searchTorrents(query) {
+        const resultsDiv = document.getElementById('torrentResults');
+        const searchBtn = document.getElementById('searchTorrentBtn');
+        
+        // Show loading state
+        searchBtn.textContent = '🔍 Searching...';
+        searchBtn.disabled = true;
+        resultsDiv.innerHTML = '<div class="text-center text-gray-400 py-4">🔍 Searching torrents...</div>';
+        resultsDiv.classList.remove('hidden');
+        
+        try {
+            const response = await fetch('/api/search-torrents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: query })
+            });
+            
+            const data = await response.json();
+            
+            if (data.results && data.results.length > 0) {
+                displayTorrentResults(data.results);
+            } else {
+                resultsDiv.innerHTML = '<div class="text-center text-gray-400 py-4">❌ No results found. Try different keywords.</div>';
+            }
+        } catch (error) {
+            console.error('Torrent search error:', error);
+            resultsDiv.innerHTML = '<div class="text-center text-red-400 py-4">❌ Search failed. Try again.</div>';
+        }
+        
+        // Reset button
+        searchBtn.textContent = '🔍 Search';
+        searchBtn.disabled = false;
+    }
+
+    // Display torrent search results
+    function displayTorrentResults(results) {
+        const resultsDiv = document.getElementById('torrentResults');
+        
+        resultsDiv.innerHTML = results.map(result => {
+            // Handle placeholder/error messages differently
+            if (result.is_placeholder) {
+                return `
+                    <div class="bg-gray-800 rounded-lg p-4 border border-gray-600">
+                        <div class="flex items-center space-x-3">
+                            <div class="text-2xl">${result.title.includes('⚠️') ? '⚠️' : result.title.includes('⏰') ? '⏰' : '❌'}</div>
+                            <div>
+                                <h4 class="text-white font-medium text-sm">${result.title}</h4>
+                                <p class="text-xs text-gray-400 mt-1">Try a different search term or check your internet connection</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Check if torrent has WebSocket trackers (WebTorrent compatible)
+            const hasWebSocketTrackers = result.magnet && result.magnet.includes('wss://');
+            const isWebTorrentCompatible = hasWebSocketTrackers;
+            
+            // Regular torrent result
+            return `
+                <div class="torrent-result bg-gray-700 rounded-lg p-3 cursor-pointer border border-gray-600 hover:border-red-500" 
+                     onclick="selectTorrent('${result.magnet}', '${result.title.replace(/'/g, "\\'")}')">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h4 class="text-white font-medium text-sm mb-1">${result.title}</h4>
+                            <div class="flex items-center space-x-4 text-xs text-gray-400">
+                                <span class="flex items-center">
+                                    <span class="text-green-400">📁</span> ${result.size || 'Unknown'}
+                                </span>
+                                <span class="flex items-center">
+                                    <span class="text-green-400">⬆️</span> 
+                                    <span class="text-green-300 font-medium">${result.seeders || 0}</span>
+                                    <span class="text-gray-500">/</span>
+                                    <span class="text-red-300">${result.leechers || 0}</span>
+                                </span>
+                                ${result.quality ? `<span class="bg-yellow-600 px-2 py-1 rounded text-xs font-medium">${result.quality}</span>` : ''}
+                                ${!isWebTorrentCompatible ? '<span class="bg-orange-600 px-2 py-1 rounded text-xs font-medium">⚠️ UDP Only</span>' : '<span class="bg-green-600 px-2 py-1 rounded text-xs font-medium">✅ WebTorrent</span>'}
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end space-y-1">
+                            ${result.seeders > 0 ? `<span class="text-xs px-2 py-1 bg-green-600 text-white rounded font-medium">${result.seeders} seeds</span>` : '<span class="text-xs px-2 py-1 bg-gray-600 text-gray-300 rounded">No seeds</span>'}
+                            ${result.seeders >= 50 ? '<span class="text-xs px-1 py-0.5 bg-green-500 text-white rounded">🟢 Good</span>' : 
+                              result.seeders >= 10 ? '<span class="text-xs px-1 py-0.5 bg-yellow-500 text-white rounded">🟡 Fair</span>' : 
+                              result.seeders > 0 ? '<span class="text-xs px-1 py-0.5 bg-red-500 text-white rounded">🔴 Poor</span>' : 
+                              '<span class="text-xs px-1 py-0.5 bg-gray-500 text-white rounded">💀 Dead</span>'}
+                            <button class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs font-medium" 
+                                    onclick="event.stopPropagation(); console.log('🎬 Stream button clicked!'); selectTorrent(\`${result.magnet}\`, \`${result.title.replace(/`/g, '\\`')}\`);">
+                                ${isWebTorrentCompatible ? '🎬 Stream' : '📋 Copy Link'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Select and stream torrent
+    function selectTorrent(magnetUrl, title) {
+        console.log('🎯 selectTorrent called with:', { magnetUrl, title });
+        
+        if (!magnetUrl) {
+            showToast('Invalid torrent link', 'error');
+            return;
+        }
+        
+        // Don't allow selecting placeholder/error results
+        if (magnetUrl.includes('0000000000000000000000000000000000000000')) {
+            showToast('This is not a valid torrent link', 'warning');
+            return;
+        }
+        
+        // Don't show toast here - let loadTorrentStream handle it
+        console.log('📡 Emitting media_control event:', {
+            action: 'change_media',
+            url: magnetUrl,
+            type: 'torrent',
+            title: title
+        });
+        
+        if (socket && socket.connected) {
+            socket.emit('media_control', {
+                action: 'change_media',
+                url: magnetUrl,
+                type: 'torrent',
+                title: title
+            });
+            
+            // WORKAROUND: Load media immediately instead of waiting for server response
+            // This fixes the event listener timing issue
+            console.log('🔧 Workaround: Loading media immediately without waiting for server');
+            loadMedia(magnetUrl, 'torrent');
+        } else {
+            console.error('❌ Socket not connected! State:', socket ? socket.connected : 'null');
+            showToast('Not connected to server', 'error');
+            return;
+        }
+        
+        console.log('📡 Event emitted, hiding search results...');
+        
+        // Hide results
+        document.getElementById('torrentResults').classList.add('hidden');
+        document.getElementById('torrentSearchInput').value = '';
+        
+        console.log('✅ selectTorrent completed');
+    }
+
+    // Media functions
+    function detectMediaType(url) {
+        console.log('detectMediaType called with URL:', url);
+        if (url.includes('youtube.com') || url.includes('youtu.be')) {
+            console.log('Detected type: youtube');
+            return 'youtube';
+        }
+        if (url.startsWith('magnet:') || url.includes('.torrent')) {
+            console.log('Detected type: torrent');
+            return 'torrent';
+        }
+        console.log('Detected type: video');
+        return 'video';
+    }
+    
+    function loadMedia(url, type) {
+        console.log('loadMedia called with:', { url, type });
+        
+        // Clean up any existing torrent loading state if switching to non-torrent
+        if (type !== 'torrent') {
+            if (window.currentTorrentTimeout) {
+                clearTimeout(window.currentTorrentTimeout);
+                console.log('Cleared torrent timeout (switching media type)');
+            }
+            if (window.currentProgressInterval) {
+                clearInterval(window.currentProgressInterval);
+                console.log('Cleared progress interval (switching media type)');
+            }
+        }
+        
+        currentMedia.url = url;
+        currentMedia.type = type;
+        currentMedia.loading = (type === 'torrent'); // Set loading for torrents
+        
+        // Hide all players first
+        document.getElementById('youtubePlayer').classList.add('hidden');
+        document.getElementById('videoPlayer').classList.add('hidden');
+        document.getElementById('noMediaPlaceholder').classList.add('hidden');
+        
+        if (type === 'youtube') {
+            console.log('Loading YouTube video');
+            currentMedia.loading = false; // YouTube loads quickly
+            loadYouTubeVideo(url);
+        } else if (type === 'torrent') {
+            console.log('Loading torrent stream');
+            loadTorrentStream(url);
+        } else {
+            console.log('Loading video file');
+            currentMedia.loading = false; // Direct videos load quickly
+            loadVideoFile(url);
+        }
+        
+        // Show media controls and update status
+        document.getElementById('currentMediaInfo').classList.remove('hidden');
+        updateMediaStatus();
+    }
+    
+    function loadYouTubeVideo(url) {
+        const videoId = extractYouTubeVideoId(url);
+        if (!videoId) {
+            showToast('Invalid YouTube URL', 'error');
+            return;
+        }
+        
+        document.getElementById('youtubePlayer').classList.remove('hidden');
+        
+        if (ytPlayer) {
+            ytPlayer.loadVideoById(videoId);
+        } else {
+            // Initialize YouTube player
+            ytPlayer = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: videoId,
+                playerVars: {
+                    'playsinline': 1,
+                    'controls': 0,
+                    'modestbranding': 1,
+                    'rel': 0
+                },
+                events: {
+                    'onReady': () => {
+                        console.log('YouTube player ready');
+                    },
+                    'onStateChange': (event) => {
+                        handleYouTubeStateChange(event);
+                    }
+                }
+            });
+        }
+    }
+    
+    function loadVideoFile(url) {
+        console.log('loadVideoFile called with URL:', url);
+        
+        // Check if this is a magnet URL that shouldn't be here
+        if (url.startsWith('magnet:')) {
+            console.error('ERROR: Magnet URL passed to loadVideoFile! This should go to loadTorrentStream');
+            showToast('Error: Magnet links need WebTorrent support', 'error');
+            return;
+        }
+        
+        const videoPlayer = document.getElementById('videoPlayer');
+        videoPlayer.src = url;
+        videoPlayer.classList.remove('hidden');
+        
+        // Add event listeners for video
+        addVideoEventListeners(videoPlayer);
+    }
+    
+    function addVideoEventListeners(videoPlayer) {
+        // Remove any existing listeners to avoid duplicates
+        videoPlayer.removeEventListener('play', handleVideoPlay);
+        videoPlayer.removeEventListener('pause', handleVideoPause);
+        videoPlayer.removeEventListener('canplay', handleVideoCanPlay);
+        videoPlayer.removeEventListener('loadedmetadata', handleVideoLoadedMetadata);
+        
+        // Add event listeners for video
+        videoPlayer.addEventListener('play', handleVideoPlay);
+        videoPlayer.addEventListener('pause', handleVideoPause);
+        videoPlayer.addEventListener('canplay', handleVideoCanPlay);
+        videoPlayer.addEventListener('loadedmetadata', handleVideoLoadedMetadata);
+    }
+    
+    function handleVideoCanPlay() {
+        console.log('🎬 Video can play - updating status');
+        currentMedia.loading = false;
+        updateMediaStatus();
+    }
+    
+    function handleVideoLoadedMetadata() {
+        console.log('📊 Video metadata loaded');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const duration = videoPlayer.duration;
+        if (duration && !isNaN(duration)) {
+            console.log('⏱️ Video duration:', formatTimestamp(duration));
+        }
+        
+        // Add audio debugging here too (in case the other one doesn't fire)
+        console.log('🔊 Audio debugging (from metadata):', {
+            audioTracks: videoPlayer.audioTracks ? videoPlayer.audioTracks.length : 'N/A',
+            volume: videoPlayer.volume,
+            muted: videoPlayer.muted,
+            hasAudio: videoPlayer.mozHasAudio || videoPlayer.webkitAudioDecodedByteCount > 0 || videoPlayer.audioTracks?.length > 0
+        });
+        
+        console.log('🎥 Video format debugging:', {
+            src: videoPlayer.src,
+            videoWidth: videoPlayer.videoWidth,
+            videoHeight: videoPlayer.videoHeight,
+            duration: videoPlayer.duration,
+            canPlayMP4: videoPlayer.canPlayType('video/mp4'),
+            canPlayWebM: videoPlayer.canPlayType('video/webm'),
+            canPlayOgg: videoPlayer.canPlayType('video/ogg')
+        });
+        
+        // Try to enable audio
+        videoPlayer.muted = false;
+        videoPlayer.volume = 1.0;
+    }
+    
+    function handleVideoPlay() {
+        if (!isUserAction) return;
+        const videoPlayer = document.getElementById('videoPlayer');
+        socket.emit('media_control', {
+            action: 'play',
+            timestamp: videoPlayer.currentTime
+        });
+    }
+    
+    function handleVideoPause() {
+        if (!isUserAction) return;
+        const videoPlayer = document.getElementById('videoPlayer');
+        socket.emit('media_control', {
+            action: 'pause',
+            timestamp: videoPlayer.currentTime
+        });
+    }
+    
+    function loadTorrentStream(magnetUrl) {
+        console.log('🏴‍☠️ Loading torrent stream:', magnetUrl);
+        
+        // Clean up any existing torrent loading state
+        if (window.currentTorrentTimeout) {
+            clearTimeout(window.currentTorrentTimeout);
+            console.log('Cleared previous torrent timeout');
+        }
+        if (window.currentProgressInterval) {
+            clearInterval(window.currentProgressInterval);
+            console.log('Cleared previous progress interval');
+        }
+        
+        // Try torrent bridge first, fallback to WebTorrent
+        const hostname = window.location.hostname;
+        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
+        
+        // Allow manual override via localStorage for testing
+        const forceBridge = localStorage.getItem('forceTorrentBridge') === 'true';
+        const forceWebTorrent = localStorage.getItem('forceWebTorrent') === 'true';
+        
+        console.log('🔍 Bridge detection:', { hostname, isLocalhost, forceBridge, forceWebTorrent });
+        
+        // Default to bridge mode, only use WebTorrent if explicitly forced or bridge unavailable
+        if (forceWebTorrent && !forceBridge) {
+            console.log('🌐 Using WebTorrent (manually forced fallback)');
+            loadTorrentViaWebTorrent(magnetUrl);
+        } else {
+            console.log('🌉 Using torrent bridge (default - server-side downloading)');
+            loadTorrentViaBridge(magnetUrl);
+        }
+    }
+    
+    async function loadTorrentViaBridge(magnetUrl) {
+        console.log('🌉 Loading torrent via server bridge:', magnetUrl);
+        
+        // Destroy existing torrent if present
+        if (window.currentTorrent) {
+            console.log('Destroying previous torrent');
+            window.currentTorrent.destroy();
+            window.currentTorrent = null;
+        }
+        
+        try {
+            showToast('Loading torrent via server... (faster & more reliable)', 'info');
+            
+            const placeholder = document.getElementById('noMediaPlaceholder');
+            const videoPlayer = document.getElementById('videoPlayer');
+            
+            // Hide video player initially
+            videoPlayer.classList.add('hidden');
+            
+            // Show loading UI
+            placeholder.innerHTML = `
+                <div class="text-center text-yellow-400">
+                    <div class="text-6xl mb-4">🌉</div>
+                    <h3 class="text-xl font-semibold mb-2">Server Bridge Loading</h3>
+                    <div id="bridgeProgress">
+                        <div class="flex items-center justify-center space-x-2 mb-4">
+                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-400"></div>
+                            <span class="text-sm">Adding torrent to server...</span>
+                        </div>
+                        <p class="text-xs text-gray-400 mb-4">
+                            Server downloads the torrent using real UDP trackers
+                        </p>
+                    </div>
+                </div>
+            `;
+            placeholder.classList.remove('hidden');
+            
+            // Add torrent to server
+            const response = await fetch('/api/torrent/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    magnet_url: magnetUrl
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            const torrentId = result.torrent_id;
+            
+            console.log('✅ Torrent added to server:', torrentId);
+            
+            // Update progress UI
+            document.getElementById('bridgeProgress').innerHTML = `
+                <div class="flex items-center justify-center space-x-2 mb-4">
+                    <div class="animate-pulse text-green-400">✅</div>
+                    <span class="text-sm">Torrent added, waiting for files...</span>
+                </div>
+                <p class="text-xs text-gray-300 mb-2">Name: ${result.status.name || 'Loading...'}</p>
+                <p class="text-xs text-gray-400">Finding largest video file...</p>
+            `;
+            
+            // Wait for metadata and find video file
+            const statusResult = await waitForTorrentReady(torrentId);
+            
+            if (statusResult.largest_file) {
+                const videoFile = statusResult.largest_file;
+                const streamUrl = `/api/torrent/stream/${torrentId}/${videoFile.index}`;
+                
+                console.log('🎬 Video file ready:', videoFile.path);
+                console.log('📺 Stream URL:', streamUrl);
+                
+                // Load video
+                console.log('🎬 Setting video source and showing player...');
+                
+                // Test the stream URL before setting it
+                console.log('🧪 Testing stream URL:', streamUrl);
+                fetch(streamUrl, { 
+                    method: 'HEAD',
+                    headers: { 'Range': 'bytes=0-1024' }
+                })
+                .then(response => {
+                    console.log('📡 Stream URL test result:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        contentType: response.headers.get('Content-Type'),
+                        contentLength: response.headers.get('Content-Length'),
+                        acceptRanges: response.headers.get('Accept-Ranges'),
+                        contentRange: response.headers.get('Content-Range')
+                    });
+                    
+                    if (response.status === 200 || response.status === 206) {
+                        console.log('✅ Stream URL is accessible');
+                    } else {
+                        console.error('❌ Stream URL failed:', response.status, response.statusText);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Stream URL test error:', error);
+                });
+                
+                videoPlayer.src = streamUrl;
+                videoPlayer.classList.remove('hidden');
+                
+                // FORCE placeholder to be completely hidden
+                placeholder.classList.add('hidden');
+                placeholder.style.display = 'none';
+                placeholder.style.visibility = 'hidden';
+                placeholder.style.opacity = '0';
+                placeholder.style.pointerEvents = 'none';
+                console.log('🚫 Placeholder forcefully hidden with multiple methods');
+                
+                // FORCE video player to be completely visible
+                videoPlayer.style.display = 'block';
+                videoPlayer.style.visibility = 'visible';
+                videoPlayer.style.opacity = '1';
+                videoPlayer.style.pointerEvents = 'auto';
+                videoPlayer.style.zIndex = '10';
+                videoPlayer.style.position = 'relative';
+                console.log('✅ Video player forcefully shown with multiple methods');
+                
+                // Debug player interactivity
+                console.log('🔍 Video player debugging:', {
+                    display: videoPlayer.style.display,
+                    visibility: videoPlayer.style.visibility,
+                    opacity: videoPlayer.style.opacity,
+                    pointerEvents: videoPlayer.style.pointerEvents,
+                    zIndex: videoPlayer.style.zIndex,
+                    offsetWidth: videoPlayer.offsetWidth,
+                    offsetHeight: videoPlayer.offsetHeight,
+                    parentElement: videoPlayer.parentElement?.tagName
+                });
+                
+                // Update media state
+                currentMedia.loading = false;
+                currentMedia.state = 'paused';
+                currentMedia.url = streamUrl;
+                currentMedia.type = 'torrent';
+                
+                showToast('Torrent video ready!', 'success');
+                addVideoEventListeners(videoPlayer);
+                updateMediaStatus();
+                
+                // Test video player interaction
+                setTimeout(() => {
+                    console.log('🧪 Testing video player interaction...');
+                    
+                    // Add a test click handler to the video
+                    const testVideoClick = () => {
+                        console.log('✅ Video player is clickable!');
+                        videoPlayer.removeEventListener('click', testVideoClick);
+                    };
+                    videoPlayer.addEventListener('click', testVideoClick);
+                    
+                                    // Try to simulate a click
+                const clickEvent = new MouseEvent('click', {
+                    view: window,
+                    bubbles: true,
+                    cancelable: true
+                });
+                videoPlayer.dispatchEvent(clickEvent);
+                
+                // Add debugging for video events
+                videoPlayer.addEventListener('play', () => console.log('🎬 Video PLAY event fired'));
+                videoPlayer.addEventListener('pause', () => console.log('⏸️ Video PAUSE event fired'));
+                videoPlayer.addEventListener('waiting', () => console.log('⏳ Video WAITING (buffering)'));
+                videoPlayer.addEventListener('playing', () => console.log('▶️ Video PLAYING event fired'));
+                videoPlayer.addEventListener('stalled', () => console.log('🛑 Video STALLED'));
+                videoPlayer.addEventListener('error', (e) => {
+                    console.log('❌ Video ERROR:', e);
+                    console.log('🔍 Video error details:', {
+                        error: videoPlayer.error,
+                        networkState: videoPlayer.networkState,
+                        readyState: videoPlayer.readyState,
+                        src: videoPlayer.src
+                    });
+                    
+                                        // Show user-friendly error
+                    showToast('Video stream error - waiting for more download progress', 'warning');
+                    
+                    // Reset to placeholder and wait for more progress
+                    const placeholder = document.getElementById('noMediaPlaceholder');
+                    placeholder.innerHTML = `
+                        <div class="text-center text-orange-400">
+                            <div class="text-6xl mb-4">⏳</div>
+                            <h3 class="text-xl font-semibold mb-2">Stream Not Ready</h3>
+                            <p class="text-sm mb-4">Waiting for more download progress...</p>
+                            <div id="bridgeProgress">
+                                <div class="w-full bg-gray-600 rounded-full h-2 mb-4">
+                                    <div class="bg-orange-400 h-2 rounded-full transition-all duration-1000" style="width: 6%"></div>
+                                </div>
+                                <p class="text-xs text-gray-400 mb-4">
+                                    Need more data for reliable streaming.<br/>
+                                    Will retry automatically when more is downloaded.
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                    placeholder.classList.remove('hidden');
+                    videoPlayer.classList.add('hidden');
+                    
+                    // Retry when more progress is made
+                    const retryInterval = setInterval(async () => {
+                        try {
+                            const response = await fetch(`/api/torrent/status/${window.currentTorrentId || torrentId}`);
+                            const status = await response.json();
+                            
+                            if (status.file_progress > 0.15) { // Wait for 15% instead of 6%
+                                clearInterval(retryInterval);
+                                console.log('🔄 Retrying stream with more progress:', Math.round(status.file_progress * 100) + '%');
+                                location.reload(); // Simple retry by reloading
+                            }
+                        } catch (e) {
+                            console.error('Retry check failed:', e);
+                        }
+                    }, 5000); // Check every 5 seconds
+                });
+                
+                // Check audio tracks when metadata loads
+                videoPlayer.addEventListener('loadedmetadata', () => {
+                    console.log('🔊 Audio debugging:', {
+                        audioTracks: videoPlayer.audioTracks ? videoPlayer.audioTracks.length : 'N/A',
+                        volume: videoPlayer.volume,
+                        muted: videoPlayer.muted,
+                        hasAudio: videoPlayer.mozHasAudio || videoPlayer.webkitAudioDecodedByteCount > 0 || videoPlayer.audioTracks?.length > 0
+                    });
+                    
+                    // Try to enable audio
+                    videoPlayer.muted = false;
+                    videoPlayer.volume = 1.0;
+                    
+                    // Check what codecs the video uses
+                    console.log('🎥 Video format debugging:', {
+                        src: videoPlayer.src,
+                        videoWidth: videoPlayer.videoWidth,
+                        videoHeight: videoPlayer.videoHeight,
+                        duration: videoPlayer.duration,
+                        canPlayMP4: videoPlayer.canPlayType('video/mp4'),
+                        canPlayWebM: videoPlayer.canPlayType('video/webm'),
+                        canPlayOgg: videoPlayer.canPlayType('video/ogg')
+                    });
+                });
+                    
+                    // Check if any elements are covering the video
+                    const videoRect = videoPlayer.getBoundingClientRect();
+                    const elementsAtCenter = document.elementsFromPoint(
+                        videoRect.left + videoRect.width / 2,
+                        videoRect.top + videoRect.height / 2
+                    );
+                    console.log('🔍 Elements at video center:', elementsAtCenter.map(el => el.tagName + (el.id ? `#${el.id}` : '') + (el.className ? `.${el.className.split(' ').join('.')}` : '')));
+                    
+                    // Test direct video play (bypass socket system)
+                    setTimeout(() => {
+                        console.log('🧪 Testing direct video.play() bypass...');
+                        const directPlayPromise = videoPlayer.play();
+                        if (directPlayPromise) {
+                            directPlayPromise
+                                .then(() => {
+                                    console.log('✅ Direct video.play() succeeded!');
+                                    currentMedia.state = 'playing'; // Update state manually
+                                    updateMediaStatus();
+                                })
+                                .catch(err => {
+                                    console.error('❌ Direct video.play() failed:', err);
+                                });
+                        }
+                    }, 3000);
+                }, 2000);
+                
+                // Show current media info section
+                const currentMediaInfo = document.getElementById('currentMediaInfo');
+                if (currentMediaInfo) {
+                    currentMediaInfo.classList.remove('hidden');
+                }
+                
+                // Store torrent ID for cleanup
+                window.currentTorrentId = torrentId;
+                
+            } else {
+                throw new Error('No video files found in torrent');
+            }
+            
+        } catch (error) {
+            console.error('❌ Bridge loading error:', error);
+            
+            // Handle bridge error (inline since function may not be hoisted yet)
+            currentMedia.loading = false;
+            
+            showToast(`Bridge failed: ${error.message}`, 'error');
+            
+            const placeholder = document.getElementById('noMediaPlaceholder');
+            placeholder.innerHTML = `
+                <div class="text-center text-red-400">
+                    <div class="text-6xl mb-4">🌉</div>
+                    <h3 class="text-xl font-semibold mb-2">Server Bridge Failed</h3>
+                    <p class="text-sm mb-4">Bridge failed: ${error.message}</p>
+                    <p class="text-xs text-gray-400 mb-4">
+                        The server torrent bridge encountered an error.<br/>
+                        Try enabling WebTorrent fallback or try a different torrent.
+                    </p>
+                    <button 
+                        onclick="copyToClipboard('${magnetUrl}')" 
+                        class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm mb-2"
+                    >
+                        📋 Copy Magnet Link
+                    </button>
+                </div>
+            `;
+            placeholder.classList.remove('hidden');
+            updateMediaStatus();
+        }
+    }
+    
+    async function waitForTorrentReady(torrentId, maxWaitTime = 60000) {
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < maxWaitTime) {
+            try {
+                const response = await fetch(`/api/torrent/status/${torrentId}`);
+                const status = await response.json();
+                
+                const fileProgress = Math.round((status.file_progress || 0) * 100);
+                const overallProgress = Math.round(status.progress * 100);
+                
+                console.log('📊 Torrent status:', status.status, `File: ${fileProgress}%, Overall: ${overallProgress}%`);
+                
+                // Update progress UI
+                const progressEl = document.getElementById('bridgeProgress');
+                if (progressEl) {
+                    const streamingThreshold = Math.round((status.streaming_threshold || 0.05) * 100);
+                    const isStreamingReady = status.streaming_ready;
+                    
+                    progressEl.innerHTML = `
+                        <div class="flex items-center justify-center space-x-2 mb-4">
+                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-400"></div>
+                            <span class="text-sm">${status.status} - Video File: ${fileProgress}%</span>
+                        </div>
+                        <div class="w-full bg-gray-600 rounded-full h-2 mb-2">
+                            <div class="bg-green-400 h-2 rounded-full transition-all duration-1000" style="width: ${fileProgress}%"></div>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-1 mb-4">
+                            <div class="bg-gray-400 h-1 rounded-full transition-all duration-1000" style="width: ${overallProgress}%"></div>
+                        </div>
+                        <p class="text-xs text-gray-300 mb-2">Name: ${status.name}</p>
+                        <p class="text-xs text-gray-400">
+                            Peers: ${status.num_peers} | Down: ${Math.round(status.download_rate / 1024)}KB/s
+                            ${isStreamingReady ? ' | 🎬 Ready to stream!' : ` | Need ${streamingThreshold}% for streaming`}
+                        </p>
+                    `;
+                }
+                
+                // Check if streaming is ready (progressive streaming)
+                if (status.streaming_ready && status.largest_file) {
+                    console.log('🎉 Streaming ready! File progress:', Math.round(status.file_progress * 100) + '%');
+                    return status;
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Check every 2 seconds
+                
+            } catch (error) {
+                console.error('❌ Error checking torrent status:', error);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+        
+        throw new Error('Torrent did not become ready within timeout');
+    }
+    
+    function loadTorrentViaWebTorrent(magnetUrl) {
+        console.log('🌐 Loading torrent via WebTorrent (fallback):', magnetUrl);
+        
+        showToast('Loading torrent... (max 3min)', 'info');
+        
+        const placeholder = document.getElementById('noMediaPlaceholder');
+        const videoPlayer = document.getElementById('videoPlayer');
+        let startTime = Date.now();
+        
+        // Hide video player initially
+        videoPlayer.classList.add('hidden');
+        
+        // Update progress every second
+        function updateProgress() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const remaining = Math.max(0, 180 - elapsed); // 3 minutes = 180 seconds
+            
+            if (currentMedia.loading) {
+                const progressEl = document.getElementById('torrentProgress');
+                if (progressEl) {
+                    const minutes = Math.floor(elapsed / 60);
+                    const seconds = elapsed % 60;
+                    const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    
+                    progressEl.innerHTML = `
+                        <div class="flex items-center justify-center space-x-2 mb-4">
+                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-400"></div>
+                            <span class="text-sm">Connecting to peers... (${timeStr} / 3:00)</span>
+                        </div>
+                        <div class="w-full bg-gray-600 rounded-full h-2 mb-4">
+                            <div class="bg-yellow-400 h-2 rounded-full transition-all duration-1000" style="width: ${(elapsed/180)*100}%"></div>
+                        </div>
+                        <p class="text-xs text-gray-400 mb-4">
+                            ${remaining > 0 ? `Auto-timeout in ${Math.ceil(remaining/60)}min if no peers found` : 'Timing out...'}
+                        </p>
+                    `;
+                }
+            }
+        }
+        
+        // Set a shorter timeout for torrent loading (3 minutes)
+        window.currentTorrentTimeout = setTimeout(() => {
+            if (currentMedia.loading) {
+                console.log('🕐 Torrent loading timeout (3 minutes)');
+                currentMedia.loading = false;
+                clearInterval(window.currentProgressInterval);
+                
+                if (window.currentTorrent) {
+                    window.currentTorrent.destroy();
+                    window.currentTorrent = null;
+                }
+                
+                showToast('Torrent timed out after 3min. Try a different one.', 'error');
+                placeholder.innerHTML = `
+                    <div class="text-center text-red-400">
+                        <div class="text-6xl mb-4">⏰</div>
+                        <h3 class="text-xl font-semibold mb-2">Loading Timeout (3min)</h3>
+                        <p class="text-sm mb-4">Torrent took too long to connect to peers</p>
+                        <p class="text-xs text-gray-400 mb-4">
+                            This torrent might have few seeders or be unavailable.<br/>
+                            Try searching for a different version with more seeders.
+                        </p>
+                        <button 
+                            onclick="copyToClipboard('${magnetUrl}')" 
+                            class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm"
+                        >
+                            📋 Copy Magnet Link
+                        </button>
+                    </div>
+                `;
+                placeholder.classList.remove('hidden');
+                updateMediaStatus();
+            }
+        }, 180000); // 3 minutes timeout (reduced from 5)
+        
+        placeholder.innerHTML = `
+            <div class="text-center text-yellow-400">
+                <div class="text-6xl mb-4">🏴‍☠️</div>
+                <h3 class="text-xl font-semibold mb-2">Loading Torrent</h3>
+                <div id="torrentProgress">
+                    <div class="flex items-center justify-center space-x-2 mb-4">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-400"></div>
+                        <span class="text-sm">Connecting to peers... (0:00 / 3:00)</span>
+                    </div>
+                    <div class="w-full bg-gray-600 rounded-full h-2 mb-4">
+                        <div class="bg-yellow-400 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mb-4">
+                        Auto-timeout in 3min if no peers found
+                    </p>
+                </div>
+                <button 
+                    onclick="copyToClipboard('${magnetUrl}')" 
+                    class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm"
+                >
+                    📋 Copy Magnet Link
+                </button>
+            </div>
+        `;
+        placeholder.classList.remove('hidden');
+        
+        // Start progress updates
+        window.currentProgressInterval = setInterval(updateProgress, 1000);
+        
+        // Check WebTorrent availability
+        if (typeof WebTorrent === 'undefined') {
+            console.error('❌ WebTorrent is not loaded');
+            currentMedia.loading = false;
+            clearTimeout(window.currentTorrentTimeout);
+            clearInterval(window.currentProgressInterval);
+            showToast('WebTorrent library not loaded', 'error');
+            placeholder.innerHTML = `
+                <div class="text-center text-red-400">
+                    <div class="text-6xl mb-4">❌</div>
+                    <h3 class="text-xl font-semibold mb-2">WebTorrent Unavailable</h3>
+                    <p class="text-sm mb-4">Cannot stream torrents directly</p>
+                    <p class="text-xs text-gray-400 mb-4">
+                        Try refreshing the page or using the magnet link<br/>
+                        in a torrent client and then use "Direct URL".
+                    </p>
+                    <button 
+                        onclick="copyToClipboard('${magnetUrl}')" 
+                        class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm"
+                    >
+                        📋 Copy Magnet Link
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        console.log('✅ WebTorrent is available');
+        
+        // Initialize WebTorrent client if not already done
+        if (!window.webTorrentClient) {
+            console.log('🆕 Creating new WebTorrent client');
+            window.webTorrentClient = new WebTorrent({
+                // Enable DHT for peer discovery
+                dht: true,
+                // Enable local service discovery
+                lsd: true,
+                // Increase max connections
+                maxConns: 100
+            });
+        }
+        
+        const client = window.webTorrentClient;
+        console.log('📦 Adding torrent to client...');
+        
+        // Add the torrent with error handling
+        try {
+            console.log('🔍 Analyzing magnet link trackers...');
+            const magnetTrackers = magnetUrl.match(/tr=([^&]+)/g);
+            if (magnetTrackers) {
+                console.log(`📡 Found ${magnetTrackers.length} trackers in magnet link`);
+            }
+            
+            const torrent = client.add(magnetUrl, {
+                // Let WebTorrent use original trackers from magnet + add WebSocket backups
+                announce: [
+                    'wss://tracker.openwebtorrent.com',
+                    'wss://tracker.btorrent.xyz',
+                    // Add some HTTP trackers as backup
+                    'udp://tracker.openbittorrent.com:80',
+                    'udp://tracker.opentrackr.org:1337'
+                ]
+            });
+            
+            window.currentTorrent = torrent;
+            
+            console.log('🔗 Torrent added, waiting for metadata...');
+            console.log('📊 Torrent info hash:', torrent.infoHash);
+            
+            // Add metadata event listener
+            torrent.on('metadata', () => {
+                console.log('📋 Metadata received');
+                console.log('📁 Torrent name:', torrent.name);
+                console.log('📊 Files count:', torrent.files.length);
+            });
+            
+            // Add wire event listener
+            torrent.on('wire', (wire) => {
+                console.log('🔌 Connected to peer:', wire.remoteAddress);
+            });
+            
+            // Add noPeers event listener
+            torrent.on('noPeers', () => {
+                console.log('🚫 No peers found for this torrent');
+            });
+            
+            // Add warning event listener
+            torrent.on('warning', (err) => {
+                console.warn('⚠️ Torrent warning:', err);
+                
+                // Count unsupported tracker warnings
+                if (err.message && err.message.includes('Unsupported tracker protocol: udp://')) {
+                    window.udpTrackerWarnings = (window.udpTrackerWarnings || 0) + 1;
+                    
+                    // If we get multiple UDP tracker warnings, this torrent won't work
+                    if (window.udpTrackerWarnings >= 3) {
+                        console.log('🚫 Multiple UDP tracker warnings detected - this torrent is not WebTorrent compatible');
+                        
+                        // Set a flag to show better error message
+                        window.isUdpTrackerIssue = true;
+                    }
+                }
+            });
+            
+            // Handle torrent ready event
+            torrent.on('ready', () => {
+                console.log('🎉 Torrent ready:', torrent.name);
+                console.log(`📁 Files: ${torrent.files.length}`);
+                
+                showToast(`Torrent loaded: ${torrent.name}`, 'success');
+                
+                // Find the largest video file
+                const videoFiles = torrent.files.filter(file => {
+                    const ext = file.name.split('.').pop().toLowerCase();
+                    return ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wmv', 'flv', 'm4v', 'ogv'].includes(ext);
+                });
+                
+                console.log(`🎬 Found ${videoFiles.length} video files`);
+                
+                // Sort by size (largest first)
+                videoFiles.sort((a, b) => b.length - a.length);
+                
+                const videoFile = videoFiles[0] || torrent.files[0]; // Fallback to first file
+                
+                if (videoFile) {
+                    console.log(`🎯 Selected video file: ${videoFile.name} (${(videoFile.length / 1024 / 1024).toFixed(1)}MB)`);
+                    
+                    // Update progress to show file selection
+                    const progressEl = document.getElementById('torrentProgress');
+                    if (progressEl) {
+                        progressEl.innerHTML = `
+                            <div class="flex items-center justify-center space-x-2 mb-4">
+                                <div class="animate-pulse text-green-400">✅</div>
+                                <span class="text-sm">Preparing video file...</span>
+                            </div>
+                            <p class="text-xs text-gray-300 mb-2">File: ${videoFile.name}</p>
+                            <p class="text-xs text-gray-400">Size: ${(videoFile.length / 1024 / 1024).toFixed(1)}MB</p>
+                        `;
+                    }
+                    
+                    // Try to get blob URL first (preferred method)
+                    videoFile.getBlobURL((err, url) => {
+                        if (err) {
+                            console.error('❌ Error getting blob URL:', err);
+                            console.log('🔄 Trying streamTo method as fallback...');
+                            
+                            // Fallback to streamTo method
+                            try {
+                                videoFile.streamTo(videoPlayer);
+                                finalizeTorrentLoad('Stream attached directly');
+                            } catch (streamError) {
+                                console.error('❌ Stream attachment failed:', streamError);
+                                handleTorrentError('Failed to create video stream');
+                            }
+                        } else {
+                            console.log('✅ Got blob URL:', url);
+                            videoPlayer.src = url;
+                            finalizeTorrentLoad('Blob URL created');
+                        }
+                    });
+                } else {
+                    console.error('❌ No video files found in torrent');
+                    console.log('📋 Available files:', torrent.files.map(f => f.name));
+                    handleTorrentError('No video files found in torrent');
+                }
+            });
+            
+            // Handle download progress
+            torrent.on('download', () => {
+                const progress = Math.round(torrent.progress * 100);
+                console.log(`📥 Download progress: ${progress}%`);
+            });
+            
+            // Handle torrent errors
+            torrent.on('error', (err) => {
+                console.error('💥 Torrent error:', err);
+                handleTorrentError(`Torrent error: ${err.message}`);
+            });
+            
+            // Add a backup timeout for metadata (10 seconds)
+            setTimeout(() => {
+                if (currentMedia.loading && torrent && !torrent.ready) {
+                    console.log('⚠️ Metadata timeout (10s), trying alternative approach...');
+                    
+                    // Try to proceed even without full metadata if we have some files
+                    if (torrent.files && torrent.files.length > 0) {
+                        console.log('🔄 Found files without full metadata, attempting to proceed...');
+                        
+                        const videoFiles = torrent.files.filter(file => {
+                            const ext = file.name.split('.').pop().toLowerCase();
+                            return ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wmv', 'flv', 'm4v', 'ogv'].includes(ext);
+                        });
+                        
+                        const videoFile = videoFiles[0] || torrent.files[0];
+                        
+                        if (videoFile) {
+                            console.log('🎯 Attempting to load file without full metadata:', videoFile.name);
+                            
+                            try {
+                                const videoPlayer = document.getElementById('videoPlayer');
+                                videoFile.streamTo(videoPlayer);
+                                finalizeTorrentLoad('Stream attached (metadata timeout fallback)');
+                            } catch (fallbackError) {
+                                console.error('❌ Fallback streaming failed:', fallbackError);
+                                handleTorrentError('Failed to stream torrent (metadata timeout)');
+                            }
+                        } else {
+                            handleTorrentError('No files found after metadata timeout');
+                        }
+                    } else {
+                                                 handleTorrentError('No peers found - try a torrent with more seeders');
+                    }
+                }
+                         }, 10000);
+            
+        } catch (addError) {
+            console.error('💥 Error adding torrent:', addError);
+            handleTorrentError(`Failed to add torrent: ${addError.message}`);
+        }
+        
+        // Helper function to finalize successful torrent load
+        function finalizeTorrentLoad(method) {
+            console.log(`🎬 Video ready via: ${method}`);
+            
+            currentMedia.loading = false;
+            clearTimeout(window.currentTorrentTimeout);
+            clearInterval(window.currentProgressInterval);
+            
+            // Show video player
+            videoPlayer.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            
+            showToast('Torrent video ready!', 'success');
+            addVideoEventListeners(videoPlayer);
+            updateMediaStatus();
+        }
+        
+        // Helper function to handle torrent errors
+        function handleTorrentError(message) {
+            console.error('🚨 Torrent error:', message);
+            
+            currentMedia.loading = false;
+            clearTimeout(window.currentTorrentTimeout);
+            clearInterval(window.currentProgressInterval);
+            
+            if (window.currentTorrent) {
+                window.currentTorrent.destroy();
+                window.currentTorrent = null;
+            }
+            
+            // Reset UDP tracker warning counter
+            window.udpTrackerWarnings = 0;
+            
+            showToast(message, 'error');
+            
+            // Show different error message based on the issue
+            let errorTitle = "Torrent Failed";
+            let errorIcon = "❌";
+            let errorDetails = message;
+            let helpText = "Try a different torrent with more seeders<br/>or use the magnet link in a torrent client.";
+            
+            if (window.isUdpTrackerIssue) {
+                errorTitle = "Browser Torrent Limitation";
+                errorIcon = "🌐";
+                errorDetails = "This torrent uses UDP trackers, which browsers cannot access";
+                helpText = "WebTorrent only works with WebSocket trackers.<br/>Most torrents use UDP trackers and won't work in browsers.<br/><strong>Copy the magnet link</strong> and use a desktop torrent client like qBittorrent.";
+                window.isUdpTrackerIssue = false; // Reset flag
+            }
+            
+            placeholder.innerHTML = `
+                <div class="text-center text-red-400">
+                    <div class="text-6xl mb-4">${errorIcon}</div>
+                    <h3 class="text-xl font-semibold mb-2">${errorTitle}</h3>
+                    <p class="text-sm mb-4">${errorDetails}</p>
+                    <p class="text-xs text-gray-400 mb-4">
+                        ${helpText}
+                    </p>
+                    <button 
+                        onclick="copyToClipboard('${magnetUrl}')" 
+                        class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm mb-2"
+                    >
+                        📋 Copy Magnet Link
+                    </button>
+                    <br/>
+                    <a href="https://www.qbittorrent.org/download.php" target="_blank" 
+                       class="text-xs text-blue-400 hover:text-blue-300 underline">
+                        📥 Download qBittorrent (Free Torrent Client)
+                    </a>
+                </div>
+            `;
+            placeholder.classList.remove('hidden');
+            updateMediaStatus();
+        }
+    }
+    
+    // YouTube helper functions
+    function extractYouTubeVideoId(url) {
+        const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
+        return match ? match[1] : null;
+    }
+    
+    function handleYouTubeStateChange(event) {
+        if (!isUserAction) return;
+        
+        const playerState = event.data;
+        const currentTime = ytPlayer.getCurrentTime();
+        
+        if (playerState === YT.PlayerState.PLAYING) {
+            socket.emit('media_control', {
+                action: 'play',
+                timestamp: currentTime
+            });
+        } else if (playerState === YT.PlayerState.PAUSED) {
+            socket.emit('media_control', {
+                action: 'pause',
+                timestamp: currentTime
+            });
+        }
+    }
+    
+    // Sync functions
+    function syncPlay(timestamp) {
+        console.log('🔄 syncPlay called:', { timestamp, type: currentMedia.type });
+        isUserAction = false;
+        currentMedia.state = 'playing';
+        
+        if (currentMedia.type === 'youtube' && ytPlayer) {
+            ytPlayer.seekTo(timestamp, true);
+            ytPlayer.playVideo();
+        } else {
+            const videoPlayer = document.getElementById('videoPlayer');
+            if (videoPlayer && videoPlayer.src) {
+                console.log('🎬 Playing video:', videoPlayer.src);
+                videoPlayer.currentTime = timestamp;
+                
+                // Attempt to play with error handling
+                console.log('🎬 Attempting video.play()...', { 
+                    currentTime: videoPlayer.currentTime,
+                    duration: videoPlayer.duration,
+                    readyState: videoPlayer.readyState,
+                    paused: videoPlayer.paused,
+                    networkState: videoPlayer.networkState,
+                    buffered: videoPlayer.buffered.length > 0 ? `${videoPlayer.buffered.start(0)}-${videoPlayer.buffered.end(0)}` : 'none'
+                });
+                
+                const playPromise = videoPlayer.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log('✅ Video.play() succeeded!');
+                        })
+                        .catch(error => {
+                            console.error('❌ Video play failed:', error);
+                            showToast('Failed to start video - try again', 'warning');
+                        });
+                } else {
+                    console.log('🔧 Video.play() returned undefined (older browser)');
+                }
+            } else {
+                console.error('❌ Video player not ready for play:', { 
+                    player: !!videoPlayer, 
+                    src: videoPlayer?.src 
+                });
+            }
+        }
+        
+        updateMediaStatus();
+        startStatusTimer();
+        setTimeout(() => { isUserAction = true; }, 1000);
+    }
+    
+    function syncPause(timestamp) {
+        isUserAction = false;
+        currentMedia.state = 'paused';
+        currentMedia.timestamp = timestamp;
+        
+        if (currentMedia.type === 'youtube' && ytPlayer) {
+            ytPlayer.seekTo(timestamp, true);
+            ytPlayer.pauseVideo();
+        } else {
+            const videoPlayer = document.getElementById('videoPlayer');
+            videoPlayer.currentTime = timestamp;
+            videoPlayer.pause();
+        }
+        
+        updateMediaStatus();
+        stopStatusTimer();
+        setTimeout(() => { isUserAction = true; }, 1000);
+    }
+    
+    function syncSeek(timestamp) {
+        isUserAction = false;
+        currentMedia.timestamp = timestamp;
+        
+        if (currentMedia.type === 'youtube' && ytPlayer) {
+            ytPlayer.seekTo(timestamp, true);
+        } else {
+            const videoPlayer = document.getElementById('videoPlayer');
+            videoPlayer.currentTime = timestamp;
+        }
+        
+        updateMediaStatus();
+        setTimeout(() => { isUserAction = true; }, 1000);
+    }
+    
+    function playMedia() {
+        // Check if media is actually ready
+        if (!isMediaReady()) {
+            const videoPlayer = document.getElementById('videoPlayer');
+            console.log('🚫 Media not ready:', {
+                type: currentMedia.type,
+                loading: currentMedia.loading,
+                src: videoPlayer?.src,
+                readyState: videoPlayer?.readyState
+            });
+            showToast('Media is still loading, please wait...', 'warning');
+            return;
+        }
+        
+        console.log('▶️ Playing media:', currentMedia.type);
+        
+        if (currentMedia.type === 'youtube' && ytPlayer) {
+            const currentTime = ytPlayer.getCurrentTime();
+            socket.emit('media_control', {
+                action: 'play',
+                timestamp: currentTime
+            });
+        } else {
+            const videoPlayer = document.getElementById('videoPlayer');
+            const timestamp = videoPlayer.currentTime || 0;
+            console.log('📡 Emitting play command:', { timestamp, connected: socket.connected });
+            
+            // Test socket connection before emitting
+            if (!socket || !socket.connected) {
+                console.error('🔌 Socket not connected!');
+                showToast('Connection lost - please refresh', 'error');
+                return;
+            }
+            
+            socket.emit('media_control', {
+                action: 'play',
+                timestamp: timestamp
+            });
+            
+            // Add a test to see if ANY socket events are being received
+            const testTimeout = setTimeout(() => {
+                console.warn('⚠️ No play socket response within 2 seconds - using direct play');
+                
+                // Direct play bypass since socket isn't working
+                console.log('🧪 Using direct video.play() bypass...');
+                const directPlayPromise = videoPlayer.play();
+                if (directPlayPromise) {
+                    directPlayPromise
+                        .then(() => {
+                            console.log('✅ Direct video.play() succeeded!');
+                            currentMedia.state = 'playing'; // Update state manually
+                            updateMediaStatus();
+                        })
+                        .catch(err => {
+                            console.error('❌ Direct video.play() failed:', err);
+                        });
+                }
+            }, 2000);
+        }
+    }
+    
+    function pauseMedia() {
+        // Check if media is actually ready
+        if (!isMediaReady()) {
+            showToast('Media is still loading, please wait...', 'warning');
+            return;
+        }
+        
+        console.log('⏸️ Pausing media:', currentMedia.type);
+        
+        if (currentMedia.type === 'youtube' && ytPlayer) {
+            const currentTime = ytPlayer.getCurrentTime();
+            socket.emit('media_control', {
+                action: 'pause',
+                timestamp: currentTime
+            });
+        } else {
+            const videoPlayer = document.getElementById('videoPlayer');
+            const timestamp = videoPlayer.currentTime || 0;
+            console.log('📡 Emitting pause command:', { timestamp, connected: socket.connected });
+            
+            // Test socket connection before emitting
+            if (!socket || !socket.connected) {
+                console.error('🔌 Socket not connected!');
+                showToast('Connection lost - please refresh', 'error');
+                return;
+            }
+            
+            socket.emit('media_control', {
+                action: 'pause',
+                timestamp: timestamp
+            });
+            
+            // Add a test to see if ANY socket events are being received
+            const testTimeout = setTimeout(() => {
+                console.warn('⚠️ No pause socket response within 2 seconds - using direct pause');
+                
+                // Direct pause bypass since socket isn't working
+                console.log('🧪 Using direct video.pause() bypass...');
+                videoPlayer.pause();
+                currentMedia.state = 'paused';
+                updateMediaStatus();
+                console.log('✅ Direct video.pause() applied!');
+            }, 2000);
+        }
+    }
+    
+    function isMediaReady() {
+        if (currentMedia.type === 'youtube') {
+            return ytPlayer && ytPlayer.getPlayerState;
+        } else if (currentMedia.type === 'torrent') {
+            const videoPlayer = document.getElementById('videoPlayer');
+            // For progressive streaming, allow playback if we have a stream URL and not loading
+            return videoPlayer && videoPlayer.src && 
+                   !videoPlayer.src.startsWith('magnet:') && 
+                   !currentMedia.loading &&
+                   videoPlayer.src.includes('/api/torrent/stream/');
+        } else {
+            const videoPlayer = document.getElementById('videoPlayer');
+            // For regular videos, check readyState
+            return videoPlayer && videoPlayer.src && videoPlayer.readyState >= 2;
+        }
+    }
+    
+    // Media status timer functions
+    function startStatusTimer() {
+        stopStatusTimer(); // Clear any existing timer
+        statusTimer = setInterval(updateMediaStatus, 1000); // Update every second
+    }
+    
+    function stopStatusTimer() {
+        if (statusTimer) {
+            clearInterval(statusTimer);
+            statusTimer = null;
+        }
+    }
+    
+    // UI Update functions
+    function updateHostControls() {
+        // Media controls are now always visible for all users
+        // Everyone can contribute media in a personal use app
+        const mediaControls = document.getElementById('mediaControls');
+        if (mediaControls) {
+            mediaControls.classList.remove('hidden');
+        }
+    }
+    
+    function updateMediaStatus() {
+        const statusEl = document.getElementById('mediaStatus');
+        const timeEl = document.getElementById('mediaTime');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        
+        // Update time display
+        if (currentMedia.type === 'youtube' && ytPlayer && ytPlayer.getCurrentTime) {
+            const currentTime = ytPlayer.getCurrentTime();
+            const duration = ytPlayer.getDuration();
+            timeEl.textContent = `${formatTimestamp(currentTime)} / ${formatTimestamp(duration)}`;
+        } else if (currentMedia.type === 'torrent' || currentMedia.type === 'video') {
+            const videoPlayer = document.getElementById('videoPlayer');
+            if (videoPlayer && videoPlayer.currentTime !== undefined) {
+                const currentTime = videoPlayer.currentTime;
+                const duration = videoPlayer.duration || 0;
+                timeEl.textContent = `${formatTimestamp(currentTime)} / ${formatTimestamp(duration)}`;
+            }
+        }
+        
+        if (currentMedia.loading) {
+            statusEl.textContent = '⏳ Loading...';
+            playPauseBtn.textContent = '⏳ Loading';
+            playPauseBtn.disabled = true;
+            playPauseBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else if (currentMedia.state === 'playing') {
+            statusEl.textContent = '▶️ Playing';
+            playPauseBtn.textContent = '⏸️ Pause';
+            playPauseBtn.disabled = false;
+            playPauseBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            statusEl.textContent = '⏸️ Paused';
+            playPauseBtn.textContent = '▶️ Play';
+            playPauseBtn.disabled = false;
+            playPauseBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    }
+    
+    function updateUsersList(users, hostId) {
+        const usersList = document.getElementById('usersList');
+        usersList.innerHTML = '';
+        
+        Object.entries(users).forEach(([userId, user]) => {
+            const userDiv = document.createElement('div');
+            userDiv.className = 'flex items-center justify-between p-2 bg-gray-700 rounded';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = user.name;
+            nameSpan.className = 'text-sm leading-tight';
+            
+            const badgeDiv = document.createElement('div');
+            badgeDiv.className = 'flex items-center space-x-1';
+            
+            if (user.is_host) {
+                const hostBadge = document.createElement('span');
+                hostBadge.textContent = '👑';
+                hostBadge.title = 'Host';
+                hostBadge.className = 'text-sm'; // Ensure consistent size
+                badgeDiv.appendChild(hostBadge);
+            }
+            
+            if (userId === currentUser.id) {
+                const youBadge = document.createElement('span');
+                youBadge.textContent = '(You)';
+                youBadge.className = 'text-xs text-indigo-400 leading-tight'; // Add leading-tight for better alignment
+                badgeDiv.appendChild(youBadge);
+            }
+            
+            userDiv.appendChild(nameSpan);
+            userDiv.appendChild(badgeDiv);
+            usersList.appendChild(userDiv);
+        });
+    }
+    
+    // Chat functions
+    function sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        
+        if (message) {
+            socket.emit('send_message', { message: message });
+            input.value = '';
+        }
+    }
+    
+    function addChatMessage(data) {
+        const chatMessages = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'text-sm';
+        
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'text-xs text-gray-500';
+        timeSpan.textContent = formatTime(data.timestamp);
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'font-medium text-indigo-400';
+        nameSpan.textContent = data.user_name;
+        
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'text-gray-200';
+        messageSpan.textContent = data.message;
+        
+        messageDiv.appendChild(timeSpan);
+        messageDiv.appendChild(document.createTextNode(' '));
+        messageDiv.appendChild(nameSpan);
+        messageDiv.appendChild(document.createTextNode(': '));
+        messageDiv.appendChild(messageSpan);
+        
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    function addServerMessage(message) {
+        const chatMessages = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'text-sm';
+        
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'text-xs text-gray-500';
+        timeSpan.textContent = formatTime(new Date().toISOString());
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'font-medium text-yellow-400';
+        nameSpan.textContent = 'Server';
+        
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'text-gray-300 italic';
+        messageSpan.textContent = message;
+        
+        messageDiv.appendChild(timeSpan);
+        messageDiv.appendChild(document.createTextNode(' '));
+        messageDiv.appendChild(nameSpan);
+        messageDiv.appendChild(document.createTextNode(': '));
+        messageDiv.appendChild(messageSpan);
+        
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // Utility functions
+    function formatTimestamp(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    function showConnectionModal() {
+        document.getElementById('connectionModal').classList.remove('hidden');
+    }
+    
+    function hideConnectionModal() {
+        document.getElementById('connectionModal').classList.add('hidden');
+    }
+    
+    // YouTube API callback
+    function onYouTubeIframeAPIReady() {
+        console.log('YouTube API ready');
+    }
+</script>
+{% endblock %} 
