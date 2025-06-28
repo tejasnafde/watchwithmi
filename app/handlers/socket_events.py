@@ -40,10 +40,10 @@ class SocketEventHandler:
             room_code = session['room_code']
             user_name = session.get('user_name')
             
-            # Add a small delay to allow for page transitions
-            # This prevents immediate cleanup when user navigates between pages
+            # Add a longer delay to allow for page transitions and reconnections
+            # This prevents immediate cleanup when user navigates between pages or refreshes
             import asyncio
-            await asyncio.sleep(1)
+            await asyncio.sleep(30)  # Increased from 3 to 30 seconds
             
             # Check if user has reconnected with a different session
             room = self.room_manager.get_room(room_code)
@@ -94,8 +94,9 @@ class SocketEventHandler:
             success = self.room_manager.join_room(room_code, sid, user_name, True)
             
             if success:
-                # Join Socket.IO room - FIX: Don't await this as it might return None
-                self.sio.enter_room(sid, room_code)
+                # Join Socket.IO room
+                await self.sio.enter_room(sid, room_code)
+                logger.debug(f"🏠 User {sid} entered Socket.IO room {room_code}")
                 
                 # Get room data
                 room = self.room_manager.get_room(room_code)
@@ -160,8 +161,9 @@ class SocketEventHandler:
                     logger.info(f"🔄 User {user_name} reconnecting to room {room_code} (was_host: {was_existing_host}, now_host: {is_host})")
                 else:
                     logger.info(f"🆕 New user {user_name} joining room {room_code} (is_host: {is_host})")
-                # Join Socket.IO room - FIX: Don't await this as it might return None
-                self.sio.enter_room(sid, room_code)
+                # Join Socket.IO room
+                await self.sio.enter_room(sid, room_code)
+                logger.debug(f"🏠 User {sid} entered Socket.IO room {room_code}")
                 
                 # Get updated room data
                 updated_room = self.room_manager.get_room(room_code)
@@ -208,13 +210,20 @@ class SocketEventHandler:
             return
         
         try:
+            # Debug session and room info
+            session = self.room_manager.get_user_session(sid)
+            logger.debug(f"💬 Send message attempt - SID: {sid}, Session: {session}, Message: {message}")
+            
             result = self.room_manager.send_message(sid, message)
             if result:
                 room_code, chat_message = result
+                logger.debug(f"💬 Broadcasting to room {room_code}: {chat_message.to_dict()}")
+                
                 # Broadcast to room
                 await self.sio.emit('new_message', chat_message.to_dict(), room=room_code)
                 logger.debug(f"💬 Message sent in room {room_code}: {chat_message.user_name}: {message}")
             else:
+                logger.warning(f"💬 User {sid} not in a room when trying to send message")
                 await self.sio.emit('error', {'message': 'Not in a room'}, room=sid)
                 
         except Exception as e:
@@ -253,6 +262,7 @@ class SocketEventHandler:
             
             if action == 'play':
                 self.room_manager.update_media(sid, state='playing')
+                logger.info(f"▶️ Broadcasting media_play to room {room_code} (users: {list(room.users.keys())})")
                 await self.sio.emit('media_play', {
                     'timestamp': room.media.timestamp,
                     'user_name': user_name
@@ -261,6 +271,7 @@ class SocketEventHandler:
             elif action == 'pause':
                 timestamp = data.get('timestamp', room.media.timestamp)
                 self.room_manager.update_media(sid, state='paused', timestamp=timestamp)
+                logger.info(f"⏸️ Broadcasting media_pause to room {room_code} (users: {list(room.users.keys())})")
                 await self.sio.emit('media_pause', {
                     'timestamp': timestamp,
                     'user_name': user_name
@@ -277,6 +288,7 @@ class SocketEventHandler:
             elif action == 'change_media':
                 media_url = data.get('url', '').strip()
                 media_type = data.get('type', 'youtube')
+                media_title = data.get('title', '')
                 
                 if media_url:
                     self.room_manager.update_media(
@@ -290,9 +302,31 @@ class SocketEventHandler:
                     await self.sio.emit('media_changed', {
                         'url': media_url,
                         'type': media_type,
+                        'title': media_title,
                         'user_name': user_name
                     }, room=room_code)
                     
+            elif action == 'start_loading':
+                media_type = data.get('type', 'torrent')
+                media_title = data.get('title', 'Loading media...')
+                
+                logger.info(f"⏳ Broadcasting media_loading to room {room_code} - {media_title}")
+                await self.sio.emit('media_loading', {
+                    'type': media_type,
+                    'title': media_title,
+                    'user_name': user_name
+                }, room=room_code)
+            
+            elif action == 'torrent_progress':
+                torrent_status = data.get('torrent_status')
+                
+                if torrent_status:
+                    logger.debug(f"📊 Broadcasting torrent_progress to room {room_code}: {torrent_status.get('progress', 0) * 100:.1f}%")
+                    await self.sio.emit('torrent_progress', {
+                        'torrent_status': torrent_status,
+                        'user_name': user_name
+                    }, room=room_code)
+            
             logger.debug(f"🎮 Media control in room {room_code}: {action} by {user_name}")
             
         except Exception as e:

@@ -9,7 +9,10 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
+import os
 
 # Import our modules
 from .config import setup_logging, APP_NAME, VERSION, TEMPLATES_DIR, STATIC_DIR
@@ -21,6 +24,32 @@ from .api.torrent_bridge_api import router as torrent_bridge_router
 # Initialize logging
 logger = setup_logging()
 
+# Initialize services (will be initialized in lifespan)
+room_manager = None
+socket_handler = None
+torrent_search = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    global room_manager, socket_handler, torrent_search
+    room_manager = RoomManager()
+    socket_handler = SocketEventHandler(sio, room_manager)
+    torrent_search = TorrentSearchService()
+    
+    logger.info(f"🚀 {APP_NAME} startup completed")
+    logger.info(f"📊 Room manager initialized")
+    logger.info(f"🔌 Socket.IO handlers registered")
+    
+    yield
+    
+    # Shutdown
+    logger.info(f"🛑 {APP_NAME} shutting down")
+    if room_manager:
+        cleaned = room_manager.cleanup_empty_rooms()
+        if cleaned > 0:
+            logger.info(f"🗑️ Cleaned up {cleaned} empty rooms")
+
 # Create Socket.IO server
 sio = socketio.AsyncServer(
     async_mode='asgi',
@@ -29,27 +58,37 @@ sio = socketio.AsyncServer(
     engineio_logger=True
 )
 
-# Create FastAPI app
+# Create FastAPI app with lifespan
 app = FastAPI(
     title=APP_NAME,
     description="Shared Media Viewing Platform",
-    version=VERSION
+    version=VERSION,
+    lifespan=lifespan
+)
+
+# Add CORS middleware for React frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # React dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+# Mount React frontend in production
+FRONTEND_DIST = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "out")
+if os.path.exists(FRONTEND_DIST):
+    app.mount("/app", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+
 # Include API routers
 app.include_router(torrent_bridge_router)
 
 # Combine Socket.IO with FastAPI
 socket_app = socketio.ASGIApp(sio, app)
-
-# Initialize services
-room_manager = RoomManager()
-socket_handler = SocketEventHandler(sio, room_manager)
-torrent_search = TorrentSearchService()
 
 # Pydantic models
 class TorrentSearchRequest(BaseModel):
@@ -132,23 +171,7 @@ async def health_check():
         "version": VERSION
     }
 
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Application startup tasks."""
-    logger.info(f"🚀 {APP_NAME} startup completed")
-    logger.info(f"📊 Room manager initialized")
-    logger.info(f"🔌 Socket.IO handlers registered")
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Application shutdown tasks."""
-    logger.info(f"🛑 {APP_NAME} shutting down")
-    # Clean up empty rooms
-    cleaned = room_manager.cleanup_empty_rooms()
-    if cleaned > 0:
-        logger.info(f"🗑️ Cleaned up {cleaned} empty rooms")
+# Note: Startup and shutdown events are now handled by the lifespan function above
 
 if __name__ == "__main__":
     import uvicorn
@@ -158,7 +181,7 @@ if __name__ == "__main__":
     logger.info(f"🌐 Server will be available at: http://{HOST}:{PORT}")
     
     uvicorn.run(
-        "main_new:socket_app",
+        "app.main:socket_app",
         host=HOST,
         port=PORT,
         reload=DEBUG,

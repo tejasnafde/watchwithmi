@@ -46,7 +46,7 @@ class TorrentSearchResult:
     def to_dict(self):
         result = {
             'title': self.title,
-            'magnet': self.magnet,
+            'magnet_url': self.magnet,  # Frontend expects 'magnet_url', not 'magnet'
             'size': self.size,
             'seeders': self.seeders,
             'leechers': self.leechers,
