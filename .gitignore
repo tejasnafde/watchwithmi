@@ -136,3 +136,4 @@ watchwithmi-venv/
 test*.py
 debug*
 logs/
+test*/

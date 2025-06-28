@@ -75,10 +75,10 @@ class TorrentBridge:
                 'upload_rate': 0,
                 'num_peers': 0,
                 'files': [],
-                'largest_file': None,
-                'added_time': time.time(),
-                'streaming_ready': False,
-                'streaming_threshold': 0.05  # Start streaming at 5%
+                            'largest_file': None,
+            'added_time': time.time(),
+            'streaming_ready': False
+            # streaming_threshold will be determined dynamically based on file type
             }
             
             # Wait for metadata only (don't wait for download)
@@ -180,7 +180,9 @@ class TorrentBridge:
             handle.set_flags(handle.flags() | lt.torrent_flags.sequential_download)
             
             logger.info(f"🎬 Streaming setup complete for {torrent_id}: {largest_file['path']}")
-            logger.info(f"📊 Will start streaming at {torrent_data['streaming_threshold']*100}% downloaded")
+            # Get dynamic threshold for this file type
+            dynamic_threshold = self._get_dynamic_threshold(largest_file)
+            logger.info(f"📊 Will start streaming at {dynamic_threshold*100}% downloaded (dynamic threshold based on file type)")
     
     def is_streaming_ready(self, torrent_id: str, file_index: int = None) -> bool:
         """Check if torrent has enough data for streaming"""
@@ -198,30 +200,65 @@ class TorrentBridge:
                 return False
             file_index = largest_file['index']
         
-        # Check if we have enough of the beginning of the file
-        threshold = torrent_data.get('streaming_threshold', 0.05)
+        # Get file info to determine appropriate threshold
+        files = torrent_data.get('files', [])
+        if file_index >= len(files):
+            return False
+            
+        file_info = files[file_index]
+        file_name = file_info.get('path', file_info.get('name', ''))
+        
+        # Dynamic threshold based on file type
+        if file_name.lower().endswith('.mkv'):
+            # MKV files need more data for proper header parsing
+            base_threshold = 0.12  # 12% for MKV
+        elif file_name.lower().endswith(('.mp4', '.webm')):
+            # MP4/WebM can start with less data
+            base_threshold = 0.08  # 8% for MP4/WebM
+        else:
+            # Default for other formats
+            base_threshold = 0.10  # 10% for unknown formats
+            
+        # Always use dynamic threshold based on file type
+        threshold = base_threshold
         
         # Get file progress
         file_progress = handle.file_progress()
         if file_index < len(file_progress):
-            files = torrent_data.get('files', [])
-            if file_index < len(files):
-                file_info = files[file_index]
-                downloaded = file_progress[file_index]
-                total_size = file_info['size']
+            downloaded = file_progress[file_index]
+            total_size = file_info['size']
+            
+            if total_size > 0:
+                progress = downloaded / total_size
                 
-                if total_size > 0:
-                    progress = downloaded / total_size
-                    is_ready = progress >= threshold
-                    
-                    # Cache the result
-                    if is_ready and not torrent_data.get('streaming_ready', False):
-                        torrent_data['streaming_ready'] = True
-                        logger.info(f"🎉 Streaming ready for {torrent_id}: {progress:.1%} downloaded")
-                    
-                    return is_ready
+                # Additional requirement: need at least 10MB of data regardless of percentage
+                min_bytes_required = min(10 * 1024 * 1024, total_size * 0.05)  # 10MB or 5% of file, whichever is smaller
+                has_enough_bytes = downloaded >= min_bytes_required
+                
+                is_ready = progress >= threshold and has_enough_bytes
+                
+                # Cache the result
+                if is_ready and not torrent_data.get('streaming_ready', False):
+                    torrent_data['streaming_ready'] = True
+                    logger.info(f"🎉 Streaming ready for {torrent_id}: {progress:.1%} downloaded ({downloaded/1024/1024:.1f}MB), file: {file_name}")
+                
+                return is_ready
         
         return False
+    
+    def _get_dynamic_threshold(self, file_info: dict) -> float:
+        """Get streaming threshold based on file type"""
+        if not file_info:
+            return 0.10
+            
+        file_name = file_info.get('path', file_info.get('name', ''))
+        
+        if file_name.lower().endswith('.mkv'):
+            return 0.12  # 12% for MKV files
+        elif file_name.lower().endswith(('.mp4', '.webm')):
+            return 0.08  # 8% for MP4/WebM files
+        else:
+            return 0.10  # 10% for other formats
     
     def get_torrent_status(self, torrent_id: str) -> Dict[str, Any]:
         """Get current status of a torrent"""
@@ -281,7 +318,7 @@ class TorrentBridge:
             'has_metadata': status.has_metadata,
             'streaming_ready': streaming_ready,
             'file_progress': file_progress_percent,
-            'streaming_threshold': torrent_data.get('streaming_threshold', 0.05)
+            'streaming_threshold': self._get_dynamic_threshold(largest_file) if largest_file else 0.10
         }
     
     def _get_status_string(self, state) -> str:

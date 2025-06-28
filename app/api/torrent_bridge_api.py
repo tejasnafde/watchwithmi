@@ -102,6 +102,21 @@ async def stream_torrent_file(torrent_id: str, file_index: int, request: Request
         # Get current file size (may be growing)
         file_size = os.path.getsize(file_path)
         
+        # Determine content type based on file extension
+        file_ext = os.path.splitext(file_path)[1].lower()
+        content_type_map = {
+            '.mp4': 'video/mp4',
+            '.mkv': 'video/x-matroska',
+            '.avi': 'video/x-msvideo',
+            '.webm': 'video/webm',
+            '.mov': 'video/quicktime',
+            '.wmv': 'video/x-ms-wmv',
+            '.flv': 'video/x-flv',
+            '.m4v': 'video/x-m4v'
+        }
+        content_type = content_type_map.get(file_ext, 'video/mp4')  # Default to mp4
+        logger.info(f"📺 File extension: {file_ext}, Content-Type: {content_type}")
+        
         # For progressive streaming, we need to handle the case where file is still growing
         status = torrent_bridge.get_torrent_status(torrent_id)
         if status.get('largest_file') and file_index == status['largest_file']['index']:
@@ -146,7 +161,7 @@ async def stream_torrent_file(torrent_id: str, file_index: int, request: Request
                 'Content-Range': f'bytes {start}-{available_end}/{expected_size}',
                 'Accept-Ranges': 'bytes',
                 'Content-Length': str(content_length),
-                'Content-Type': 'video/mp4'  # Default to mp4, could be made dynamic
+                'Content-Type': content_type
             }
             
             return StreamingResponse(
@@ -167,7 +182,8 @@ async def stream_torrent_file(torrent_id: str, file_index: int, request: Request
             
             headers = {
                 'Content-Length': str(file_size),
-                'Content-Type': 'video/mp4'
+                'Content-Type': content_type,
+                'Accept-Ranges': 'bytes'
             }
             
             return StreamingResponse(stream_file(), headers=headers)
