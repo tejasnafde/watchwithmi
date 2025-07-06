@@ -6,6 +6,8 @@ interface User {
   id: string;
   name: string;
   isHost: boolean;
+  video_enabled?: boolean;
+  audio_enabled?: boolean;
 }
 
 interface ChatMessage {
@@ -167,6 +169,8 @@ export const useRoom = (roomCode: string, userName: string) => {
         id,
         name: user.name,
         isHost: user.is_host,
+        video_enabled: user.video_enabled || false,
+        audio_enabled: user.audio_enabled || false,
       })) as User[];
       setUsers(usersArray);
     });
@@ -185,6 +189,8 @@ export const useRoom = (roomCode: string, userName: string) => {
         id,
         name: user.name,
         isHost: user.is_host,
+        video_enabled: user.video_enabled || false,
+        audio_enabled: user.audio_enabled || false,
       })) as User[];
       setUsers(usersArray);
       
@@ -583,6 +589,7 @@ export const useRoom = (roomCode: string, userName: string) => {
     activeTorrentId,
     lastAction,
     actualRoomCode,
+    currentUserId: socket?.id || '',
     sendMessage,
     loadMedia,
     playPause,

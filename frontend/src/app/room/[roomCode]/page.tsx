@@ -17,6 +17,7 @@ import {
   Pause,
   Volume2,
   Maximize,
+  Mic,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { useRoom } from "@/hooks/useRoom"
+import { VideoChat } from "@/components/VideoChat"
 
 // Toast notification component
 function Toast({
@@ -82,6 +84,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
     activeTorrentId,
     lastAction,
     actualRoomCode,
+    socket,
+    currentUserId,
     sendMessage,
     loadMedia,
     playPause,
@@ -942,10 +946,35 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
                             Host
                           </Badge>
                         )}
+                        {user.video_enabled && (
+                          <Video className="w-3 h-3 text-blue-400" />
+                        )}
+                        {user.audio_enabled && (
+                          <Mic className="w-3 h-3 text-green-400" />
+                        )}
                       </div>
                     ))}
                   </div>
                 </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* Video Chat Panel */}
+            <Card className="bg-black/40 backdrop-blur-xl border-white/10 shadow-2xl">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-white flex items-center">
+                  <Video className="w-5 h-5 mr-2" />
+                  Video Chat
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <VideoChat
+                  socket={socket}
+                  currentUserId={currentUserId}
+                  currentUserName={userName}
+                  users={users}
+                  connected={connected}
+                />
               </CardContent>
             </Card>
 

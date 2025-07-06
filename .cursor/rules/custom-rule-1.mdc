@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+For all tasks in 'watchwithmi' project/folder, remember that the true startup script is scripts/start-fullstach.sh . Remember to activate the venv before running anything. You can tail  the logs/*.log file to debug backend things. 
