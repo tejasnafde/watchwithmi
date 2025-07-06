@@ -138,6 +138,5 @@ test*.py
 debug*
 logs/
 test*/
-scripts/
 tests/
 readmes/
