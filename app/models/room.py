@@ -40,6 +40,8 @@ class User:
     name: str
     joined_at: str
     is_host: bool = False
+    video_enabled: bool = False
+    audio_enabled: bool = False
     
     def to_dict(self) -> dict:
         return asdict(self)

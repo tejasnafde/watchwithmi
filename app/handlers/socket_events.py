@@ -25,6 +25,11 @@ class SocketEventHandler:
         self.sio.on('join_room')(self.handle_join_room)
         self.sio.on('send_message')(self.handle_send_message)
         self.sio.on('media_control')(self.handle_media_control)
+        self.sio.on('toggle_video')(self.handle_toggle_video)
+        self.sio.on('toggle_audio')(self.handle_toggle_audio)
+        self.sio.on('webrtc_offer')(self.handle_webrtc_offer)
+        self.sio.on('webrtc_answer')(self.handle_webrtc_answer)
+        self.sio.on('webrtc_ice_candidate')(self.handle_webrtc_ice_candidate)
     
     async def handle_connect(self, sid: str, environ: Dict):
         """Handle client connection."""
@@ -331,4 +336,177 @@ class SocketEventHandler:
             
         except Exception as e:
             logger.error(f"❌ Error handling media control: {e}")
-            await self.sio.emit('error', {'message': 'Media control failed'}, room=sid) 
+            await self.sio.emit('error', {'message': 'Media control failed'}, room=sid)
+
+    async def handle_toggle_video(self, sid: str, data: Dict[str, Any]):
+        """Handle video toggle events."""
+        enabled = data.get('enabled', False)
+        
+        try:
+            session = self.room_manager.get_user_session(sid)
+            if not session or not session.get('room_code'):
+                await self.sio.emit('error', {'message': 'Not in a room'}, room=sid)
+                return
+            
+            room_code = session['room_code']
+            room = self.room_manager.get_room(room_code)
+            
+            if not room or sid not in room.users:
+                await self.sio.emit('error', {'message': 'User not in room'}, room=sid)
+                return
+            
+            # Update user's video state
+            room.users[sid].video_enabled = enabled
+            user_name = room.users[sid].name
+            
+            # Broadcast to all users in room
+            await self.sio.emit('user_video_toggled', {
+                'user_id': sid,
+                'user_name': user_name,
+                'video_enabled': enabled
+            }, room=room_code)
+            
+            # Update user list for everyone
+            await self.sio.emit('users_updated', {
+                'users': {uid: user.to_dict() for uid, user in room.users.items()},
+                'host': room.host_id
+            }, room=room_code)
+            
+            logger.info(f"📹 User {user_name} {'enabled' if enabled else 'disabled'} video in room {room_code}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error toggling video: {e}")
+            await self.sio.emit('error', {'message': 'Failed to toggle video'}, room=sid)
+
+    async def handle_toggle_audio(self, sid: str, data: Dict[str, Any]):
+        """Handle audio toggle events."""
+        enabled = data.get('enabled', False)
+        
+        try:
+            session = self.room_manager.get_user_session(sid)
+            if not session or not session.get('room_code'):
+                await self.sio.emit('error', {'message': 'Not in a room'}, room=sid)
+                return
+            
+            room_code = session['room_code']
+            room = self.room_manager.get_room(room_code)
+            
+            if not room or sid not in room.users:
+                await self.sio.emit('error', {'message': 'User not in room'}, room=sid)
+                return
+            
+            # Update user's audio state
+            room.users[sid].audio_enabled = enabled
+            user_name = room.users[sid].name
+            
+            # Broadcast to all users in room
+            await self.sio.emit('user_audio_toggled', {
+                'user_id': sid,
+                'user_name': user_name,
+                'audio_enabled': enabled
+            }, room=room_code)
+            
+            # Update user list for everyone
+            await self.sio.emit('users_updated', {
+                'users': {uid: user.to_dict() for uid, user in room.users.items()},
+                'host': room.host_id
+            }, room=room_code)
+            
+            logger.info(f"🎤 User {user_name} {'enabled' if enabled else 'disabled'} audio in room {room_code}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error toggling audio: {e}")
+            await self.sio.emit('error', {'message': 'Failed to toggle audio'}, room=sid)
+
+    async def handle_webrtc_offer(self, sid: str, data: Dict[str, Any]):
+        """Handle WebRTC offer signaling."""
+        target_user_id = data.get('target_user_id')
+        offer = data.get('offer')
+        
+        if not target_user_id or not offer:
+            return
+        
+        try:
+            session = self.room_manager.get_user_session(sid)
+            if not session or not session.get('room_code'):
+                return
+            
+            room_code = session['room_code']
+            room = self.room_manager.get_room(room_code)
+            
+            if not room or sid not in room.users or target_user_id not in room.users:
+                return
+            
+            # Forward offer to target user
+            await self.sio.emit('webrtc_offer', {
+                'from_user_id': sid,
+                'from_user_name': room.users[sid].name,
+                'offer': offer
+            }, room=target_user_id)
+            
+            logger.debug(f"🔗 WebRTC offer forwarded from {sid} to {target_user_id} in room {room_code}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling WebRTC offer: {e}")
+
+    async def handle_webrtc_answer(self, sid: str, data: Dict[str, Any]):
+        """Handle WebRTC answer signaling."""
+        target_user_id = data.get('target_user_id')
+        answer = data.get('answer')
+        
+        if not target_user_id or not answer:
+            return
+        
+        try:
+            session = self.room_manager.get_user_session(sid)
+            if not session or not session.get('room_code'):
+                return
+            
+            room_code = session['room_code']
+            room = self.room_manager.get_room(room_code)
+            
+            if not room or sid not in room.users or target_user_id not in room.users:
+                return
+            
+            # Forward answer to target user
+            await self.sio.emit('webrtc_answer', {
+                'from_user_id': sid,
+                'from_user_name': room.users[sid].name,
+                'answer': answer
+            }, room=target_user_id)
+            
+            logger.debug(f"🔗 WebRTC answer forwarded from {sid} to {target_user_id} in room {room_code}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling WebRTC answer: {e}")
+
+    async def handle_webrtc_ice_candidate(self, sid: str, data: Dict[str, Any]):
+        """Handle WebRTC ICE candidate signaling."""
+        target_user_id = data.get('target_user_id')
+        candidate = data.get('candidate')
+        
+        if not target_user_id or not candidate:
+            return
+        
+        try:
+            session = self.room_manager.get_user_session(sid)
+            if not session or not session.get('room_code'):
+                return
+            
+            room_code = session['room_code']
+            room = self.room_manager.get_room(room_code)
+            
+            if not room or sid not in room.users or target_user_id not in room.users:
+                return
+            
+            # Forward ICE candidate to target user
+            await self.sio.emit('webrtc_ice_candidate', {
+                'from_user_id': sid,
+                'from_user_name': room.users[sid].name,
+                'candidate': candidate
+            }, room=target_user_id)
+            
+            logger.debug(f"🔗 WebRTC ICE candidate forwarded from {sid} to {target_user_id} in room {room_code}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling WebRTC ICE candidate: {e}") 
