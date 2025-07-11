@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
     torrent_search = TorrentSearchService()
     
     logger.info(f"🚀 {APP_NAME} startup completed")
-    logger.info(f"📊 Room manager initialized")
+    logger.info(f" Room manager initialized")
     logger.info(f"🔌 Socket.IO handlers registered")
     
     yield
@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
     if room_manager:
         cleaned = room_manager.cleanup_empty_rooms()
         if cleaned > 0:
-            logger.info(f"🗑️ Cleaned up {cleaned} empty rooms")
+            logger.info(f" Cleaned up {cleaned} empty rooms")
 
 # Create Socket.IO server
 sio = socketio.AsyncServer(
@@ -94,7 +94,7 @@ socket_app = socketio.ASGIApp(sio, app)
 class TorrentSearchRequest(BaseModel):
     query: str
 
-logger.info(f"🎬 {APP_NAME} v{VERSION} initialized")
+logger.info(f"{APP_NAME} v{VERSION} initialized")
 
 # REST API endpoints
 @app.get("/", response_class=HTMLResponse)
@@ -110,7 +110,7 @@ async def room_page(request: Request, room_code: str):
     room = room_manager.get_room(room_code)
     
     if not room:
-        logger.warning(f"❌ Attempted to access non-existent room: {room_code}")
+        logger.warning(f" Attempted to access non-existent room: {room_code}")
         raise HTTPException(status_code=404, detail="Room not found")
     
     logger.debug(f"📄 Serving room page for: {room_code}")
@@ -126,7 +126,7 @@ async def get_room_info(room_code: str):
     room = room_manager.get_room(room_code)
     
     if not room:
-        logger.warning(f"❌ API request for non-existent room: {room_code}")
+        logger.warning(f" API request for non-existent room: {room_code}")
         raise HTTPException(status_code=404, detail="Room not found")
     
     room_info = {
@@ -136,14 +136,14 @@ async def get_room_info(room_code: str):
         "created_at": room.created_at
     }
     
-    logger.debug(f"📊 Room info requested: {room_code}")
+    logger.debug(f" Room info requested: {room_code}")
     return room_info
 
 @app.get("/api/stats")
 async def get_stats():
     """Get server statistics."""
     stats = room_manager.get_room_stats()
-    logger.debug(f"📊 Server stats requested: {stats['total_rooms']} rooms, {stats['total_users']} users")
+    logger.debug(f" Server stats requested: {stats['total_rooms']} rooms, {stats['total_users']} users")
     return stats
 
 @app.post("/api/search-torrents")
@@ -159,7 +159,7 @@ async def search_torrents(request: TorrentSearchRequest):
             "count": len(results)
         }
     except Exception as e:
-        logger.error(f"❌ Torrent search failed: {e}")
+        logger.error(f" Torrent search failed: {e}")
         raise HTTPException(status_code=500, detail="Search failed")
 
 @app.get("/health")
@@ -177,8 +177,8 @@ if __name__ == "__main__":
     import uvicorn
     from .config import HOST, PORT, DEBUG
     
-    logger.info(f"🎬 Starting {APP_NAME} server...")
-    logger.info(f"🌐 Server will be available at: http://{HOST}:{PORT}")
+    logger.info(f"Starting {APP_NAME} server...")
+    logger.info(f"Server will be available at: http://{HOST}:{PORT}")
     
     uvicorn.run(
         "app.main:socket_app",

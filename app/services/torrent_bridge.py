@@ -72,12 +72,12 @@ class TorrentBridge:
         settings['enable_natpmp'] = True
         self.session.apply_settings(settings)
         
-        logger.info(f"🏴‍☠️ Torrent bridge initialized, temp dir: {self.temp_dir}")
+        logger.info(f"Torrent bridge initialized, temp dir: {self.temp_dir}")
     
     async def add_torrent(self, magnet_url: str, torrent_id: str) -> Dict[str, Any]:
         """Add a torrent for downloading"""
         try:
-            logger.info(f"🔗 Adding torrent: {torrent_id}")
+            logger.info(f"Adding torrent: {torrent_id}")
             
             # Check if this magnet URL is already being downloaded
             existing_torrent = self._find_existing_torrent(magnet_url)
@@ -85,13 +85,13 @@ class TorrentBridge:
                 # Check if existing torrent is healthy
                 existing_status = self.get_torrent_status(existing_torrent)
                 if 'error' not in existing_status and existing_status.get('has_metadata', False) and existing_status.get('progress', 0) > 0:
-                    logger.info(f"♻️ Reusing healthy torrent for {torrent_id}")
+                    logger.info(f"Reusing healthy torrent for {torrent_id}")
                     # Just return the existing torrent status with the new ID mapping
                     existing_data = self.active_torrents[existing_torrent]
                     self.active_torrents[torrent_id] = existing_data  # Share the same data
                     return existing_status
                 else:
-                    logger.warning(f"🧹 Removing failed/stuck torrent {existing_torrent} (no metadata or progress)")
+                    logger.warning(f"Removing failed/stuck torrent {existing_torrent} (no metadata or progress)")
                     self.remove_torrent(existing_torrent, delete_files=False)
             
             # Parse magnet link
@@ -121,7 +121,7 @@ class TorrentBridge:
             }
             
             # Wait for metadata only (don't wait for download)
-            logger.info(f"⏳ Waiting for metadata for {torrent_id}")
+            logger.info(f"Waiting for metadata for {torrent_id}")
             await self._wait_for_metadata(torrent_id, timeout=30)
             
             # Set up sequential downloading for largest video file
@@ -130,10 +130,10 @@ class TorrentBridge:
             return self.get_torrent_status(torrent_id)
             
         except Exception as e:
-            logger.error(f"❌ Error adding torrent {torrent_id}: {e}")
+            logger.error(f"Error adding torrent {torrent_id}: {e}")
             # Clean up failed torrent
             if torrent_id in self.active_torrents:
-                logger.info(f"🧹 Cleaning up failed torrent {torrent_id}")
+                logger.info(f"Cleaning up failed torrent {torrent_id}")
                 self.remove_torrent(torrent_id, delete_files=False)
             return {'error': str(e)}
     
@@ -185,8 +185,8 @@ class TorrentBridge:
                     'total_size': torrent_info.total_size()
                 })
                 
-                logger.info(f"✅ Metadata received for {torrent_id}: {torrent_info.name()}")
-                logger.info(f"📁 Found {len(files)} files, largest video: {largest_file['path'] if largest_file else 'None'}")
+                logger.info(f"Metadata received for {torrent_id}: {torrent_info.name()}")
+                logger.info(f"Found {len(files)} files, largest video: {largest_file['path'] if largest_file else 'None'}")
                 return
             
             await asyncio.sleep(1)
@@ -218,10 +218,10 @@ class TorrentBridge:
             # Enable sequential download using flags
             handle.set_flags(handle.flags() | lt.torrent_flags.sequential_download)
             
-            logger.info(f"🎬 Streaming setup complete for {torrent_id}: {largest_file['path']}")
+            logger.info(f"Streaming setup complete for {torrent_id}: {largest_file['path']}")
             # Get dynamic threshold for this file type
             dynamic_threshold = self._get_dynamic_threshold(largest_file)
-            logger.info(f"📊 Will start streaming at {dynamic_threshold*100}% downloaded (dynamic threshold based on file type)")
+            logger.info(f"Will start streaming at {dynamic_threshold*100}% downloaded (dynamic threshold based on file type)")
     
     def is_streaming_ready(self, torrent_id: str, file_index: int = None) -> bool:
         """Check if torrent has enough data for streaming"""
@@ -279,7 +279,7 @@ class TorrentBridge:
                 # Cache the result
                 if is_ready and not torrent_data.get('streaming_ready', False):
                     torrent_data['streaming_ready'] = True
-                    logger.info(f"🎉 Streaming ready for {torrent_id}: {progress:.1%} downloaded ({downloaded/1024/1024:.1f}MB), file: {file_name}")
+                    logger.info(f"Streaming ready for {torrent_id}: {progress:.1%} downloaded ({downloaded/1024/1024:.1f}MB), file: {file_name}")
                 
                 return is_ready
         
@@ -318,13 +318,13 @@ class TorrentBridge:
         try:
             status = handle.status()
         except Exception as e:
-            logger.error(f"❌ Error getting status for {torrent_id}: {e}")
+            logger.error(f"Error getting status for {torrent_id}: {e}")
             return {'error': f'Status check failed: {e}'}
         
         # Check if torrent is stuck (no metadata after long time)
         age_minutes = (time.time() - torrent_data.get('added_time', time.time())) / 60
         if not status.has_metadata and age_minutes > 2:  # Stuck for more than 2 minutes
-            logger.warning(f"🧹 Removing stuck torrent {torrent_id} (no metadata after {age_minutes:.1f} minutes)")
+            logger.warning(f"Removing stuck torrent {torrent_id} (no metadata after {age_minutes:.1f} minutes)")
             self.remove_torrent(torrent_id, delete_files=False)
             return {'error': f'Torrent stuck - no metadata after {age_minutes:.1f} minutes'}
         
@@ -419,11 +419,11 @@ class TorrentBridge:
                 self.session.remove_torrent(handle)
             
             del self.active_torrents[torrent_id]
-            logger.info(f"🗑️ Removed torrent: {torrent_id}")
+            logger.info(f"Removed torrent: {torrent_id}")
             return True
             
         except Exception as e:
-            logger.error(f"❌ Error removing torrent {torrent_id}: {e}")
+            logger.error(f"Error removing torrent {torrent_id}: {e}")
             return False
     
     def cleanup_old_torrents(self, max_age_hours: int = 24):
@@ -438,11 +438,11 @@ class TorrentBridge:
         
         for torrent_id in to_remove:
             self.remove_torrent(torrent_id, delete_files=True)
-            logger.info(f"🧹 Cleaned up old torrent: {torrent_id}")
+            logger.info(f"Cleaned up old torrent: {torrent_id}")
     
     def clear_all_torrents(self):
         """Remove all active torrents - useful for debugging duplicate issues"""
-        logger.info("🧹 Clearing all torrents from session")
+        logger.info("Clearing all torrents from session")
         
         # Get all torrent IDs to avoid modifying dict during iteration
         torrent_ids = list(self.active_torrents.keys())
@@ -450,7 +450,7 @@ class TorrentBridge:
         for torrent_id in torrent_ids:
             self.remove_torrent(torrent_id, delete_files=False)  # Don't delete files, might be reused
         
-        logger.info(f"✅ Cleared {len(torrent_ids)} torrents from session")
+        logger.info(f"Cleared {len(torrent_ids)} torrents from session")
     
     def __del__(self):
         """Cleanup when object is destroyed"""
@@ -465,7 +465,7 @@ class TorrentBridge:
 # Global instance - use disabled version if libtorrent not available
 try:
     torrent_bridge = TorrentBridge()
-    logger.info("✅ Torrent bridge enabled with libtorrent support")
+    logger.info("Torrent bridge enabled with libtorrent support")
 except ImportError:
     torrent_bridge = TorrentBridgeDisabled()
-    logger.warning("⚠️  Torrent bridge disabled - libtorrent not available") 
+    logger.warning("Torrent bridge disabled - libtorrent not available") 

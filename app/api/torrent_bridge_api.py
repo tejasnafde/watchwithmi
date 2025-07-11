@@ -42,7 +42,7 @@ async def add_torrent(request: AddTorrentRequest):
         # Generate unique ID for this torrent
         torrent_id = str(uuid.uuid4())
         
-        logger.info(f"🔗 Adding torrent via bridge: {torrent_id}")
+        logger.info(f" Adding torrent via bridge: {torrent_id}")
         
         # Add torrent to bridge
         result = await torrent_bridge.add_torrent(request.magnet_url, torrent_id)
@@ -57,7 +57,7 @@ async def add_torrent(request: AddTorrentRequest):
         }
         
     except Exception as e:
-        logger.error(f"❌ Error adding torrent: {e}")
+        logger.error(f" Error adding torrent: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/status/{torrent_id}")
@@ -72,7 +72,7 @@ async def get_torrent_status(torrent_id: str):
         return status
         
     except Exception as e:
-        logger.error(f"❌ Error getting torrent status: {e}")
+        logger.error(f" Error getting torrent status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/stream/{torrent_id}/{file_index}")
@@ -189,7 +189,7 @@ async def stream_torrent_file(torrent_id: str, file_index: int, request: Request
             return StreamingResponse(stream_file(), headers=headers)
             
     except Exception as e:
-        logger.error(f"❌ Error streaming file: {e}")
+        logger.error(f" Error streaming file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/remove/{torrent_id}")
@@ -204,7 +204,7 @@ async def remove_torrent(torrent_id: str, delete_files: bool = True):
         return {"success": True, "message": "Torrent removed"}
         
     except Exception as e:
-        logger.error(f"❌ Error removing torrent: {e}")
+        logger.error(f" Error removing torrent: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/list")
@@ -220,7 +220,7 @@ async def list_torrents():
         return {"torrents": torrents}
         
     except Exception as e:
-        logger.error(f"❌ Error listing torrents: {e}")
+        logger.error(f" Error listing torrents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cleanup")
@@ -231,7 +231,7 @@ async def cleanup_old_torrents(max_age_hours: int = 24):
         return {"success": True, "message": f"Cleaned up torrents older than {max_age_hours} hours"}
         
     except Exception as e:
-        logger.error(f"❌ Error cleaning up torrents: {e}")
+        logger.error(f" Error cleaning up torrents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/clear-all")
@@ -242,5 +242,5 @@ async def clear_all_torrents():
         return {"success": True, "message": "All torrents cleared from session"}
         
     except Exception as e:
-        logger.error(f"❌ Error clearing torrents: {e}")
+        logger.error(f" Error clearing torrents: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -23,7 +23,7 @@ class RoomManager:
         room = Room(room_code, host_name)
         self._rooms[room_code] = room
         
-        logger.info(f"🆕 Created room {room_code} for host {host_name}")
+        logger.info(f"Created room {room_code} for host {host_name}")
         return room_code
     
     def get_room(self, room_code: str) -> Optional[Room]:
@@ -36,11 +36,11 @@ class RoomManager:
         room = self.get_room(room_code)
         
         if not room:
-            logger.warning(f"❌ Attempted to join non-existent room {room_code}")
+            logger.warning(f" Attempted to join non-existent room {room_code}")
             return False
         
         if room.user_count >= MAX_USERS_PER_ROOM:
-            logger.warning(f"❌ Room {room_code} is full ({MAX_USERS_PER_ROOM} users)")
+            logger.warning(f" Room {room_code} is full ({MAX_USERS_PER_ROOM} users)")
             return False
         
         # Remove any existing sessions for the same user name to prevent duplicates
@@ -51,7 +51,7 @@ class RoomManager:
         
         # Remove duplicate users
         for existing_user_id in existing_user_ids:
-            logger.info(f"🔄 Removing duplicate session for {user_name}: {existing_user_id}")
+            logger.info(f"Removing duplicate session for {user_name}: {existing_user_id}")
             room.remove_user(existing_user_id)
             if existing_user_id in self._user_sessions:
                 del self._user_sessions[existing_user_id]
@@ -80,7 +80,7 @@ class RoomManager:
         # Clean up empty rooms
         if room.is_empty:
             del self._rooms[room_code]
-            logger.info(f"🗑️ Cleaned up empty room {room_code}")
+            logger.info(f" Cleaned up empty room {room_code}")
         
         return new_host_id
     
@@ -166,6 +166,6 @@ class RoomManager:
         
         for room_code in empty_rooms:
             del self._rooms[room_code]
-            logger.info(f"🗑️ Cleaned up empty room {room_code}")
+            logger.info(f" Cleaned up empty room {room_code}")
         
         return len(empty_rooms) 

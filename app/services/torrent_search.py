@@ -78,7 +78,7 @@ class TorrentSearchService:
         results = []
         
         # PHASE 1: Try local APIs first (fast and reliable)
-        logger.info(f"🏠 PHASE 1: Checking local APIs first...")
+        logger.info(f" PHASE 1: Checking local APIs first...")
         local_tasks = [
             self._search_local_torrent_api_py(clean_query), # 🔧 LOCAL - Torrent-Api-py (30 results, FASTEST)
             self._search_jackett(clean_query),             # 🔧 LOCAL - Jackett (if running)
@@ -97,17 +97,17 @@ class TorrentSearchService:
                 
                 if isinstance(result, list):
                     if len(result) > 0:
-                        logger.info(f"✅ {source_name}: {len(result)} results")
+                        logger.info(f" {source_name}: {len(result)} results")
                         results.extend(result)
                     else:
-                        logger.debug(f"⚠️  {source_name}: 0 results")
+                        logger.debug(f"  {source_name}: 0 results")
                 elif isinstance(result, Exception):
-                    logger.debug(f"❌ {source_name}: {type(result).__name__}: {result}")
+                    logger.debug(f" {source_name}: {type(result).__name__}: {result}")
                     
         except asyncio.TimeoutError:
             logger.warning(f"⏰ Local APIs timeout (10s), continuing with external APIs...")
         except Exception as e:
-            logger.warning(f"❌ Local APIs failed: {e}")
+            logger.warning(f" Local APIs failed: {e}")
         
         # If we got enough results from local APIs, return them immediately
         if len(results) >= max_results:
@@ -117,24 +117,24 @@ class TorrentSearchService:
             return sorted_results[:max_results]
         
         # PHASE 2: Try external APIs for additional results
-        logger.info(f"🌐 PHASE 2: Local APIs gave {len(results)} results, trying external APIs for more...")
+        logger.info(f"PHASE 2: Local APIs gave {len(results)} results, trying external APIs for more...")
         
         external_tasks = [
-            self._search_bitsearch(clean_query),           # ✅ WORKING - BitSearch (20 results)
-            self._search_nyaa_api(clean_query),            # ✅ ACCESSIBLE - Nyaa API
-            self._search_torrentproject_api(clean_query),  # ✅ ACCESSIBLE - TorrentProject
-            self._search_btdig_api(clean_query),           # ⚠️  RATE-LIMITED - BTDig (429)
-            self._search_nyaa_cloudscraper(clean_query),   # ⚠️  MIGHT WORK - Nyaa with CloudScraper
+            self._search_bitsearch(clean_query),           #  WORKING - BitSearch (20 results)
+            self._search_nyaa_api(clean_query),            #  ACCESSIBLE - Nyaa API
+            self._search_torrentproject_api(clean_query),  #  ACCESSIBLE - TorrentProject
+            self._search_btdig_api(clean_query),           #   RATE-LIMITED - BTDig (429)
+            self._search_nyaa_cloudscraper(clean_query),   #   MIGHT WORK - Nyaa with CloudScraper
             # Blocked APIs (kept for fallback in case network changes)
-            self._search_1337x(clean_query),               # ❌ BLOCKED - 1337x
-            self._search_torrentgalaxy(clean_query),       # ❌ BLOCKED - TorrentGalaxy
-            self._search_limetorrents(clean_query),        # ❌ BLOCKED - LimeTorrents
-            self._search_kickass_torrents(clean_query),    # ❌ BLOCKED - KickAss
-            self._search_zooqle(clean_query),              # ❌ BLOCKED - Zooqle
-            self._search_solidtorrents_api(clean_query),   # ❌ BLOCKED - SolidTorrents
-            self._search_torrentz2_api(clean_query),       # ❌ BLOCKED - Torrentz2
-            self._search_yts_api(clean_query),             # ❌ BLOCKED - YTS
-            self._search_torrentapi(clean_query),          # ❌ BLOCKED - RARBG
+            self._search_1337x(clean_query),               #  BLOCKED - 1337x
+            self._search_torrentgalaxy(clean_query),       #  BLOCKED - TorrentGalaxy
+            self._search_limetorrents(clean_query),        #  BLOCKED - LimeTorrents
+            self._search_kickass_torrents(clean_query),    #  BLOCKED - KickAss
+            self._search_zooqle(clean_query),              #  BLOCKED - Zooqle
+            self._search_solidtorrents_api(clean_query),   #  BLOCKED - SolidTorrents
+            self._search_torrentz2_api(clean_query),       #  BLOCKED - Torrentz2
+            self._search_yts_api(clean_query),             #  BLOCKED - YTS
+            self._search_torrentapi(clean_query),          #  BLOCKED - RARBG
         ]
         
         try:
@@ -153,35 +153,35 @@ class TorrentSearchService:
                 
                 if isinstance(result, list):
                     if len(result) > 0:
-                        logger.info(f"✅ {source_name}: {len(result)} results")
+                        logger.info(f" {source_name}: {len(result)} results")
                         results.extend(result)
                     else:
-                        logger.debug(f"⚠️  {source_name}: 0 results")
+                        logger.debug(f"  {source_name}: 0 results")
                 elif isinstance(result, Exception):
                     error_msg = str(result)
                     if "ConnectError" in error_msg:
                         logger.debug(f"🚫 {source_name}: Network blocked")
                     elif "429" in error_msg or "rate" in error_msg.lower():
-                        logger.debug(f"⏱️  {source_name}: Rate limited")
+                        logger.debug(f"⏱  {source_name}: Rate limited")
                     else:
-                        logger.debug(f"❌ {source_name}: {type(result).__name__}: {result}")
+                        logger.debug(f" {source_name}: {type(result).__name__}: {result}")
                         
         except asyncio.TimeoutError:
             logger.warning(f"⏰ External APIs timeout (20s), returning {len(results)} results from available sources")
         except Exception as e:
-            logger.warning(f"❌ External APIs failed: {e}")
+            logger.warning(f" External APIs failed: {e}")
         
         # Process and return all results
         unique_results = self._deduplicate_results(results)
         sorted_results = sorted(unique_results, key=lambda x: x.seeders, reverse=True)
         
-        logger.info(f"✅ Total: {len(sorted_results)} unique torrents (from {len(results)} total across all sources)")
+        logger.info(f" Total: {len(sorted_results)} unique torrents (from {len(results)} total across all sources)")
         
         # If no results found, create a helpful message
         if len(sorted_results) == 0:
-            logger.warning("⚠️  No torrent results found - all sources may be blocked by your network/ISP")
+            logger.warning("  No torrent results found - all sources may be blocked by your network/ISP")
             placeholder = TorrentSearchResult(
-                title=f"⚠️ No results for '{query}' - Network/ISP may be blocking torrent sites",
+                title=f" No results for '{query}' - Network/ISP may be blocking torrent sites",
                 magnet="magnet:?xt=urn:btih:0000000000000000000000000000000000000000&dn=No+Results+Found",
                 size="N/A",
                 seeders=0,
@@ -988,7 +988,7 @@ class TorrentSearchService:
                                 continue
                         
                         if results:  # If we got results, return them
-                            logger.info(f"✅ 1337x found {len(results)} results from {mirror}")
+                            logger.info(f" 1337x found {len(results)} results from {mirror}")
                             return results
                             
                     else:
@@ -1063,7 +1063,7 @@ class TorrentSearchService:
                                 continue
                         
                         if results:
-                            logger.info(f"✅ LimeTorrents found {len(results)} results from {mirror}")
+                            logger.info(f" LimeTorrents found {len(results)} results from {mirror}")
                             return results
                             
             except Exception as e:
@@ -1265,9 +1265,9 @@ class TorrentSearchService:
         # These endpoints are much faster because they don't wait for 16 slow/blocked sites
         # Only use the ones that actually work and are fast
         local_endpoints = [
-            ("nyaasi", "Nyaa-Local"),    # ✅ Fast ~0.6s, reliable results
-            # ("bitsearch", "BitSearch-Local"),  # ❌ 0 results  
-            # ("yts", "YTS-Local"),              # ❌ 0 results
+            ("nyaasi", "Nyaa-Local"),    #  Fast ~0.6s, reliable results
+            # ("bitsearch", "BitSearch-Local"),  #  0 results  
+            # ("yts", "YTS-Local"),              #  0 results
         ]
         
         try:
@@ -1285,7 +1285,7 @@ class TorrentSearchService:
                 
                 if isinstance(response, dict) and "data" in response:
                     torrents = response["data"]
-                    logger.info(f"✅ {source_name}: {len(torrents)} results")
+                    logger.info(f" {source_name}: {len(torrents)} results")
                     
                     for torrent in torrents:
                         try:
@@ -1302,12 +1302,12 @@ class TorrentSearchService:
                             logger.debug(f"Skipping malformed {source_name} result: {e}")
                             continue
                 elif isinstance(response, Exception):
-                    logger.debug(f"❌ {source_name}: {type(response).__name__}: {response}")
+                    logger.debug(f" {source_name}: {type(response).__name__}: {response}")
                 else:
-                    logger.debug(f"⚠️  {source_name}: No data or unexpected format")
+                    logger.debug(f"  {source_name}: No data or unexpected format")
                     
         except Exception as e:
-            logger.warning(f"❌ Local Torrent-Api-py search failed: {e}")
+            logger.warning(f" Local Torrent-Api-py search failed: {e}")
         
         logger.info(f"🔧 LOCAL API: Completed with {len(results)} total results")
         return results

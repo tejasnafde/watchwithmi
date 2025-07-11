@@ -33,12 +33,12 @@ class SocketEventHandler:
     
     async def handle_connect(self, sid: str, environ: Dict):
         """Handle client connection."""
-        logger.info(f"🔗 Client {sid} connected")
+        logger.info(f" Client {sid} connected")
         self.room_manager.update_user_session(sid, {'room_code': None, 'user_name': None})
     
     async def handle_disconnect(self, sid: str):
         """Handle client disconnection."""
-        logger.info(f"🔗 Client {sid} disconnected")
+        logger.info(f" Client {sid} disconnected")
         
         session = self.room_manager.get_user_session(sid)
         if session and session.get('room_code'):
@@ -80,7 +80,7 @@ class SocketEventHandler:
                         }, room=room_code)
                 else:
                     # Just remove the session without notifications since user is still present
-                    logger.info(f"🔄 User {user_name} has active session, cleaning up old session {sid}")
+                    logger.info(f"User {user_name} has active session, cleaning up old session {sid}")
                     self.room_manager.leave_room(room_code, sid)
     
     async def handle_create_room(self, sid: str, data: Dict[str, Any]):
@@ -101,7 +101,7 @@ class SocketEventHandler:
             if success:
                 # Join Socket.IO room
                 await self.sio.enter_room(sid, room_code)
-                logger.debug(f"🏠 User {sid} entered Socket.IO room {room_code}")
+                logger.debug(f" User {sid} entered Socket.IO room {room_code}")
                 
                 # Get room data
                 room = self.room_manager.get_room(room_code)
@@ -116,12 +116,12 @@ class SocketEventHandler:
                     'chat': [msg.to_dict() for msg in room.chat]
                 }, room=sid)
                 
-                logger.info(f"✅ Room {room_code} created successfully by {user_name}")
+                logger.info(f" Room {room_code} created successfully by {user_name}")
             else:
                 await self.sio.emit('error', {'message': 'Failed to create room'}, room=sid)
                 
         except Exception as e:
-            logger.error(f"❌ Error creating room: {e}")
+            logger.error(f" Error creating room: {e}")
             await self.sio.emit('error', {'message': 'Server error occurred'}, room=sid)
     
     async def handle_join_room(self, sid: str, data: Dict[str, Any]):
@@ -163,12 +163,12 @@ class SocketEventHandler:
             if success:
                 # Log host assignment details
                 if existing_user:
-                    logger.info(f"🔄 User {user_name} reconnecting to room {room_code} (was_host: {was_existing_host}, now_host: {is_host})")
+                    logger.info(f"User {user_name} reconnecting to room {room_code} (was_host: {was_existing_host}, now_host: {is_host})")
                 else:
-                    logger.info(f"🆕 New user {user_name} joining room {room_code} (is_host: {is_host})")
+                    logger.info(f"New user {user_name} joining room {room_code} (is_host: {is_host})")
                 # Join Socket.IO room
                 await self.sio.enter_room(sid, room_code)
-                logger.debug(f"🏠 User {sid} entered Socket.IO room {room_code}")
+                logger.debug(f" User {sid} entered Socket.IO room {room_code}")
                 
                 # Get updated room data
                 updated_room = self.room_manager.get_room(room_code)
@@ -192,7 +192,7 @@ class SocketEventHandler:
                         'is_host': updated_room.users[sid].is_host
                     }, room=room_code, skip_sid=sid)
                 else:
-                    logger.info(f"🔄 User {user_name} reconnected to room {room_code}, not sending join notification")
+                    logger.info(f"User {user_name} reconnected to room {room_code}, not sending join notification")
                 
                 # Update user list for everyone
                 await self.sio.emit('users_updated', {
@@ -200,12 +200,12 @@ class SocketEventHandler:
                     'host': updated_room.host_id
                 }, room=room_code)
                 
-                logger.info(f"✅ User {user_name} joined room {room_code} (total users: {len(updated_room.users)})")
+                logger.info(f" User {user_name} joined room {room_code} (total users: {len(updated_room.users)})")
             else:
                 await self.sio.emit('error', {'message': 'Failed to join room'}, room=sid)
                 
         except Exception as e:
-            logger.error(f"❌ Error joining room: {e}")
+            logger.error(f" Error joining room: {e}")
             await self.sio.emit('error', {'message': 'Server error occurred'}, room=sid)
     
     async def handle_send_message(self, sid: str, data: Dict[str, Any]):
@@ -217,22 +217,22 @@ class SocketEventHandler:
         try:
             # Debug session and room info
             session = self.room_manager.get_user_session(sid)
-            logger.debug(f"💬 Send message attempt - SID: {sid}, Session: {session}, Message: {message}")
+            logger.debug(f" Send message attempt - SID: {sid}, Session: {session}, Message: {message}")
             
             result = self.room_manager.send_message(sid, message)
             if result:
                 room_code, chat_message = result
-                logger.debug(f"💬 Broadcasting to room {room_code}: {chat_message.to_dict()}")
+                logger.debug(f" Broadcasting to room {room_code}: {chat_message.to_dict()}")
                 
                 # Broadcast to room
                 await self.sio.emit('new_message', chat_message.to_dict(), room=room_code)
-                logger.debug(f"💬 Message sent in room {room_code}: {chat_message.user_name}: {message}")
+                logger.debug(f" Message sent in room {room_code}: {chat_message.user_name}: {message}")
             else:
-                logger.warning(f"💬 User {sid} not in a room when trying to send message")
+                logger.warning(f" User {sid} not in a room when trying to send message")
                 await self.sio.emit('error', {'message': 'Not in a room'}, room=sid)
                 
         except Exception as e:
-            logger.error(f"❌ Error sending message: {e}")
+            logger.error(f" Error sending message: {e}")
             await self.sio.emit('error', {'message': 'Failed to send message'}, room=sid)
     
     async def handle_media_control(self, sid: str, data: Dict[str, Any]):
@@ -267,7 +267,7 @@ class SocketEventHandler:
             
             if action == 'play':
                 self.room_manager.update_media(sid, state='playing')
-                logger.info(f"▶️ Broadcasting media_play to room {room_code} (users: {list(room.users.keys())})")
+                logger.info(f" Broadcasting media_play to room {room_code} (users: {list(room.users.keys())})")
                 await self.sio.emit('media_play', {
                     'timestamp': room.media.timestamp,
                     'user_name': user_name
@@ -276,7 +276,7 @@ class SocketEventHandler:
             elif action == 'pause':
                 timestamp = data.get('timestamp', room.media.timestamp)
                 self.room_manager.update_media(sid, state='paused', timestamp=timestamp)
-                logger.info(f"⏸️ Broadcasting media_pause to room {room_code} (users: {list(room.users.keys())})")
+                logger.info(f" Broadcasting media_pause to room {room_code} (users: {list(room.users.keys())})")
                 await self.sio.emit('media_pause', {
                     'timestamp': timestamp,
                     'user_name': user_name
@@ -315,7 +315,7 @@ class SocketEventHandler:
                 media_type = data.get('type', 'torrent')
                 media_title = data.get('title', 'Loading media...')
                 
-                logger.info(f"⏳ Broadcasting media_loading to room {room_code} - {media_title}")
+                logger.info(f" Broadcasting media_loading to room {room_code} - {media_title}")
                 await self.sio.emit('media_loading', {
                     'type': media_type,
                     'title': media_title,
@@ -326,7 +326,7 @@ class SocketEventHandler:
                 torrent_status = data.get('torrent_status')
                 
                 if torrent_status:
-                    logger.debug(f"📊 Broadcasting torrent_progress to room {room_code}: {torrent_status.get('progress', 0) * 100:.1f}%")
+                    logger.debug(f" Broadcasting torrent_progress to room {room_code}: {torrent_status.get('progress', 0) * 100:.1f}%")
                     await self.sio.emit('torrent_progress', {
                         'torrent_status': torrent_status,
                         'user_name': user_name
@@ -335,7 +335,7 @@ class SocketEventHandler:
             logger.debug(f"🎮 Media control in room {room_code}: {action} by {user_name}")
             
         except Exception as e:
-            logger.error(f"❌ Error handling media control: {e}")
+            logger.error(f" Error handling media control: {e}")
             await self.sio.emit('error', {'message': 'Media control failed'}, room=sid)
 
     async def handle_toggle_video(self, sid: str, data: Dict[str, Any]):
@@ -375,7 +375,7 @@ class SocketEventHandler:
             logger.info(f"📹 User {user_name} {'enabled' if enabled else 'disabled'} video in room {room_code}")
             
         except Exception as e:
-            logger.error(f"❌ Error toggling video: {e}")
+            logger.error(f" Error toggling video: {e}")
             await self.sio.emit('error', {'message': 'Failed to toggle video'}, room=sid)
 
     async def handle_toggle_audio(self, sid: str, data: Dict[str, Any]):
@@ -415,7 +415,7 @@ class SocketEventHandler:
             logger.info(f"🎤 User {user_name} {'enabled' if enabled else 'disabled'} audio in room {room_code}")
             
         except Exception as e:
-            logger.error(f"❌ Error toggling audio: {e}")
+            logger.error(f" Error toggling audio: {e}")
             await self.sio.emit('error', {'message': 'Failed to toggle audio'}, room=sid)
 
     async def handle_webrtc_offer(self, sid: str, data: Dict[str, Any]):
@@ -444,10 +444,10 @@ class SocketEventHandler:
                 'offer': offer
             }, room=target_user_id)
             
-            logger.debug(f"🔗 WebRTC offer forwarded from {sid} to {target_user_id} in room {room_code}")
+            logger.debug(f" WebRTC offer forwarded from {sid} to {target_user_id} in room {room_code}")
             
         except Exception as e:
-            logger.error(f"❌ Error handling WebRTC offer: {e}")
+            logger.error(f" Error handling WebRTC offer: {e}")
 
     async def handle_webrtc_answer(self, sid: str, data: Dict[str, Any]):
         """Handle WebRTC answer signaling."""
@@ -475,10 +475,10 @@ class SocketEventHandler:
                 'answer': answer
             }, room=target_user_id)
             
-            logger.debug(f"🔗 WebRTC answer forwarded from {sid} to {target_user_id} in room {room_code}")
+            logger.debug(f" WebRTC answer forwarded from {sid} to {target_user_id} in room {room_code}")
             
         except Exception as e:
-            logger.error(f"❌ Error handling WebRTC answer: {e}")
+            logger.error(f" Error handling WebRTC answer: {e}")
 
     async def handle_webrtc_ice_candidate(self, sid: str, data: Dict[str, Any]):
         """Handle WebRTC ICE candidate signaling."""
@@ -506,7 +506,7 @@ class SocketEventHandler:
                 'candidate': candidate
             }, room=target_user_id)
             
-            logger.debug(f"🔗 WebRTC ICE candidate forwarded from {sid} to {target_user_id} in room {room_code}")
+            logger.debug(f" WebRTC ICE candidate forwarded from {sid} to {target_user_id} in room {room_code}")
             
         except Exception as e:
-            logger.error(f"❌ Error handling WebRTC ICE candidate: {e}") 
+            logger.error(f" Error handling WebRTC ICE candidate: {e}") 
