@@ -35,7 +35,7 @@ cd /d "%~dp0\.."
 
 REM Start the FastAPI backend (cmd /k keeps window open on error)
 echo 🚀 Starting FastAPI backend on port 8000...
-start "WatchWithMi Backend" cmd /k "python -m app.main || (echo. && echo ❌ Backend failed to start. && echo. && echo 🔧 Common fixes: && echo    1. Install Python 3.8+ && echo    2. Run: pip install -r requirements.txt && echo    3. For libtorrent errors, try: pip install libtorrent==1.2.19 --force-reinstall && echo. && echo Press any key to close... && pause > nul)"
+start "WatchWithMi Backend" cmd /k "python -m app.main || (echo. && echo ❌ Backend failed to start. && echo. && echo 🔧 Windows Libtorrent Fixes: && echo    1. Install Anaconda: https://www.anaconda.com/download && echo    2. Run: conda install -c conda-forge libtorrent && echo    3. Alternative: Download wheel from https://www.lfd.uci.edu/~gohlke/pythonlibs/ && echo    4. App works without torrents if libtorrent fails && echo. && echo 🔧 Other Common Fixes: && echo    1. Install Python 3.8+ && echo    2. Run: pip install -r requirements.txt && echo. && echo Press any key to close... && pause > nul)"
 
 REM Wait for backend to start
 echo ⏳ Waiting for backend to initialize...
@@ -44,7 +44,7 @@ timeout /t 5 /nobreak >nul
 REM Install frontend dependencies and start React frontend (cmd /k keeps window open on error)
 echo 🎨 Installing frontend dependencies and starting React frontend on port 3000...
 cd frontend
-start "WatchWithMi Frontend" cmd /k "(npm install && npm run dev) || (echo. && echo ❌ Frontend failed to start. && echo. && echo 🔧 Common fixes: && echo    1. Install Node.js 18+ from https://nodejs.org/ && echo    2. Delete node_modules and package-lock.json, then run npm install && echo    3. For module resolution errors, restart VS Code/editor && echo. && echo Press any key to close... && pause > nul)"
+start "WatchWithMi Frontend" cmd /k "(npm install && npm run dev) || (echo. && echo ❌ Frontend failed to start. && echo. && echo 🔧 Common fixes: && echo    1. Install Node.js 18+ from https://nodejs.org/ && echo    2. Delete node_modules and package-lock.json, then run npm install && echo    3. For module resolution errors, restart VS Code/editor && echo    4. Fixed Turbopack compatibility issues && echo. && echo Press any key to close... && pause > nul)"
 
 REM Wait for frontend to start
 timeout /t 3 /nobreak >nul
@@ -56,8 +56,8 @@ echo 📍 API Docs: http://localhost:8000/docs
 echo.
 echo 💡 If you see errors, check the backend/frontend terminal windows.
 echo 💡 For the frontend, make sure Node.js 18+ is installed.
-echo 💡 For the backend, make sure Python and dependencies are installed.
-echo 💡 Updated libtorrent to 1.2.19 for better Windows compatibility.
+echo 💡 For libtorrent issues, try conda-forge or manual wheel installation.
+echo 💡 App works without torrent features if libtorrent fails to install.
 echo.
 echo Press Ctrl+C to stop both services (you may need to close the terminal windows manually)
 echo.
