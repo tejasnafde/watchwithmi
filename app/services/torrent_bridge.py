@@ -5,19 +5,58 @@ Torrent Bridge Service - Downloads torrents server-side and streams to browsers
 import asyncio
 import os
 import tempfile
-import libtorrent as lt
 import time
 import logging
 from typing import Optional, Dict, Any
 from urllib.parse import quote
 import aiofiles
 
+# Try to import libtorrent, gracefully handle if not available
+try:
+    import libtorrent as lt
+    LIBTORRENT_AVAILABLE = True
+except ImportError:
+    LIBTORRENT_AVAILABLE = False
+    lt = None
+
 logger = logging.getLogger("watchwithmi.services.torrent_bridge")
+
+class TorrentBridgeDisabled:
+    """Disabled torrent bridge when libtorrent is not available"""
+    
+    def __init__(self):
+        logger.warning("🚫 Libtorrent not available - torrent features disabled")
+        logger.info("💡 Install libtorrent with: conda install -c conda-forge libtorrent")
+        self.active_torrents: Dict[str, Dict[str, Any]] = {}
+    
+    async def add_torrent(self, magnet_url: str, torrent_id: str) -> Dict[str, Any]:
+        return {'error': 'Torrent functionality disabled - libtorrent not installed'}
+    
+    def get_torrent_status(self, torrent_id: str) -> Dict[str, Any]:
+        return {'error': 'Torrent functionality disabled - libtorrent not installed'}
+    
+    async def get_file_stream_url(self, torrent_id: str, file_index: int) -> Optional[str]:
+        return None
+    
+    async def get_file_path(self, torrent_id: str, file_index: int) -> Optional[str]:
+        return None
+    
+    def remove_torrent(self, torrent_id: str, delete_files: bool = True):
+        return False
+    
+    def cleanup_old_torrents(self, max_age_hours: int = 24):
+        pass
+    
+    def clear_all_torrents(self):
+        pass
 
 class TorrentBridge:
     """Handles server-side torrent downloading and streaming"""
     
     def __init__(self):
+        if not LIBTORRENT_AVAILABLE:
+            raise ImportError("libtorrent not available")
+            
         self.session = lt.session()
         self.session.listen_on(6881, 6891)
         self.active_torrents: Dict[str, Dict[str, Any]] = {}
@@ -423,5 +462,10 @@ class TorrentBridge:
         except:
             pass
 
-# Global instance
-torrent_bridge = TorrentBridge() 
+# Global instance - use disabled version if libtorrent not available
+try:
+    torrent_bridge = TorrentBridge()
+    logger.info("✅ Torrent bridge enabled with libtorrent support")
+except ImportError:
+    torrent_bridge = TorrentBridgeDisabled()
+    logger.warning("⚠️  Torrent bridge disabled - libtorrent not available") 
