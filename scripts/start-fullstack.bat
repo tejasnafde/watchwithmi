@@ -33,18 +33,18 @@ if !errorlevel! equ 0 (
 REM Navigate to project root
 cd /d "%~dp0\.."
 
-REM Start the FastAPI backend
+REM Start the FastAPI backend (cmd /k keeps window open on error)
 echo 🚀 Starting FastAPI backend on port 8000...
-start "WatchWithMi Backend" cmd /c "python -m app.main"
+start "WatchWithMi Backend" cmd /k "python -m app.main || (echo. && echo ❌ Backend failed to start. Press any key to close... && pause > nul)"
 
 REM Wait for backend to start
 echo ⏳ Waiting for backend to initialize...
 timeout /t 5 /nobreak >nul
 
-REM Start the React frontend
-echo 🎨 Starting React frontend on port 3000...
+REM Install frontend dependencies and start React frontend (cmd /k keeps window open on error)
+echo 🎨 Installing frontend dependencies and starting React frontend on port 3000...
 cd frontend
-start "WatchWithMi Frontend" cmd /c "npm run dev"
+start "WatchWithMi Frontend" cmd /k "(npm install && npm run dev) || (echo. && echo ❌ Frontend failed to start. Make sure Node.js is installed. Press any key to close... && pause > nul)"
 
 REM Wait for frontend to start
 timeout /t 3 /nobreak >nul
@@ -53,6 +53,10 @@ echo ✅ Both services started successfully!
 echo 📍 FastAPI Backend: http://localhost:8000
 echo 📍 React Frontend: http://localhost:3000
 echo 📍 API Docs: http://localhost:8000/docs
+echo.
+echo 💡 If you see errors, check the backend/frontend terminal windows.
+echo 💡 For the frontend, make sure Node.js 18+ is installed.
+echo 💡 For the backend, make sure Python and dependencies are installed.
 echo.
 echo Press Ctrl+C to stop both services (you may need to close the terminal windows manually)
 echo.
