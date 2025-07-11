@@ -54,8 +54,8 @@ async def lifespan(app: FastAPI):
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins="*",
-    logger=True,
-    engineio_logger=True
+    logger=not os.getenv("DEBUG", "true").lower() == "false",  # Only log in debug mode
+    engineio_logger=not os.getenv("DEBUG", "true").lower() == "false"  # Only log in debug mode
 )
 
 # Create FastAPI app with lifespan
@@ -180,10 +180,14 @@ if __name__ == "__main__":
     logger.info(f"Starting {APP_NAME} server...")
     logger.info(f"Server will be available at: http://{HOST}:{PORT}")
     
+    # Respect environment variable for uvicorn log level
+    uvicorn_log_level = os.getenv("UVICORN_LOG_LEVEL", "info" if not DEBUG else "debug").lower()
+    
     uvicorn.run(
         "app.main:socket_app",
         host=HOST,
         port=PORT,
         reload=DEBUG,
-        log_level="info" if not DEBUG else "debug"
+        log_level=uvicorn_log_level,
+        access_log=DEBUG  # Only show access logs in debug mode
     ) 

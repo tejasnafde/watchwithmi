@@ -61,10 +61,26 @@ def setup_logging():
         format=LOG_FORMAT
     )
     
+    # Filter out noisy debug messages that flood Windows logs
+    noisy_loggers = [
+        'watchfiles.main',          # File change detection spam
+        'watchfiles.watcher',       # More file watching spam  
+        'uvicorn.protocols.http',   # HTTP request spam
+        'engineio.socket',          # Socket.IO connection spam
+        'socketio.client',          # Client connection details
+    ]
+    
+    for logger_name in noisy_loggers:
+        logger = logging.getLogger(logger_name)
+        # Set to WARNING level to only show important messages, not DEBUG/INFO spam
+        logger.setLevel(logging.WARNING)
+        logger.propagate = True  # Still allow warnings to show
+    
     # Create app logger
     logger = logging.getLogger("watchwithmi")
     logger.info(f"{APP_NAME} v{VERSION} - Logging initialized")
     logger.info(f"Log file: {LOG_FILE}")
+    logger.info("Configured filtered logging for Windows compatibility")
     
     return logger
 

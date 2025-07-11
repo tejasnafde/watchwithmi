@@ -4,6 +4,14 @@ setlocal EnableDelayedExpansion
 REM WatchWithMi Full-Stack Startup Script for Windows
 echo Starting WatchWithMi Full-Stack Application...
 
+REM Configure reduced logging for Windows
+set DEBUG=false
+set WATCHFILES_LOG_LEVEL=WARNING
+set UVICORN_LOG_LEVEL=WARNING
+chcp 65001 >nul 2>&1
+
+echo Configured minimal logging for Windows...
+
 REM Function to kill processes on specific ports
 call :kill_port 8000
 call :kill_port 3000
