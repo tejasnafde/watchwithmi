@@ -57,7 +57,7 @@ class Room:
         self.chat: List[ChatMessage] = []
         self.created_at = datetime.now().isoformat()
         
-        logger.info(f"🏠 Room {room_code} created")
+        logger.info(f"Room {room_code} created")
     
     def add_user(self, user_id: str, user_name: str, is_host: bool = False) -> bool:
         """Add a user to the room."""
@@ -74,10 +74,10 @@ class Room:
                 self.host_id = user_id
                 self.users[user_id].is_host = True
             
-            logger.info(f"👤 User {user_name} ({user_id}) joined room {self.room_code}")
+            logger.info(f"User {user_name} ({user_id}) joined room {self.room_code}")
             return True
         except Exception as e:
-            logger.error(f"❌ Failed to add user {user_name} to room {self.room_code}: {e}")
+            logger.error(f"Failed to add user {user_name} to room {self.room_code}: {e}")
             return False
     
     def remove_user(self, user_id: str) -> Optional[str]:
@@ -89,17 +89,17 @@ class Room:
         was_host = self.users[user_id].is_host
         del self.users[user_id]
         
-        logger.info(f"👤 User {user_name} ({user_id}) left room {self.room_code}")
+        logger.info(f"User {user_name} ({user_id}) left room {self.room_code}")
         
         # Handle host change
         if was_host and self.users:
             new_host_id = next(iter(self.users))
             self.host_id = new_host_id
             self.users[new_host_id].is_host = True
-            logger.info(f"👑 New host in room {self.room_code}: {self.users[new_host_id].name}")
+            logger.info(f"New host in room {self.room_code}: {self.users[new_host_id].name}")
             return new_host_id
         elif not self.users:
-            logger.info(f"🏠 Room {self.room_code} is now empty")
+            logger.info(f"Room {self.room_code} is now empty")
             
         return None
     
@@ -116,7 +116,7 @@ class Room:
         )
         
         self.chat.append(chat_message)
-        logger.debug(f"💬 Message in room {self.room_code}: {self.users[user_id].name}: {message}")
+        logger.debug(f"Message in room {self.room_code}: {self.users[user_id].name}: {message}")
         return chat_message
     
     def update_media(self, url: str = None, media_type: str = None, 
@@ -124,14 +124,14 @@ class Room:
         """Update media state."""
         if url is not None:
             self.media.url = url
-            logger.info(f"🎬 Media changed in room {self.room_code}: {url}")
+            logger.info(f"Media changed in room {self.room_code}: {url}")
         
         if media_type is not None:
             self.media.type = media_type
             
         if state is not None:
             self.media.state = state
-            logger.debug(f"▶️ Media state in room {self.room_code}: {state}")
+            logger.debug(f"Media state in room {self.room_code}: {state}")
             
         if timestamp is not None:
             self.media.timestamp = timestamp

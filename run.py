@@ -13,9 +13,9 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
 
 if __name__ == "__main__":
-    print("🎬 Starting WatchWithMi Server...")
-    print("📡 Server will be available at: http://localhost:8000")
-    print("🔄 Press Ctrl+C to stop the server")
+    print("Starting WatchWithMi Server...")
+    print("Server will be available at: http://localhost:8000")
+    print("Press Ctrl+C to stop the server")
     print("-" * 50)
     
     try:
@@ -30,5 +30,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Server stopped. Thanks for using WatchWithMi!")
     except Exception as e:
-        print(f"❌ Error starting server: {e}")
+        print(f" Error starting server: {e}")
         sys.exit(1) 

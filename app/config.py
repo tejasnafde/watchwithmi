@@ -4,6 +4,7 @@ Configuration module for WatchWithMi application.
 
 import logging
 import os
+import platform
 from pathlib import Path
 
 # Application settings
@@ -33,14 +34,25 @@ def setup_logging():
     formatter = logging.Formatter(LOG_FORMAT)
     
     # File handler
-    file_handler = logging.FileHandler(LOG_FILE)
+    file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
     file_handler.setLevel(LOG_LEVEL)
     file_handler.setFormatter(formatter)
     
-    # Console handler
+    # Console handler - use utf-8 encoding on Windows
     console_handler = logging.StreamHandler()
     console_handler.setLevel(LOG_LEVEL)
     console_handler.setFormatter(formatter)
+    
+    # Set encoding for Windows console compatibility
+    if platform.system() == "Windows":
+        try:
+            # Try to set console to UTF-8 mode
+            import sys
+            if hasattr(sys.stdout, 'reconfigure'):
+                sys.stdout.reconfigure(encoding='utf-8')
+                sys.stderr.reconfigure(encoding='utf-8')
+        except:
+            pass  # Fallback to default encoding
     
     # Configure root logger
     logging.basicConfig(
@@ -51,8 +63,8 @@ def setup_logging():
     
     # Create app logger
     logger = logging.getLogger("watchwithmi")
-    logger.info(f"🎬 {APP_NAME} v{VERSION} - Logging initialized")
-    logger.info(f"📁 Log file: {LOG_FILE}")
+    logger.info(f"{APP_NAME} v{VERSION} - Logging initialized")
+    logger.info(f"Log file: {LOG_FILE}")
     
     return logger
 
