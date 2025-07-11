@@ -11,5 +11,8 @@ httpx==0.25.2
 pydantic>=2.5.0
 beautifulsoup4==4.12.2
 cloudscraper==1.2.71
-libtorrent==2.0.11
+
+# Torrent functionality - Using 1.2.19 for better Windows compatibility
+# Version 1.2.19 has pre-built Windows wheels unlike 2.0.11
+libtorrent==1.2.19
 aiofiles==23.2.1
