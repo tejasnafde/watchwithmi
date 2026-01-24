@@ -15,12 +15,12 @@ class RoomManager:
     def __init__(self):
         self._rooms: Dict[str, Room] = {}
         self._user_sessions: Dict[str, Dict] = {}
-        logger.info("🏢 RoomManager initialized")
+        logger.info("RoomManager initialized")
     
     def create_room(self, host_name: str) -> str:
         """Create a new room and return the room code."""
         room_code = self._generate_unique_room_code()
-        room = Room(room_code, host_name)
+        room = Room(room_code)
         self._rooms[room_code] = room
         
         logger.info(f"Created room {room_code} for host {host_name}")
@@ -51,10 +51,8 @@ class RoomManager:
         
         # Remove duplicate users
         for existing_user_id in existing_user_ids:
-            logger.info(f"Removing duplicate session for {user_name}: {existing_user_id}")
-            room.remove_user(existing_user_id)
-            if existing_user_id in self._user_sessions:
-                del self._user_sessions[existing_user_id]
+            logger.info(f"Removing duplicate session for {user_name} (old SID: {existing_user_id}, new SID: {user_id})")
+            self.leave_room(room_code, existing_user_id)
         
         success = room.add_user(user_id, user_name, is_host)
         if success:
@@ -62,6 +60,7 @@ class RoomManager:
                 'room_code': room_code,
                 'user_name': user_name
             }
+            logger.debug(f"User session updated for {user_id} in {room_code}")
         
         return success
     
@@ -79,8 +78,9 @@ class RoomManager:
         
         # Clean up empty rooms
         if room.is_empty:
-            del self._rooms[room_code]
-            logger.info(f" Cleaned up empty room {room_code}")
+            if room_code in self._rooms:
+                del self._rooms[room_code]
+                logger.info(f" Cleaned up empty room {room_code}")
         
         return new_host_id
     
@@ -123,12 +123,32 @@ class RoomManager:
         if not room:
             return None
         
-        # Check if user is host for certain operations
-        if user_id not in room.users:
+        # Check if user has permission to control media
+        if user_id not in room.users or not room.users[user_id].can_control:
+            logger.warning(f"🚫 User {user_id} attempted media update without control permissions in room {room_code}")
             return None
         
         room.update_media(**media_updates)
         return room_code
+
+    def set_user_control(self, requester_id: str, target_id: str, enabled: bool) -> bool:
+        """Set control permissions for a target user. Only host can do this."""
+        session = self.get_user_session(requester_id)
+        if not session:
+            return False
+            
+        room_code = session.get('room_code')
+        room = self.get_room(room_code) if room_code else None
+        
+        if not room:
+            return False
+            
+        # Only the actual room creator/host can grant/revoke control
+        if room.host_id != requester_id:
+            logger.warning(f"🚫 User {requester_id} (non-host) tried to manage controls in room {room_code}")
+            return False
+            
+        return room.grant_control(target_id, enabled)
     
     def is_user_host(self, user_id: str) -> bool:
         """Check if a user is the host of their room."""

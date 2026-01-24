@@ -61,26 +61,37 @@ def setup_logging():
         format=LOG_FORMAT
     )
     
-    # Filter out noisy debug messages that flood Windows logs
-    noisy_loggers = [
-        'watchfiles.main',          # File change detection spam
-        'watchfiles.watcher',       # More file watching spam  
-        'uvicorn.protocols.http',   # HTTP request spam
-        'engineio.socket',          # Socket.IO connection spam
-        'socketio.client',          # Client connection details
-    ]
+    # Smart filtering: Only filter noisy loggers when not in full debug mode
+    # Check if user explicitly wants to see file change logs for debugging
+    watchfiles_level = os.getenv("WATCHFILES_LOG_LEVEL", "WARNING" if not DEBUG else "INFO").upper()
+    uvicorn_level = os.getenv("UVICORN_LOG_LEVEL", "INFO" if not DEBUG else "DEBUG").upper()
     
-    for logger_name in noisy_loggers:
+    # Configure noisy loggers with environment-specific levels
+    logger_configs = {
+        'watchfiles.main': watchfiles_level,        # File change detection
+        'watchfiles.watcher': watchfiles_level,     # File watching details  
+        'uvicorn.protocols.http': uvicorn_level,    # HTTP request logs
+        'engineio.socket': 'WARNING',               # Socket.IO connection spam (always filtered)
+        'socketio.client': 'WARNING',               # Client connection details (always filtered)
+    }
+    
+    for logger_name, level_name in logger_configs.items():
         logger = logging.getLogger(logger_name)
-        # Set to WARNING level to only show important messages, not DEBUG/INFO spam
-        logger.setLevel(logging.WARNING)
-        logger.propagate = True  # Still allow warnings to show
+        level = getattr(logging, level_name, logging.WARNING)
+        logger.setLevel(level)
+        logger.propagate = True  # Still allow messages to bubble up
     
     # Create app logger
     logger = logging.getLogger("watchwithmi")
     logger.info(f"{APP_NAME} v{VERSION} - Logging initialized")
     logger.info(f"Log file: {LOG_FILE}")
-    logger.info("Configured filtered logging for Windows compatibility")
+    
+    # Show current logging configuration
+    if DEBUG:
+        logger.info(f"Debug mode enabled - Detailed logging active")
+        logger.info(f"Watchfiles level: {watchfiles_level}, Uvicorn level: {uvicorn_level}")
+    else:
+        logger.info("Production mode - Filtered logging for clean output")
     
     return logger
 

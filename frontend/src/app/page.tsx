@@ -32,7 +32,7 @@ export default function HomePage() {
     try {
       // Generate a random room code
       const newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      console.log('🆕 Creating room with code:', newRoomCode);
+      console.log(' Creating room with code:', newRoomCode);
       router.push(`/room/${newRoomCode}?name=${encodeURIComponent(createUserName.trim())}`);
     } catch (error) {
       console.error('Error creating room:', error);
@@ -59,7 +59,7 @@ export default function HomePage() {
     
     setError('');
     setIsJoining(true);
-    console.log('🔗 Joining room:', roomCode.trim().toUpperCase());
+    console.log(' Joining room:', roomCode.trim().toUpperCase());
     router.push(`/room/${roomCode.trim().toUpperCase()}?name=${encodeURIComponent(joinUserName.trim())}`);
     // Don't reset isJoining here - let the navigation handle it
   };
@@ -187,8 +187,8 @@ export default function HomePage() {
         </Card>
 
         <div className="text-center mt-6 text-gray-400 text-sm">
-          <p>🎬 Stream YouTube videos, torrents, and direct links</p>
-          <p>🔄 Real-time synchronization with friends</p>
+          <p> Stream YouTube videos, medias, and direct links</p>
+          <p> Real-time synchronization with friends</p>
           <p>💬 Built-in chat for discussions</p>
         </div>
       </div>
