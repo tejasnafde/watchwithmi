@@ -15,7 +15,7 @@ class SocketEventHandler:
         self.sio = sio
         self.room_manager = room_manager
         self._register_events()
-        logger.info("🔌 Socket event handlers registered")
+        logger.info("Socket event handlers registered")
     
     def _register_events(self):
         """Register all Socket.IO event handlers."""
@@ -30,6 +30,7 @@ class SocketEventHandler:
         self.sio.on('webrtc_offer')(self.handle_webrtc_offer)
         self.sio.on('webrtc_answer')(self.handle_webrtc_answer)
         self.sio.on('webrtc_ice_candidate')(self.handle_webrtc_ice_candidate)
+        self.sio.on('grant_control')(self.handle_grant_control)
     
     async def handle_connect(self, sid: str, environ: Dict):
         """Handle client connection."""
@@ -152,34 +153,39 @@ class SocketEventHandler:
             # Determine if user should be host
             # Case 1: Empty room - first user becomes host
             # Case 2: Reconnecting as previous host
-            # Case 3: Room exists but no active host (all disconnected)
+            # Case 3: Room exists but no active host (dead host session)
             is_host = (room.user_count == 0 or 
                       was_existing_host or 
                       room.host_id is None or 
                       room.host_id not in room.users)
             
+            logger.info(f"Adding user {user_name} to room {room_code} (as host: {is_host})")
             success = self.room_manager.join_room(room_code, sid, user_name, is_host)
             
             if success:
-                # Log host assignment details
+                # Log host assignment details after join
+                updated_room = self.room_manager.get_room(room_code)
+                is_actually_host = updated_room.users[sid].is_host
+                
                 if existing_user:
-                    logger.info(f"User {user_name} reconnecting to room {room_code} (was_host: {was_existing_host}, now_host: {is_host})")
+                    logger.info(f"User {user_name} reconnected (was_host: {was_existing_host}, now_host: {is_actually_host})")
                 else:
-                    logger.info(f"New user {user_name} joining room {room_code} (is_host: {is_host})")
+                    logger.info(f"New user {user_name} joined (is_host: {is_actually_host})")
+                    
                 # Join Socket.IO room
                 await self.sio.enter_room(sid, room_code)
-                logger.debug(f" User {sid} entered Socket.IO room {room_code}")
                 
-                # Get updated room data
-                updated_room = self.room_manager.get_room(room_code)
-                
+                # Prepare response payload
+                user_list = {uid: user.to_dict() for uid, user in updated_room.users.items()}
+                logger.debug(f"Room {room_code} state - users: {list(user_list.keys())}, host: {updated_room.host_id}")
+
                 # Send success response to user
                 await self.sio.emit('room_joined', {
                     'room_code': room_code,
                     'user_id': sid,
-                    'is_host': updated_room.users[sid].is_host,
+                    'is_host': is_actually_host,
                     'media': updated_room.media.to_dict(),
-                    'users': {uid: user.to_dict() for uid, user in updated_room.users.items()},
+                    'users': user_list,
                     'chat': [msg.to_dict() for msg in updated_room.chat]
                 }, room=sid)
                 
@@ -255,13 +261,15 @@ class SocketEventHandler:
                 return
             
             is_host = self.room_manager.is_user_host(sid)
+            room_user = room.users.get(sid)
+            can_control = room_user.can_control if room_user else False
             
-            # Check permissions for certain actions
-            # Temporarily allow everyone to change media for testing
-            # if action in ['change_media'] and not is_host:
-            #     logger.warning(f"🚫 Non-host user {session.get('user_name')} ({sid}) tried to change media in room {room_code}. Host: {room.host_id}")
-            #     await self.sio.emit('error', {'message': 'Only host can change media'}, room=sid)
-            #     return
+            # Check permissions for all control actions
+            # Only users with 'can_control=True' can perform these actions
+            if not can_control:
+                logger.warning(f"🚫 Unauthorized media control attempt by {session.get('user_name')} ({sid}) in room {room_code}")
+                await self.sio.emit('error', {'message': 'You do not have permission to control media'}, room=sid)
+                return
             
             user_name = session.get('user_name', 'Unknown')
             
@@ -312,7 +320,7 @@ class SocketEventHandler:
                     }, room=room_code)
                     
             elif action == 'start_loading':
-                media_type = data.get('type', 'torrent')
+                media_type = data.get('type', 'media')
                 media_title = data.get('title', 'Loading media...')
                 
                 logger.info(f" Broadcasting media_loading to room {room_code} - {media_title}")
@@ -322,13 +330,13 @@ class SocketEventHandler:
                     'user_name': user_name
                 }, room=room_code)
             
-            elif action == 'torrent_progress':
-                torrent_status = data.get('torrent_status')
+            elif action == 'media_progress':
+                media_status = data.get('media_status')
                 
-                if torrent_status:
-                    logger.debug(f" Broadcasting torrent_progress to room {room_code}: {torrent_status.get('progress', 0) * 100:.1f}%")
-                    await self.sio.emit('torrent_progress', {
-                        'torrent_status': torrent_status,
+                if media_status:
+                    logger.debug(f" Broadcasting media_progress to room {room_code}: {media_status.get('progress', 0) * 100:.1f}%")
+                    await self.sio.emit('media_progress', {
+                        'media_status': media_status,
                         'user_name': user_name
                     }, room=room_code)
             
@@ -509,4 +517,39 @@ class SocketEventHandler:
             logger.debug(f" WebRTC ICE candidate forwarded from {sid} to {target_user_id} in room {room_code}")
             
         except Exception as e:
-            logger.error(f" Error handling WebRTC ICE candidate: {e}") 
+            logger.error(f" Error handling WebRTC ICE candidate: {e}")
+
+    async def handle_grant_control(self, sid: str, data: Dict[str, Any]):
+        """Handle granting/revoking control (DJ) permissions."""
+        target_user_id = data.get('user_id')
+        enabled = data.get('enabled', False)
+        
+        if not target_user_id:
+            return
+            
+        try:
+            session = self.room_manager.get_user_session(sid)
+            if not session or not session.get('room_code'):
+                return
+                
+            room_code = session['room_code']
+            
+            # Use RoomManager to update permission (handles host check)
+            success = self.room_manager.set_user_control(sid, target_user_id, enabled)
+            
+            if success:
+                # Update everyone in the room with the new user state
+                updated_room = self.room_manager.get_room(room_code)
+                if updated_room:
+                    await self.sio.emit('users_updated', {
+                        'users': {uid: user.to_dict() for uid, user in updated_room.users.items()},
+                        'host': updated_room.host_id
+                    }, room=room_code)
+                    
+                    target_name = updated_room.users[target_user_id].name
+                    logger.info(f"Host {session.get('user_name')} {'granted' if enabled else 'revoked'} control for {target_name} in {room_code}")
+            else:
+                await self.sio.emit('error', {'message': 'Action failed or unauthorized'}, room=sid)
+                
+        except Exception as e:
+            logger.error(f" Error handling grant_control: {e}") 

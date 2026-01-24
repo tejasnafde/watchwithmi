@@ -1,5 +1,5 @@
 """
-    API endpoints for torrent bridge functionality
+API endpoints for media bridge functionality (P2P content streaming)
 """
 
 import asyncio
@@ -12,17 +12,17 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import aiofiles
 
-from app.services.torrent_bridge import torrent_bridge
+from app.services.media_bridge import media_bridge
 
-logger = logging.getLogger("watchwithmi.api.torrent_bridge")
+logger = logging.getLogger("watchwithmi.api.media_bridge")
 
-router = APIRouter(prefix="/api/torrent", tags=["torrent_bridge"])
+router = APIRouter(prefix="/api/media", tags=["media_bridge"])
 
-class AddTorrentRequest(BaseModel):
+class AddMediaRequest(BaseModel):
     magnet_url: str
     title: Optional[str] = None
 
-class TorrentStatusResponse(BaseModel):
+class MediaStatusResponse(BaseModel):
     id: str
     name: str
     status: str
@@ -36,35 +36,35 @@ class TorrentStatusResponse(BaseModel):
     has_metadata: bool
 
 @router.post("/add")
-async def add_torrent(request: AddTorrentRequest):
-    """Add a torrent for server-side downloading"""
+async def add_media(request: AddMediaRequest):
+    """Add a media source for server-side downloading"""
     try:
-        # Generate unique ID for this torrent
-        torrent_id = str(uuid.uuid4())
+        # Generate unique ID for this media
+        media_id = str(uuid.uuid4())
         
-        logger.info(f" Adding torrent via bridge: {torrent_id}")
+        logger.info(f" Adding media via bridge: {media_id}")
         
-        # Add torrent to bridge
-        result = await torrent_bridge.add_torrent(request.magnet_url, torrent_id)
+        # Add media to bridge
+        result = await media_bridge.add_media(request.magnet_url, media_id)
         
         if 'error' in result:
             raise HTTPException(status_code=400, detail=result['error'])
         
         return {
             "success": True,
-            "torrent_id": torrent_id,
+            "media_id": media_id,
             "status": result
         }
         
     except Exception as e:
-        logger.error(f" Error adding torrent: {e}")
+        logger.error(f" Error adding media: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/status/{torrent_id}")
-async def get_torrent_status(torrent_id: str):
-    """Get status of a torrent"""
+@router.get("/status/{media_id}")
+async def get_media_status(media_id: str):
+    """Get status of a media download"""
     try:
-        status = torrent_bridge.get_torrent_status(torrent_id)
+        status = media_bridge.get_media_status(media_id)
         
         if 'error' in status:
             raise HTTPException(status_code=404, detail=status['error'])
@@ -72,15 +72,15 @@ async def get_torrent_status(torrent_id: str):
         return status
         
     except Exception as e:
-        logger.error(f" Error getting torrent status: {e}")
+        logger.error(f" Error getting media status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/stream/{torrent_id}/{file_index}")
-async def stream_torrent_file(torrent_id: str, file_index: int, request: Request):
-    """Stream a file from a torrent (supports progressive streaming)"""
+@router.get("/stream/{media_id}/{file_index}")
+async def stream_media_file(media_id: str, file_index: int, request: Request):
+    """Stream a file from a media source (supports progressive streaming)"""
     try:
         # Get file path
-        file_path = await torrent_bridge.get_file_path(torrent_id, file_index)
+        file_path = await media_bridge.get_file_path(media_id, file_index)
         
         if not file_path:
             raise HTTPException(status_code=404, detail="File not found")
@@ -90,8 +90,8 @@ async def stream_torrent_file(torrent_id: str, file_index: int, request: Request
             raise HTTPException(status_code=404, detail="File not yet downloaded")
         
         # Check if enough data is available for streaming
-        if not torrent_bridge.is_streaming_ready(torrent_id, file_index):
-            status = torrent_bridge.get_torrent_status(torrent_id)
+        if not media_bridge.is_streaming_ready(media_id, file_index):
+            status = media_bridge.get_media_status(media_id)
             progress = status.get('file_progress', 0) * 100
             threshold = status.get('streaming_threshold', 0.05) * 100
             raise HTTPException(
@@ -118,11 +118,11 @@ async def stream_torrent_file(torrent_id: str, file_index: int, request: Request
         logger.info(f"📺 File extension: {file_ext}, Content-Type: {content_type}")
         
         # For progressive streaming, we need to handle the case where file is still growing
-        status = torrent_bridge.get_torrent_status(torrent_id)
+        status = media_bridge.get_media_status(media_id)
         if status.get('largest_file') and file_index == status['largest_file']['index']:
-            # Use the expected final size from torrent metadata
+            # Use the expected final size from media metadata
             expected_size = status['largest_file']['size']
-            logger.info(f"📺 Streaming {torrent_id} file {file_index}: {file_size}/{expected_size} bytes available")
+            logger.info(f"📺 Streaming {media_id} file {file_index}: {file_size}/{expected_size} bytes available")
         else:
             expected_size = file_size
         
@@ -192,55 +192,55 @@ async def stream_torrent_file(torrent_id: str, file_index: int, request: Request
         logger.error(f" Error streaming file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/remove/{torrent_id}")
-async def remove_torrent(torrent_id: str, delete_files: bool = True):
-    """Remove a torrent"""
+@router.delete("/remove/{media_id}")
+async def remove_media(media_id: str, delete_files: bool = True):
+    """Remove a media source"""
     try:
-        success = torrent_bridge.remove_torrent(torrent_id, delete_files)
+        success = media_bridge.remove_media(media_id, delete_files)
         
         if not success:
-            raise HTTPException(status_code=404, detail="Torrent not found")
+            raise HTTPException(status_code=404, detail="Media source not found")
         
-        return {"success": True, "message": "Torrent removed"}
+        return {"success": True, "message": "Media source removed"}
         
     except Exception as e:
-        logger.error(f" Error removing torrent: {e}")
+        logger.error(f" Error removing media source: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/list")
-async def list_torrents():
-    """List all active torrents"""
+async def list_media_items():
+    """List all active media_items"""
     try:
-        torrents = []
-        for torrent_id in torrent_bridge.active_torrents.keys():
-            status = torrent_bridge.get_torrent_status(torrent_id)
+        media_items = []
+        for media_id in media_bridge.active_media_items.keys():
+            status = media_bridge.get_media_status(media_id)
             if 'error' not in status:
-                torrents.append(status)
+                media_items.append(status)
         
-        return {"torrents": torrents}
+        return {"media_items": media_items}
         
     except Exception as e:
-        logger.error(f" Error listing torrents: {e}")
+        logger.error(f" Error listing media_items: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cleanup")
-async def cleanup_old_torrents(max_age_hours: int = 24):
-    """Clean up old torrents"""
+async def cleanup_old_media_items(max_age_hours: int = 24):
+    """Clean up old media_items"""
     try:
-        torrent_bridge.cleanup_old_torrents(max_age_hours)
-        return {"success": True, "message": f"Cleaned up torrents older than {max_age_hours} hours"}
+        media_bridge.cleanup_old_media_items(max_age_hours)
+        return {"success": True, "message": f"Cleaned up media_items older than {max_age_hours} hours"}
         
     except Exception as e:
-        logger.error(f" Error cleaning up torrents: {e}")
+        logger.error(f" Error cleaning up media_items: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/clear-all")
-async def clear_all_torrents():
-    """Clear all torrents from session - useful for debugging"""
+async def clear_all_media_items():
+    """Clear all media_items from session - useful for debugging"""
     try:
-        torrent_bridge.clear_all_torrents()
-        return {"success": True, "message": "All torrents cleared from session"}
+        media_bridge.clear_all_media_items()
+        return {"success": True, "message": "All media_items cleared from session"}
         
     except Exception as e:
-        logger.error(f" Error clearing torrents: {e}")
+        logger.error(f" Error clearing media_items: {e}")
         raise HTTPException(status_code=500, detail=str(e))

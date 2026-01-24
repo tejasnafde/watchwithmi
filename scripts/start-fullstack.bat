@@ -4,13 +4,13 @@ setlocal EnableDelayedExpansion
 REM WatchWithMi Full-Stack Startup Script for Windows
 echo Starting WatchWithMi Full-Stack Application...
 
-REM Configure reduced logging for Windows
-set DEBUG=false
+REM Configure balanced logging for Windows - keep app logs visible but filter noise
+set DEBUG=true
 set WATCHFILES_LOG_LEVEL=WARNING
-set UVICORN_LOG_LEVEL=WARNING
+set UVICORN_LOG_LEVEL=INFO
 chcp 65001 >nul 2>&1
 
-echo Configured minimal logging for Windows...
+echo Configured balanced logging for Windows (app logs visible, filtered noise)...
 
 REM Function to kill processes on specific ports
 call :kill_port 8000
@@ -41,9 +41,46 @@ if !errorlevel! equ 0 (
 REM Navigate to project root
 cd /d "%~dp0\.."
 
+REM Check prerequisites before starting
+echo Checking prerequisites...
+if not exist "watchwithmi-venv\Scripts\activate.bat" (
+    echo ERROR: Virtual environment not found!
+    echo Please run: scripts\install-windows.bat first
+    echo.
+    echo Press any key to close...
+    pause > nul
+    exit /b 1
+)
+
+echo Activating virtual environment...
+call watchwithmi-venv\Scripts\activate.bat
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to activate virtual environment
+    echo Try deleting watchwithmi-venv and running scripts\install-windows.bat
+    echo.
+    echo Press any key to close...
+    pause > nul
+    exit /b 1
+)
+
+REM Quick dependency check
+python -c "import fastapi" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo ERROR: FastAPI not found. Installing dependencies...
+    pip install -r requirements.txt
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to install dependencies
+        echo Please check your internet connection and Python installation
+        echo.
+        echo Press any key to close...
+        pause > nul
+        exit /b 1
+    )
+)
+
 REM Start the FastAPI backend (cmd /k keeps window open on error)
 echo Starting FastAPI backend on port 8000...
-start "WatchWithMi Backend" cmd /k "python -m app.main || (echo. && echo ERROR: Backend failed to start. && echo. && echo Windows Libtorrent Fixes: && echo    1. Install Anaconda: https://www.anaconda.com/download && echo    2. Run: conda install -c conda-forge libtorrent && echo    3. Alternative: Download wheel from https://www.lfd.uci.edu/~gohlke/pythonlibs/ && echo    4. App works without torrents if libtorrent fails && echo. && echo Other Common Fixes: && echo    1. Install Python 3.8+ && echo    2. Run: pip install -r requirements.txt && echo. && echo Press any key to close... && pause > nul)"
+start "WatchWithMi Backend" cmd /k "python -m app.main || (echo. && echo ==================== BACKEND STARTUP FAILED ==================== && echo. && echo Common solutions: && echo    1. Run: scripts\diagnose-windows.bat (for detailed diagnosis) && echo    2. Check if Python is installed and in PATH && echo    3. Check if virtual environment exists: watchwithmi-venv\ && echo    4. Run: pip install -r requirements.txt && echo    5. Check if port 8000 is available && echo. && echo Libtorrent Issues: && echo    - Install Anaconda: https://www.anaconda.com/download && echo    - Run: conda install -c conda-forge libtorrent && echo    - Or download wheel: https://www.lfd.uci.edu/~gohlke/pythonlibs/ && echo    - App works without torrent features if libtorrent fails && echo. && echo For detailed troubleshooting: scripts\BACKEND_TROUBLESHOOTING.md && echo ================================================================= && echo. && echo Press any key to close... && pause > nul)"
 
 REM Wait for backend to start
 echo Waiting for backend to initialize...

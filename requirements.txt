@@ -12,7 +12,8 @@ pydantic>=2.5.0
 beautifulsoup4==4.12.2
 cloudscraper==1.2.71
 
-# Torrent functionality - Windows users may need alternative installation
+# P2P functionality - Windows users may need alternative installation
 # For Windows install issues: conda install -c conda-forge libtorrent
 # Or download wheel from: https://www.lfd.uci.edu/~gohlke/pythonlibs/
 libtorrent==2.0.11
+google-api-python-client==2.188.0

@@ -4,6 +4,9 @@ WatchWithMi - Main Application Module
 A real-time shared media viewing platform built with FastAPI and Socket.IO.
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import socketio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
@@ -18,8 +21,9 @@ import os
 from .config import setup_logging, APP_NAME, VERSION, TEMPLATES_DIR, STATIC_DIR
 from .services.room_manager import RoomManager
 from .handlers.socket_events import SocketEventHandler
-from .services.torrent_search import TorrentSearchService
-from .api.torrent_bridge_api import router as torrent_bridge_router
+from .services.p2p_search import ContentSearchService  # New robust P2P search
+from .services.youtube_search import YouTubeSearchService
+from .api.media_bridge_api import router as media_bridge_router
 
 # Initialize logging
 logger = setup_logging()
@@ -27,24 +31,27 @@ logger = setup_logging()
 # Initialize services (will be initialized in lifespan)
 room_manager = None
 socket_handler = None
-torrent_search = None
+content_search = None  # P2P content search service
+youtube_search = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    global room_manager, socket_handler, torrent_search
+    global room_manager, socket_handler, content_search, youtube_search
     room_manager = RoomManager()
     socket_handler = SocketEventHandler(sio, room_manager)
-    torrent_search = TorrentSearchService()
+    content_search = ContentSearchService()
+    youtube_search = YouTubeSearchService()
     
-    logger.info(f"🚀 {APP_NAME} startup completed")
+    logger.info(f"{APP_NAME} startup completed")
     logger.info(f" Room manager initialized")
-    logger.info(f"🔌 Socket.IO handlers registered")
+    logger.info(f"Socket.IO handlers registered")
+    logger.info(f" YouTube search: {'enabled' if youtube_search.is_enabled() else 'disabled'}")
     
     yield
     
     # Shutdown
-    logger.info(f"🛑 {APP_NAME} shutting down")
+    logger.info(f"{APP_NAME} shutting down")
     if room_manager:
         cleaned = room_manager.cleanup_empty_rooms()
         if cleaned > 0:
@@ -85,14 +92,41 @@ if os.path.exists(FRONTEND_DIST):
     app.mount("/app", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
 
 # Include API routers
-app.include_router(torrent_bridge_router)
+app.include_router(media_bridge_router)
 
 # Combine Socket.IO with FastAPI
 socket_app = socketio.ASGIApp(sio, app)
 
-# Pydantic models
-class TorrentSearchRequest(BaseModel):
-    query: str
+# Pydantic models with validation
+from pydantic import Field, validator
+
+class ContentSearchRequest(BaseModel):
+    """Request model for P2P content search."""
+    query: str = Field(..., min_length=2, max_length=200, description="Search query")
+    
+    @validator('query')
+    def validate_query(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Query cannot be empty')
+        # Remove potentially dangerous characters
+        dangerous_chars = ['<', '>', ';', '&', '|', '`', '$']
+        if any(char in v for char in dangerous_chars):
+            raise ValueError('Query contains invalid characters')
+        return v.strip()
+
+class YouTubeSearchRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=200, description="YouTube search query")
+    max_results: int = Field(10, ge=1, le=50, description="Maximum results to return")
+    
+    @validator('query')
+    def validate_query(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Query cannot be empty')
+        # Remove potentially dangerous characters
+        dangerous_chars = ['<', '>', ';', '&', '|', '`', '$']
+        if any(char in v for char in dangerous_chars):
+            raise ValueError('Query contains invalid characters')
+        return v.strip()
 
 logger.info(f"{APP_NAME} v{VERSION} initialized")
 
@@ -100,7 +134,7 @@ logger.info(f"{APP_NAME} v{VERSION} initialized")
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Serve the main page."""
-    logger.debug("📄 Serving home page")
+    logger.debug(" Serving home page")
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/room/{room_code}", response_class=HTMLResponse)
@@ -113,7 +147,7 @@ async def room_page(request: Request, room_code: str):
         logger.warning(f" Attempted to access non-existent room: {room_code}")
         raise HTTPException(status_code=404, detail="Room not found")
     
-    logger.debug(f"📄 Serving room page for: {room_code}")
+    logger.debug(f" Serving room page for: {room_code}")
     return templates.TemplateResponse("room.html", {
         "request": request,
         "room_code": room_code
@@ -146,20 +180,50 @@ async def get_stats():
     logger.debug(f" Server stats requested: {stats['total_rooms']} rooms, {stats['total_users']} users")
     return stats
 
-@app.post("/api/search-torrents")
-async def search_torrents(request: TorrentSearchRequest):
-    """Search for torrents (for personal use)."""
+@app.post("/api/search-content")
+async def search_content(request: ContentSearchRequest):
+    """Search for P2P content (for personal use)."""
     try:
-        logger.info(f"🔍 Torrent search requested: {request.query}")
-        results = await torrent_search.search(request.query)
+        logger.info(f" P2P content search requested: {request.query}")
+        results = await content_search.search(request.query)
         
         return {
             "query": request.query,
             "results": [result.to_dict() for result in results],
             "count": len(results)
         }
+    except ValueError as e:
+        logger.warning(f" Invalid search query: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f" Torrent search failed: {e}")
+        logger.error(f" P2P content search failed: {e}")
+        raise HTTPException(status_code=500, detail="Search failed")
+
+@app.post("/api/search-youtube")
+async def search_youtube(request: YouTubeSearchRequest):
+    """Search for YouTube videos."""
+    try:
+        if not youtube_search or not youtube_search.is_enabled():
+            raise HTTPException(
+                status_code=503,
+                detail="YouTube search not available - API key not configured"
+            )
+        
+        logger.info(f" YouTube search requested: {request.query}")
+        results = await youtube_search.search(request.query, request.max_results)
+        
+        return {
+            "query": request.query,
+            "results": results,
+            "count": len(results)
+        }
+    except ValueError as e:
+        logger.warning(f" Invalid YouTube search query: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f" YouTube search failed: {e}")
         raise HTTPException(status_code=500, detail="Search failed")
 
 @app.get("/health")

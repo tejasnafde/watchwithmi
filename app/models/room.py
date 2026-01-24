@@ -40,6 +40,7 @@ class User:
     name: str
     joined_at: str
     is_host: bool = False
+    can_control: bool = False  # Allows controlling media (DJ permissions)
     video_enabled: bool = False
     audio_enabled: bool = False
     
@@ -49,7 +50,7 @@ class User:
 class Room:
     """Represents a room with all its data and operations."""
     
-    def __init__(self, room_code: str, host_name: str):
+    def __init__(self, room_code: str):
         self.room_code = room_code
         self.host_id: Optional[str] = None
         self.users: Dict[str, User] = {}
@@ -65,7 +66,8 @@ class Room:
             user = User(
                 name=user_name,
                 joined_at=datetime.now().isoformat(),
-                is_host=is_host
+                is_host=is_host,
+                can_control=is_host  # Hosts ALWAYS have control
             )
             
             self.users[user_id] = user
@@ -73,8 +75,9 @@ class Room:
             if is_host or self.host_id is None:
                 self.host_id = user_id
                 self.users[user_id].is_host = True
+                self.users[user_id].can_control = True
             
-            logger.info(f"User {user_name} ({user_id}) joined room {self.room_code}")
+            logger.info(f"User {user_name} ({user_id}) joined room {self.room_code} (host: {self.users[user_id].is_host})")
             return True
         except Exception as e:
             logger.error(f"Failed to add user {user_name} to room {self.room_code}: {e}")
@@ -93,13 +96,16 @@ class Room:
         
         # Handle host change
         if was_host and self.users:
+            # Transfer host status to the next longest-joined user
             new_host_id = next(iter(self.users))
             self.host_id = new_host_id
             self.users[new_host_id].is_host = True
+            self.users[new_host_id].can_control = True  # New host gets control
             logger.info(f"New host in room {self.room_code}: {self.users[new_host_id].name}")
             return new_host_id
         elif not self.users:
             logger.info(f"Room {self.room_code} is now empty")
+            self.host_id = None  # Clear host when empty
             
         return None
     
@@ -118,6 +124,19 @@ class Room:
         self.chat.append(chat_message)
         logger.debug(f"Message in room {self.room_code}: {self.users[user_id].name}: {message}")
         return chat_message
+
+    def grant_control(self, user_id: str, enabled: bool) -> bool:
+        """Grant or revoke control (DJ) permissions."""
+        if user_id not in self.users:
+            return False
+            
+        # Optional: Prevent revoking from host
+        if self.users[user_id].is_host and not enabled:
+            return False
+            
+        self.users[user_id].can_control = enabled
+        logger.info(f"Control {'granted to' if enabled else 'revoked from'} {self.users[user_id].name} in {self.room_code}")
+        return True
     
     def update_media(self, url: str = None, media_type: str = None, 
                     state: str = None, timestamp: float = None) -> None:

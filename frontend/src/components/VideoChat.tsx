@@ -7,32 +7,23 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { Socket } from 'socket.io-client';
-
-interface User {
-    id: string;
-    name: string;
-    isHost: boolean;
-    video_enabled?: boolean;
-    audio_enabled?: boolean;
-}
+import type { User } from '@/types';
 
 interface VideoChatProps {
     socket: Socket | null;
     currentUserId: string;
-    currentUserName: string;
     users: User[];
-    connected: boolean;
 }
 
 const VideoTile: React.FC<{
-  userName: string;
-  isLocal?: boolean;
-  videoStream?: MediaStream;
-  videoRef?: React.RefObject<HTMLVideoElement | null>;
-  setVideoRef?: (element: HTMLVideoElement | null) => void;
-  videoEnabled?: boolean;
-  audioEnabled?: boolean;
-  isHost?: boolean;
+    userName: string;
+    isLocal?: boolean;
+    videoStream?: MediaStream;
+    videoRef?: React.RefObject<HTMLVideoElement | null>;
+    setVideoRef?: (element: HTMLVideoElement | null) => void;
+    videoEnabled?: boolean;
+    audioEnabled?: boolean;
+    isHost?: boolean;
 }> = ({ userName, isLocal = false, videoStream, videoRef, setVideoRef, videoEnabled = false, audioEnabled = false, isHost = false }) => {
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -55,7 +46,7 @@ const VideoTile: React.FC<{
                     muted={isLocal} // Always mute local video to prevent feedback
                     className={`w-full h-full object-cover ${videoEnabled ? 'block' : 'hidden'}`}
                 />
-                
+
                 {/* Avatar/placeholder shown when video is disabled */}
                 {!videoEnabled && (
                     <div className="absolute inset-0 w-full h-full bg-slate-900 flex items-center justify-center">
@@ -97,26 +88,26 @@ const VideoTile: React.FC<{
 };
 
 export const VideoChat: React.FC<VideoChatProps> = ({
-  socket,
-  currentUserId,
-  currentUserName,
-  users,
-  connected
-}) => {
-  const {
-    localVideoRef,
-    setVideoRef,
-    videoEnabled,
-    audioEnabled,
-    connections,
-    isInitializing,
-    toggleVideo,
-    toggleAudio
-  } = useWebRTC({
     socket,
     currentUserId,
     users
-  });
+}) => {
+    const {
+        setVideoRef,
+        videoEnabled,
+        audioEnabled,
+        isInitializing,
+        connections,
+        toggleVideo,
+        toggleAudio
+    } = useWebRTC({
+        socket,
+        currentUserId,
+        users
+    });
+
+    // Create local ref for video element
+    const localVideoRef = useRef<HTMLVideoElement>(null);
 
     const currentUser = users.find(u => u.id === currentUserId);
     const otherUsers = users.filter(u => u.id !== currentUserId);
@@ -129,8 +120,9 @@ export const VideoChat: React.FC<VideoChatProps> = ({
                     onClick={toggleVideo}
                     variant={videoEnabled ? "default" : "destructive"}
                     size="sm"
-                    disabled={!connected || isInitializing}
+                    disabled={isInitializing}
                     className="flex items-center space-x-1 text-xs px-2 py-1"
+                    title={isInitializing ? "Initializing camera..." : undefined}
                 >
                     {videoEnabled ? <Video className="w-3 h-3" /> : <VideoOff className="w-3 h-3" />}
                     <span className="hidden sm:inline">{videoEnabled ? "Video Off" : "Video On"}</span>
@@ -140,8 +132,9 @@ export const VideoChat: React.FC<VideoChatProps> = ({
                     onClick={toggleAudio}
                     variant={audioEnabled ? "default" : "destructive"}
                     size="sm"
-                    disabled={!connected || isInitializing}
+                    disabled={isInitializing}
                     className="flex items-center space-x-1 text-xs px-2 py-1"
+                    title={isInitializing ? "Initializing microphone..." : undefined}
                 >
                     {audioEnabled ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
                     <span className="hidden sm:inline">{audioEnabled ? "Mute" : "Unmute"}</span>
@@ -154,13 +147,13 @@ export const VideoChat: React.FC<VideoChatProps> = ({
                 <div>
                     <h3 className="text-xs font-medium text-slate-300 mb-1 px-1">You</h3>
                     <VideoTile
-                        userName={currentUserName}
+                        userName={currentUser?.name || 'You'}
                         isLocal={true}
                         videoRef={localVideoRef}
                         setVideoRef={setVideoRef}
                         videoEnabled={videoEnabled}
                         audioEnabled={audioEnabled}
-                        isHost={currentUser?.isHost}
+                        isHost={currentUser?.is_host}
                     />
                 </div>
 
@@ -180,7 +173,7 @@ export const VideoChat: React.FC<VideoChatProps> = ({
                                         videoStream={connection?.remoteStream}
                                         videoEnabled={user.video_enabled}
                                         audioEnabled={user.audio_enabled}
-                                        isHost={user.isHost}
+                                        isHost={user.is_host}
                                     />
                                 );
                             })}
@@ -190,17 +183,12 @@ export const VideoChat: React.FC<VideoChatProps> = ({
             </div>
 
             {/* Connection Status */}
-            {!connected && (
+            {socket === null && (
                 <div className="text-center py-2">
                     <p className="text-xs text-slate-400">Connecting to room...</p>
                 </div>
             )}
 
-            {isInitializing && (
-                <div className="text-center py-2">
-                    <p className="text-xs text-slate-400">Initializing camera...</p>
-                </div>
-            )}
         </div>
     );
 }; 
