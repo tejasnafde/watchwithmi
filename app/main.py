@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 import os
 
 # Import our modules
-from .config import setup_logging, APP_NAME, VERSION, TEMPLATES_DIR, STATIC_DIR
+from .config import setup_logging, APP_NAME, VERSION, TEMPLATES_DIR, STATIC_DIR, SOCKETIO_CORS_ALLOWED_ORIGINS
 from .services.room_manager import RoomManager
 from .handlers.socket_events import SocketEventHandler
 from .services.p2p_search import ContentSearchService  # New robust P2P search
@@ -57,10 +57,15 @@ async def lifespan(app: FastAPI):
         if cleaned > 0:
             logger.info(f" Cleaned up {cleaned} empty rooms")
 
+# Handle CORS origins - convert string to list if necessary
+cors_origins = SOCKETIO_CORS_ALLOWED_ORIGINS
+if isinstance(cors_origins, str) and cors_origins != "*":
+    cors_origins = [o.strip() for o in cors_origins.split(",")]
+
 # Create Socket.IO server
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins="*",
+    cors_allowed_origins=cors_origins,
     logger=not os.getenv("DEBUG", "true").lower() == "false",  # Only log in debug mode
     engineio_logger=not os.getenv("DEBUG", "true").lower() == "false"  # Only log in debug mode
 )
@@ -76,7 +81,7 @@ app = FastAPI(
 # Add CORS middleware for React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # React dev server
+    allow_origins=cors_origins if isinstance(cors_origins, list) else [cors_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
