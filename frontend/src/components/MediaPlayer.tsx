@@ -155,11 +155,11 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     // Empty state
     if (!currentMedia.url) {
         return (
-            <div className="aspect-video bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-lg flex items-center justify-center">
-                <div className="text-center text-white/60">
-                    <Play className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg">No media loaded</p>
-                    <p className="text-sm mt-2">Search and select content to watch together</p>
+            <div className="aspect-video bg-[#0a0a0a] border-4 border-white flex items-center justify-center">
+                <div className="text-center text-white">
+                    <Play className="h-16 w-16 mx-auto mb-4" />
+                    <p className="text-lg uppercase font-bold">NO MEDIA LOADED</p>
+                    <p className="text-sm mt-2 text-gray-400">SEARCH AND SELECT CONTENT TO WATCH TOGETHER</p>
                 </div>
             </div>
         );

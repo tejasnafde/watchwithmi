@@ -1,0 +1,14 @@
+{
+  "name": "WatchWithMi",
+  "short_name": "WatchWithMi",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "display": "standalone"
+}

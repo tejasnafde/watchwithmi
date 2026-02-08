@@ -58,26 +58,26 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         <div
                             key={msg.id}
                             className={`${msg.isServer
-                                    ? 'text-center text-sm text-white/60 italic'
-                                    : msg.user_name === currentUserName
-                                        ? 'text-right'
-                                        : 'text-left'
+                                ? 'text-center text-sm text-white/60 italic'
+                                : msg.user_name === currentUserName
+                                    ? 'text-right'
+                                    : 'text-left'
                                 }`}
                         >
                             {!msg.isServer && (
                                 <div className="inline-block max-w-[80%]">
-                                    <div className="text-xs text-white/60 mb-1">
+                                    <div className="text-[10px] text-white/80 font-mono uppercase mb-1">
                                         {msg.user_name}
                                     </div>
                                     <div
-                                        className={`px-4 py-2 rounded-lg ${msg.user_name === currentUserName
-                                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                                                : 'bg-white/10 text-white'
+                                        className={`px-4 py-2 border-2 ${msg.user_name === currentUserName
+                                            ? 'bg-white text-black border-white font-bold'
+                                            : 'bg-black text-white border-white'
                                             }`}
                                     >
                                         {msg.message}
                                     </div>
-                                    <div className="text-xs text-white/40 mt-1">
+                                    <div className="text-[10px] text-white/60 font-mono mt-1 uppercase">
                                         {new Date(msg.timestamp).toLocaleTimeString()}
                                     </div>
                                 </div>
@@ -88,19 +88,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
             </ScrollArea>
 
-            <div className="p-4 border-t border-white/10">
+            <div className="p-4 border-t-2 border-white">
                 <div className="flex gap-2">
                     <Input
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        placeholder="Type a message..."
-                        className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-white/40"
+                        placeholder="TYPE A MESSAGE..."
+                        className="flex-1 bg-black border-2 border-white text-white placeholder:text-white/40 font-mono"
                     />
                     <Button
                         onClick={handleSendMessage}
                         disabled={!messageInput.trim()}
-                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                        className="bg-white text-black hover:bg-gray-200 border-2 border-white rounded-none"
                     >
                         <Send className="h-4 w-4" />
                     </Button>

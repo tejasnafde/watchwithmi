@@ -1,0 +1,21 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- White background -->
+  <rect width="512" height="512" fill="white"/>
+  
+  <!-- Eye shape -->
+  <!-- Outer eye outline -->
+  <path d="M256 160C176 160 112 224 80 256C112 288 176 352 256 352C336 352 400 288 432 256C400 224 336 160 256 160Z" 
+        fill="black" stroke="black" stroke-width="8"/>
+  
+  <!-- White of eye (inner) -->
+  <ellipse cx="256" cy="256" rx="100" ry="80" fill="white"/>
+  
+  <!-- Iris -->
+  <circle cx="256" cy="256" r="50" fill="black"/>
+  
+  <!-- Pupil -->
+  <circle cx="256" cy="256" r="25" fill="black"/>
+  
+  <!-- Highlight/reflection -->
+  <circle cx="270" cy="245" r="12" fill="white"/>
+</svg>
