@@ -76,6 +76,7 @@ export const clearAllMedia = async (): Promise<{ success: boolean; message: stri
 
 export const createSocket = (): Socket<ServerToClientEvents, ClientToServerEvents> => {
   return io(BACKEND_URL, {
+    path: '/socket.io/',
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 1000,

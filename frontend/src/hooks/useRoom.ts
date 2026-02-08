@@ -59,6 +59,11 @@ export const useRoom = (roomCode: string, userName: string) => {
       }
     });
 
+    newSocket.on('connect_error', (error: any) => {
+      console.error('❌ Socket connection error:', error);
+      setConnected(false);
+    });
+
     // Handle users_updated event - backend sends users as object, convert to array
     newSocket.on('users_updated', (data: any) => {
       console.log('👥 Users updated event received:', data);
