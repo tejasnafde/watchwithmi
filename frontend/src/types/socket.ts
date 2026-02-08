@@ -224,7 +224,7 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
     join_room: (data: { room_code: string; user_name: string }) => void;
-    create_room: (data: { user_name: string }) => void;
+    create_room: (data: { user_name: string; room_code?: string }) => void;
     send_message: (data: { message: string }) => void;
     media_control: (data: {
         action: MediaAction;

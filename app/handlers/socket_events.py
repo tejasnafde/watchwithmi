@@ -87,6 +87,7 @@ class SocketEventHandler:
     async def handle_create_room(self, sid: str, data: Dict[str, Any]):
         """Handle room creation."""
         user_name = data.get('user_name', '').strip()
+        requested_code = data.get('room_code', '').strip().upper()
         
         if not user_name:
             await self.sio.emit('error', {'message': 'Name is required'}, room=sid)
@@ -94,7 +95,7 @@ class SocketEventHandler:
         
         try:
             # Create room
-            room_code = self.room_manager.create_room(user_name)
+            room_code = self.room_manager.create_room(user_name, requested_code if requested_code else None)
             
             # Join as host
             success = self.room_manager.join_room(room_code, sid, user_name, True)

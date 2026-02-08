@@ -169,7 +169,7 @@ export const extractYouTubeVideoId = (url: string): string | null => {
 
         return null;
     } catch (error) {
-        console.error('Failed to extract YouTube video ID:', error);
+        // Silently fail as this may be called with non-YouTube URLs (e.g. magnet links)
         return null;
     }
 };

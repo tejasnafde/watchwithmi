@@ -276,18 +276,21 @@ class MediaBridge:
             if total_size > 0:
                 progress = downloaded / total_size
                 
-                # Additional requirement: need at least 10MB of data regardless of percentage
-                min_bytes_required = min(10 * 1024 * 1024, total_size * 0.05)  # 10MB or 5% of file, whichever is smaller
-                has_enough_bytes = downloaded >= min_bytes_required
-                
-                is_ready = progress >= threshold and has_enough_bytes
-                
-                # Cache the result
-                if is_ready and not media_data.get('streaming_ready', False):
-                    media_data['streaming_ready'] = True
-                    logger.info(f"Streaming ready for {media_id}: {progress:.1%} downloaded ({downloaded/1024/1024:.1f}MB), file: {file_name}")
-                
-                return is_ready
+                # Check if enough bytes are downloaded for the header/initial playback
+            # Need at least 5MB of data regardless of percentage for most files
+            min_bytes_required = min(5 * 1024 * 1024, total_size * 0.5) 
+            has_enough_bytes = downloaded >= min_bytes_required
+            
+            # Ready if either percentage threshold met OR we have enough initial bytes
+            # For MKV we are more conservative but still allow it to start early
+            is_ready = (progress >= threshold) or has_enough_bytes
+            
+            # Cache the result
+            if is_ready and not media_data.get('streaming_ready', False):
+                media_data['streaming_ready'] = True
+                logger.info(f"✅ Streaming ready for {media_id}: {progress:.1%} downloaded ({downloaded/1024/1024:.1f}MB), file: {file_name}")
+            
+            return is_ready
         
         return False
     
@@ -299,12 +302,12 @@ class MediaBridge:
         file_name = file_info.get('path', file_info.get('name', ''))
         
         if file_name.lower().endswith('.mkv'):
-            return 0.12  # 12% for MKV files
+            return 0.05  # 5% for MKV files (sequential download helps a lot)
         elif file_name.lower().endswith(('.mp4', '.webm')):
-            return 0.08  # 8% for MP4/WebM files
+            return 0.02  # 2% for MP4/WebM files
         else:
-            return 0.10  # 10% for other formats
-    
+            return 0.03  # 3% for other formats
+
     def get_media_status(self, media_id: str) -> Dict[str, Any]:
         """Get current status of a media"""
         if media_id not in self.active_media:
@@ -368,15 +371,22 @@ class MediaBridge:
     
     def _get_status_string(self, state) -> str:
         """Convert libtorrent state to readable string"""
+        # Try to find state constants in various libtorrent versions
+        def get_state(name, default):
+            for path in [lt.torrent_status, getattr(lt.torrent_status, 'state_t', None)]:
+                if path and hasattr(path, name):
+                    return getattr(path, name)
+            return default
+
         state_map = {
-            lt.torrent_status.states.queued_for_checking: 'queued',
-            lt.torrent_status.states.checking_files: 'checking',
-            lt.torrent_status.states.downloading_metadata: 'metadata',
-            lt.torrent_status.states.downloading: 'downloading',
-            lt.torrent_status.states.finished: 'finished',
-            lt.torrent_status.states.seeding: 'seeding',
-            lt.torrent_status.states.allocating: 'allocating',
-            lt.torrent_status.states.checking_resume_data: 'checking'
+            get_state('queued_for_checking', 0): 'queued',
+            get_state('checking_files', 1): 'checking',
+            get_state('downloading_metadata', 2): 'metadata',
+            get_state('downloading', 3): 'downloading',
+            get_state('finished', 4): 'finished',
+            get_state('seeding', 5): 'seeding',
+            get_state('allocating', 6): 'allocating',
+            get_state('checking_resume_data', 7): 'checking'
         }
         return state_map.get(state, 'unknown')
     
