@@ -96,11 +96,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files and templates
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+# Mount static files (optional, mostly for alignment with production structure if needed)
+# app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-# Mount React frontend in production
+# Mount React frontend in production if available (fallback)
 FRONTEND_DIST = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "out")
 if os.path.exists(FRONTEND_DIST):
     app.mount("/app", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
@@ -145,27 +144,16 @@ class YouTubeSearchRequest(BaseModel):
 logger.info(f"{APP_NAME} v{VERSION} initialized")
 
 # REST API endpoints
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    """Serve the main page."""
-    logger.debug(" Serving home page")
-    return templates.TemplateResponse("index.html", {"request": request})
-
-@app.get("/room/{room_code}", response_class=HTMLResponse)
-async def room_page(request: Request, room_code: str):
-    """Serve the room page."""
-    room_code = room_code.upper()
-    room = room_manager.get_room(room_code)
-    
-    if not room:
-        logger.warning(f" Attempted to access non-existent room: {room_code}")
-        raise HTTPException(status_code=404, detail="Room not found")
-    
-    logger.debug(f" Serving room page for: {room_code}")
-    return templates.TemplateResponse("room.html", {
-        "request": request,
-        "room_code": room_code
-    })
+@app.get("/")
+async def home():
+    """Root endpoint for backend status."""
+    return {
+        "app": APP_NAME,
+        "version": VERSION,
+        "status": "running",
+        "service": "backend",
+        "message": "Use the frontend application to interact with this service."
+    }
 
 @app.get("/api/room/{room_code}")
 async def get_room_info(room_code: str):
