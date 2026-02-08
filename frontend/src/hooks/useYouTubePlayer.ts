@@ -143,28 +143,29 @@ export const useYouTubePlayer = ({
             const videoDuration = player.getDuration();
             setDuration(videoDuration);
 
-            // Sync to initial state if viewer
-            if (!isHost && typeof player.seekTo === 'function') {
-                isSyncingRef.current = true;
+            // Sync to initial state for all users (host and viewers)
+            isSyncingRef.current = true;
 
-                // Seek if targetTimestamp is ahead
-                if (targetTimestamp > 0) {
-                    player.seekTo(targetTimestamp, true);
-                }
-
-                // Force play/pause state explicitly
-                if (shouldPlay && typeof player.playVideo === 'function') {
-                    player.playVideo();
-                } else if (typeof player.pauseVideo === 'function') {
-                    player.pauseVideo();
-                }
-
-                setTimeout(() => {
-                    isSyncingRef.current = false;
-                }, 1000);
+            // Seek if targetTimestamp is ahead
+            if (targetTimestamp > 0 && typeof player.seekTo === 'function') {
+                logger.info('Seeking to initial timestamp', { targetTimestamp });
+                player.seekTo(targetTimestamp, true);
             }
+
+            // Force play/pause state explicitly based on shouldPlay
+            if (shouldPlay && typeof player.playVideo === 'function') {
+                logger.info('Auto-playing video on ready');
+                player.playVideo();
+            } else if (!shouldPlay && typeof player.pauseVideo === 'function') {
+                logger.info('Keeping video paused on ready');
+                player.pauseVideo();
+            }
+
+            setTimeout(() => {
+                isSyncingRef.current = false;
+            }, 1000);
         }
-    }, [isHost, shouldPlay, targetTimestamp]);
+    }, [shouldPlay, targetTimestamp]);
 
     // Initialize YouTube player
     useEffect(() => {
