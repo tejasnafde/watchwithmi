@@ -164,7 +164,11 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
                 'Content-Range': f'bytes {start}-{available_end}/{expected_size}',
                 'Accept-Ranges': 'bytes',
                 'Content-Length': str(content_length),
-                'Content-Type': content_type
+                'Content-Type': content_type,
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
+                'Cross-Origin-Resource-Policy': 'cross-origin'
             }
             
             return StreamingResponse(stream_file_range(), status_code=206, headers=headers)
@@ -182,7 +186,11 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
             headers = {
                 'Content-Length': str(file_size),
                 'Content-Type': content_type,
-                'Accept-Ranges': 'bytes'
+                'Accept-Ranges': 'bytes',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Expose-Headers': 'Content-Length, Accept-Ranges',
+                'Cross-Origin-Resource-Policy': 'cross-origin'
             }
             return StreamingResponse(stream_file_full(), headers=headers)
             
