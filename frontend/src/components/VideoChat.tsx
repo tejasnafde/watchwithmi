@@ -36,7 +36,7 @@ const VideoTile: React.FC<{
     const currentVideoRef = isLocal ? videoRef : remoteVideoRef;
 
     return (
-        <Card className="relative overflow-hidden bg-slate-800 border-slate-700">
+        <Card className="relative overflow-hidden bg-[#0a0a0a] border-2 border-white">
             <div className="aspect-video relative">
                 {/* Always render video element but control visibility */}
                 <video
@@ -49,12 +49,12 @@ const VideoTile: React.FC<{
 
                 {/* Avatar/placeholder shown when video is disabled */}
                 {!videoEnabled && (
-                    <div className="absolute inset-0 w-full h-full bg-slate-900 flex items-center justify-center">
+                    <div className="absolute inset-0 w-full h-full bg-black flex items-center justify-center">
                         <div className="text-center">
-                            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mb-2 mx-auto">
-                                <Users className="w-8 h-8 text-slate-400" />
+                            <div className="w-16 h-16 bg-white flex items-center justify-center mb-2 mx-auto">
+                                <Users className="w-8 h-8 text-black" />
                             </div>
-                            <p className="text-slate-400 text-sm">{userName}</p>
+                            <p className="text-white text-sm font-mono uppercase">{userName}</p>
                         </div>
                     </div>
                 )}
@@ -63,9 +63,9 @@ const VideoTile: React.FC<{
                 <div className="absolute top-2 left-2 flex items-center space-x-1">
                     <Badge
                         variant={isHost ? "default" : "secondary"}
-                        className={`text-xs ${isHost ? "bg-purple-600" : "bg-slate-600"} text-white`}
+                        className={`text-xs font-mono ${isHost ? "bg-white text-black" : "bg-black text-white border border-white"}`}
                     >
-                        {userName} {isHost && "👑"}
+                        {userName.toUpperCase()} {isHost && "HOST"}
                     </Badge>
                 </div>
 
@@ -118,26 +118,24 @@ export const VideoChat: React.FC<VideoChatProps> = ({
             <div className="flex items-center justify-center space-x-1 px-2">
                 <Button
                     onClick={toggleVideo}
-                    variant={videoEnabled ? "default" : "destructive"}
+                    variant="outline"
                     size="sm"
+                    className="border-2 border-white bg-black text-white hover:bg-white hover:text-black flex items-center space-x-1 text-xs px-2 py-1"
                     disabled={isInitializing}
-                    className="flex items-center space-x-1 text-xs px-2 py-1"
-                    title={isInitializing ? "Initializing camera..." : undefined}
                 >
                     {videoEnabled ? <Video className="w-3 h-3" /> : <VideoOff className="w-3 h-3" />}
-                    <span className="hidden sm:inline">{videoEnabled ? "Video Off" : "Video On"}</span>
+                    <span className="hidden sm:inline uppercase text-xs">{videoEnabled ? "Video Off" : "Video On"}</span>
                 </Button>
 
                 <Button
                     onClick={toggleAudio}
-                    variant={audioEnabled ? "default" : "destructive"}
+                    variant="outline"
                     size="sm"
+                    className="border-2 border-white bg-black text-white hover:bg-white hover:text-black flex items-center space-x-1 text-xs px-2 py-1"
                     disabled={isInitializing}
-                    className="flex items-center space-x-1 text-xs px-2 py-1"
-                    title={isInitializing ? "Initializing microphone..." : undefined}
                 >
                     {audioEnabled ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
-                    <span className="hidden sm:inline">{audioEnabled ? "Mute" : "Unmute"}</span>
+                    <span className="hidden sm:inline uppercase text-xs">{audioEnabled ? "Mute" : "Unmute"}</span>
                 </Button>
             </div>
 
@@ -145,7 +143,7 @@ export const VideoChat: React.FC<VideoChatProps> = ({
             <div className="flex-1 space-y-2">
                 {/* Local user video */}
                 <div>
-                    <h3 className="text-xs font-medium text-slate-300 mb-1 px-1">You</h3>
+                    <h3 className="text-xs font-bold text-white mb-1 px-1 uppercase font-mono">You</h3>
                     <VideoTile
                         userName={currentUser?.name || 'You'}
                         isLocal={true}
@@ -160,7 +158,7 @@ export const VideoChat: React.FC<VideoChatProps> = ({
                 {/* Other users' videos */}
                 {otherUsers.length > 0 && (
                     <div>
-                        <h3 className="text-xs font-medium text-slate-300 mb-1 px-1">
+                        <h3 className="text-xs font-bold text-white mb-1 px-1 uppercase font-mono">
                             Others ({otherUsers.length})
                         </h3>
                         <div className="space-y-2">
@@ -185,7 +183,7 @@ export const VideoChat: React.FC<VideoChatProps> = ({
             {/* Connection Status */}
             {socket === null && (
                 <div className="text-center py-2">
-                    <p className="text-xs text-slate-400">Connecting to room...</p>
+                    <p className="text-xs text-gray-400 uppercase font-mono">Connecting to room...</p>
                 </div>
             )}
 

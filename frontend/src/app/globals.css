@@ -1,5 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "../styles/theme-brutalist.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -116,6 +118,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }

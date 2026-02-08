@@ -4,7 +4,6 @@ import { useState, use } from "react"
 import { useSearchParams } from "next/navigation"
 import { Copy, LogOut, Users, MessageCircle, Video, Crown, Music } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
@@ -123,7 +122,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
+      <div className="h-screen flex flex-col bg-black overflow-hidden">
         {/* Toast Notifications */}
         <div className="fixed top-4 right-4 z-50 space-y-2">
           {toasts.map((toast) => (
@@ -135,215 +134,217 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
           ))}
         </div>
 
-        {/* Header */}
-        <div className="max-w-7xl mx-auto mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
-                WatchWithMi
-              </h1>
-              <div className="flex items-center gap-3">
-                <Badge variant="secondary" className="text-lg px-4 py-1">
-                  Room: {actualRoomCode}
-                </Badge>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={copyRoomCode}
-                  className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                >
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy Code
-                </Button>
-                <Badge
-                  variant={connected ? "default" : "destructive"}
-                  className="px-3 py-1"
-                >
-                  {connected ? "🟢 Connected" : "🔴 Disconnected"}
-                </Badge>
-              </div>
-            </div>
-
-            <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-              <DialogTrigger asChild>
-                <Button variant="destructive">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Leave Room
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-gray-900 border-white/10">
-                <DialogHeader>
-                  <DialogTitle className="text-white">Leave Room?</DialogTitle>
-                  <DialogDescription className="text-white/60">
-                    Are you sure you want to leave this room?
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex gap-3 justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowLeaveDialog(false)}
-                    className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                  >
-                    Cancel
-                  </Button>
-                  <Button variant="destructive" onClick={handleLeaveRoom}>
-                    Leave
-                  </Button>
+        {/* Header - Single Row */}
+        <div className="border-b-4 border-white bg-black">
+          <div className="max-w-full px-6 py-4">
+            <div className="flex items-center justify-between">
+              {/* Left: Logo + Room Info */}
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3">
+                  <img src="/logo.svg" alt="WatchWithMi" width={32} height={32} className="bg-white p-1" />
+                  <h1 className="text-2xl font-bold text-white uppercase tracking-tight">
+                    WATCHWITHMI
+                  </h1>
                 </div>
-              </DialogContent>
-            </Dialog>
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="bg-white text-black text-sm px-3 py-1 font-mono">
+                    {actualRoomCode}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={copyRoomCode}
+                    className="border-2 border-white bg-black text-white hover:bg-white hover:text-black h-8"
+                  >
+                    <Copy className="h-3 w-3 mr-2" />
+                    COPY
+                  </Button>
+                  <Badge
+                    variant={connected ? "default" : "destructive"}
+                    className={`px-3 py-1 font-mono text-xs ${connected ? 'bg-white text-black' : 'bg-black text-white border-2 border-white'}`}
+                  >
+                    {connected ? "CONNECTED" : "DISCONNECTED"}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Right: Leave Button */}
+              <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="destructive" className="bg-white text-black hover:bg-gray-200 border-2 border-white">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    LEAVE ROOM
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-black border-4 border-white">
+                  <DialogHeader>
+                    <DialogTitle className="text-white uppercase">Leave Room?</DialogTitle>
+                    <DialogDescription className="text-gray-400">
+                      Are you sure you want to leave this room?
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="flex gap-3 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowLeaveDialog(false)}
+                      className="border-2 border-white bg-black text-white hover:bg-white hover:text-black"
+                    >
+                      CANCEL
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleLeaveRoom}
+                      className="bg-white text-black hover:bg-gray-200"
+                    >
+                      LEAVE
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Video and Controls */}
-          <div className="lg:col-span-2 space-y-6">
+        {/* Main Content - Full Width Layout */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left: Media Player + Controls (70%) */}
+          <div className="flex-1 flex flex-col border-r-4 border-white overflow-y-auto min-h-0">
             {/* Media Player */}
-            <MediaPlayer
-              currentMedia={currentMedia}
-              isHost={isHost}
-              canControl={canControl}
-              socket={socket}
-              onPlayPause={playPause}
-              onSeek={seekTo}
-            />
+            <div className="flex-1 bg-[#0a0a0a]">
+              <MediaPlayer
+                currentMedia={currentMedia}
+                isHost={isHost}
+                canControl={canControl}
+                socket={socket}
+                onPlayPause={playPause}
+                onSeek={seekTo}
+              />
+            </div>
 
             {/* Media Status */}
             {mediaStatus && (
-              <Card className="bg-white/5 border-white/10">
-                <CardHeader>
-                  <CardTitle className="text-white text-lg">
-                    Download Progress
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
+              <div className="bg-black border-t-4 border-white p-4">
+                <div className="space-y-3">
                   <div>
-                    <div className="flex justify-between text-sm text-white/80 mb-2">
-                      <span>Overall: {(mediaStatus.progress * 100).toFixed(1)}%</span>
-                      <span>{mediaStatus.num_peers} peers</span>
+                    <div className="flex justify-between text-sm text-white mb-2 font-mono">
+                      <span>OVERALL: {(mediaStatus.progress * 100).toFixed(1)}%</span>
+                      <span>{mediaStatus.num_peers} PEERS</span>
                     </div>
-                    <Progress value={mediaStatus.progress * 100} className="h-2" />
+                    <Progress value={mediaStatus.progress * 100} className="h-2 bg-gray-800" />
                   </div>
                   {mediaStatus.file_progress !== undefined && (
                     <div>
-                      <div className="flex justify-between text-sm text-white/80 mb-2">
-                        <span>File: {(mediaStatus.file_progress * 100).toFixed(1)}%</span>
+                      <div className="flex justify-between text-sm text-white mb-2 font-mono">
+                        <span>FILE: {(mediaStatus.file_progress * 100).toFixed(1)}%</span>
                         <span className="text-xs">
-                          {mediaStatus.streaming_ready ? "✅ Ready" : "⏳ Buffering"}
+                          {mediaStatus.streaming_ready ? "READY" : "BUFFERING"}
                         </span>
                       </div>
-                      <Progress value={mediaStatus.file_progress * 100} className="h-2" />
+                      <Progress value={mediaStatus.file_progress * 100} className="h-2 bg-gray-800" />
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )}
 
             {/* Media Controls */}
-            <MediaControls
-              onLoadMedia={handleLoadMedia}
-              onSearchContent={handleSearchContent}
-              onSearchYouTube={searchYouTubeVideos}
-              canControl={canControl}
-              isSearching={isSearching}
-              hasSearched={hasSearched}
-              contentResults={contentResults}
-            />
+            <div className="bg-black border-t-4 border-white">
+              <MediaControls
+                onLoadMedia={handleLoadMedia}
+                onSearchContent={handleSearchContent}
+                onSearchYouTube={searchYouTubeVideos}
+                canControl={canControl}
+                isSearching={isSearching}
+                hasSearched={hasSearched}
+                contentResults={contentResults}
+              />
+            </div>
           </div>
 
-          {/* Right Column - Users, Chat, Video */}
-          <div className="space-y-6">
-            {/* Users */}
-            <Card className="bg-white/5 border-white/10">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Users ({users.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {users.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-white/5 group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${user.id === currentUserId ? 'bg-blue-400' : 'bg-green-400'}`} />
-                        <div className="flex flex-col">
-                          <span className="text-white text-sm font-medium">
-                            {user.name} {user.id === currentUserId && "(You)"}
-                          </span>
-                          <div className="flex gap-1 mt-1">
-                            {user.is_host && (
-                              <Badge variant="outline" className="text-[10px] h-4 px-1 border-yellow-500/50 text-yellow-500 bg-yellow-500/10">
-                                <Crown className="h-2 w-2 mr-1" />
-                                Host
-                              </Badge>
-                            )}
-                            {user.can_control && !user.is_host && (
-                              <Badge variant="outline" className="text-[10px] h-4 px-1 border-purple-500/50 text-purple-500 bg-purple-500/10">
-                                <Music className="h-2 w-2 mr-1" />
-                                DJ
-                              </Badge>
-                            )}
-                          </div>
+          {/* Right Sidebar: Users + Chat (30%) */}
+          <div className="w-[400px] flex flex-col bg-black min-h-0">
+            {/* Users Section */}
+            <div className="border-b-4 border-white bg-black p-4">
+              <h3 className="text-white font-bold uppercase mb-3 flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                USERS ({users.length})
+              </h3>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {users.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-2 bg-[#0a0a0a] border-2 border-white/20 group hover:border-white/40"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 ${user.id === currentUserId ? 'bg-white' : 'bg-gray-500'}`} />
+                      <div className="flex flex-col">
+                        <span className="text-white text-sm font-mono">
+                          {user.name} {user.id === currentUserId && "(YOU)"}
+                        </span>
+                        <div className="flex gap-1 mt-1">
+                          {user.is_host && (
+                            <span className="text-[10px] px-1 border border-white text-white bg-black font-mono">
+                              <Crown className="h-2 w-2 inline mr-1" />
+                              HOST
+                            </span>
+                          )}
+                          {user.can_control && !user.is_host && (
+                            <span className="text-[10px] px-1 border border-white text-white bg-black font-mono">
+                              <Music className="h-2 w-2 inline mr-1" />
+                              DJ
+                            </span>
+                          )}
                         </div>
                       </div>
-
-                      {/* Host controls for other users */}
-                      {isHost && user.id !== currentUserId && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                          onClick={() => grantControl(user.id, !user.can_control)}
-                        >
-                          {user.can_control ? "Revoke Control" : "Grant Control"}
-                        </Button>
-                      )}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Chat */}
-            <Card className="bg-white/5 border-white/10 h-96">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <MessageCircle className="h-5 w-5" />
-                  Chat
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 h-[calc(100%-5rem)]">
+                    {/* Host controls */}
+                    {isHost && user.id !== currentUserId && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 border border-white text-white hover:bg-white hover:text-black"
+                        onClick={() => grantControl(user.id, !user.can_control)}
+                      >
+                        {user.can_control ? "REVOKE" : "GRANT"}
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Chat Section - Takes remaining space */}
+            <div className="flex-1 flex flex-col border-b-4 border-white">
+              <div className="p-4 border-b-2 border-white bg-black">
+                <h3 className="text-white font-bold uppercase flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  CHAT
+                </h3>
+              </div>
+              <div className="flex-1 overflow-hidden min-h-0">
                 <ChatPanel
                   messages={chatMessages}
                   onSendMessage={sendMessage}
                   currentUserName={userName}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            {/* Video Chat */}
-            <Card className="bg-white/5 border-white/10">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Video className="h-5 w-5" />
-                  Video Chat
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {socket && (
-                  <VideoChat
-                    socket={socket}
-                    currentUserId={currentUserId}
-                    users={users}
-                  />
-                )}
-              </CardContent>
-            </Card>
+            {/* Video Chat Section */}
+            <div className="bg-black p-4">
+              <h3 className="text-white font-bold uppercase mb-3 flex items-center gap-2">
+                <Video className="h-4 w-4" />
+                VIDEO CHAT
+              </h3>
+              {socket && (
+                <VideoChat
+                  socket={socket}
+                  currentUserId={currentUserId}
+                  users={users}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>

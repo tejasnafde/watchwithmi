@@ -1,0 +1,289 @@
+/* Theme: Brutalist Tech - Raw, monochrome, bold, unapologetic */
+
+:root[data-theme="brutalist"] {
+    /* Colors - Stark monochrome with high contrast */
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-elevated: #1a1a1a;
+    --bg-card: #0f0f0f;
+
+    --accent-primary: #ffffff;
+    --accent-hover: #e0e0e0;
+    --accent-subtle: rgba(255, 255, 255, 0.1);
+
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --text-muted: #808080;
+    --text-on-accent: #000000;
+
+    --border-primary: #ffffff;
+    --border-secondary: #666666;
+    --border-subtle: #333333;
+
+    /* Typography */
+    --font-display: 'Archivo Black', sans-serif;
+    --font-body: 'IBM Plex Mono', monospace;
+    --font-mono: 'Space Mono', monospace;
+
+    /* Effects */
+    --shadow-harsh: 6px 6px 0 rgba(255, 255, 255, 0.15);
+    --shadow-harsh-sm: 3px 3px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================
+   GLOBAL OVERRIDES
+   ============================================ */
+
+/* Override all backgrounds */
+html[data-theme="brutalist"] body,
+html[data-theme="brutalist"] main,
+html[data-theme="brutalist"] div.min-h-screen,
+html[data-theme="brutalist"] div[class*="min-h-screen"] {
+    background: var(--bg-primary) !important;
+    font-family: var(--font-body) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Typography */
+[data-theme="brutalist"] h1,
+[data-theme="brutalist"] h2,
+[data-theme="brutalist"] h3 {
+    font-family: var(--font-display) !important;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    color: var(--text-primary) !important;
+    font-weight: 900 !important;
+}
+
+/* Remove all rounded corners */
+[data-theme="brutalist"] * {
+    border-radius: 0 !important;
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+
+/* Primary buttons (Create Room, etc) */
+html[data-theme="brutalist"] button.bg-gradient-to-r,
+html[data-theme="brutalist"] button[class*="bg-gradient"],
+html[data-theme="brutalist"] button:not([class*="outline"]):not([class*="ghost"]):not([class*="destructive"]) {
+    background: var(--accent-primary) !important;
+    color: var(--text-on-accent) !important;
+    border: 3px solid var(--accent-primary) !important;
+    box-shadow: var(--shadow-harsh) !important;
+    font-family: var(--font-body) !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 100ms ease;
+}
+
+html[data-theme="brutalist"] button.bg-gradient-to-r:hover,
+html[data-theme="brutalist"] button[class*="bg-gradient"]:hover {
+    transform: translate(3px, 3px) !important;
+    box-shadow: 3px 3px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme="brutalist"] button:disabled {
+    opacity: 0.3 !important;
+    cursor: not-allowed !important;
+}
+
+/* Outline buttons */
+html[data-theme="brutalist"] button[class*="outline"] {
+    background: var(--bg-elevated) !important;
+    color: var(--text-primary) !important;
+    border: 2px solid var(--border-primary) !important;
+    box-shadow: var(--shadow-harsh-sm) !important;
+    font-weight: 700 !important;
+}
+
+html[data-theme="brutalist"] button[class*="outline"]:hover {
+    background: var(--accent-primary) !important;
+    color: var(--text-on-accent) !important;
+    border-color: var(--border-primary) !important;
+    transform: translate(2px, 2px) !important;
+    box-shadow: 2px 2px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Destructive buttons */
+html[data-theme="brutalist"] button[class*="destructive"] {
+    background: var(--accent-primary) !important;
+    color: var(--text-on-accent) !important;
+    border: 3px solid var(--accent-primary) !important;
+    box-shadow: var(--shadow-harsh) !important;
+}
+
+/* ============================================
+   CARDS & CONTAINERS
+   ============================================ */
+
+html[data-theme="brutalist"] div[class*="bg-black"],
+html[data-theme="brutalist"] div[class*="bg-white"],
+html[data-theme="brutalist"] [role="dialog"],
+html[data-theme="brutalist"] .card {
+    background: var(--bg-card) !important;
+    border: 3px solid var(--border-primary) !important;
+    box-shadow: var(--shadow-harsh) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Nested sections within cards */
+html[data-theme="brutalist"] div[class*="bg-gray-800"] {
+    background: var(--bg-elevated) !important;
+    border: 2px solid var(--border-subtle) !important;
+}
+
+/* ============================================
+   INPUTS & FORMS
+   ============================================ */
+
+html[data-theme="brutalist"] input,
+html[data-theme="brutalist"] textarea {
+    background: var(--bg-primary) !important;
+    border: 2px solid var(--border-secondary) !important;
+    color: var(--text-primary) !important;
+    font-family: var(--font-mono) !important;
+    padding: 0.75rem !important;
+}
+
+html[data-theme="brutalist"] input::placeholder,
+html[data-theme="brutalist"] textarea::placeholder {
+    color: var(--text-muted) !important;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 0.05em;
+}
+
+html[data-theme="brutalist"] input:focus,
+html[data-theme="brutalist"] textarea:focus {
+    border-color: var(--border-primary) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px var(--accent-subtle) !important;
+}
+
+/* ============================================
+   BADGES & LABELS
+   ============================================ */
+
+html[data-theme="brutalist"] [class*="badge"],
+html[data-theme="brutalist"] span[class*="bg-"] {
+    background: var(--bg-elevated) !important;
+    color: var(--text-primary) !important;
+    border: 2px solid var(--border-secondary) !important;
+    font-family: var(--font-mono) !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0.75rem !important;
+}
+
+/* ============================================
+   TEXT COLORS
+   ============================================ */
+
+html[data-theme="brutalist"] .text-white,
+html[data-theme="brutalist"] p[class*="text-white"],
+html[data-theme="brutalist"] span[class*="text-white"] {
+    color: var(--text-primary) !important;
+}
+
+html[data-theme="brutalist"] .text-gray-300,
+html[data-theme="brutalist"] p[class*="text-gray"],
+html[data-theme="brutalist"] span[class*="text-gray"] {
+    color: var(--text-secondary) !important;
+}
+
+html[data-theme="brutalist"] .text-gray-400,
+html[data-theme="brutalist"] [class*="text-muted"] {
+    color: var(--text-muted) !important;
+}
+
+/* ============================================
+   ICON CONTAINERS
+   ============================================ */
+
+html[data-theme="brutalist"] div.bg-gradient-to-r.from-purple-500,
+html[data-theme="brutalist"] div[class*="from-purple"],
+html[data-theme="brutalist"] .p-3[class*="bg-gradient"] {
+    background: var(--accent-primary) !important;
+    color: var(--text-on-accent) !important;
+    border: 3px solid var(--accent-primary) !important;
+    box-shadow: var(--shadow-harsh-sm) !important;
+}
+
+html[data-theme="brutalist"] svg {
+    stroke-width: 2.5 !important;
+}
+
+/* ============================================
+   SPECIAL ELEMENTS
+   ============================================ */
+
+/* Dividers */
+html[data-theme="brutalist"] hr,
+html[data-theme="brutalist"] [class*="border-t"],
+html[data-theme="brutalist"] [class*="border-b"] {
+    border-color: var(--border-subtle) !important;
+    border-width: 2px !important;
+}
+
+/* Progress bars */
+html[data-theme="brutalist"] [role="progressbar"] {
+    background: var(--bg-elevated) !important;
+    border: 2px solid var(--border-subtle) !important;
+}
+
+html[data-theme="brutalist"] [role="progressbar"]>div {
+    background: var(--accent-primary) !important;
+}
+
+/* Dropdown menus */
+html[data-theme="brutalist"] [role="menu"],
+html[data-theme="brutalist"] [role="menuitem"] {
+    background: var(--bg-card) !important;
+    border: 3px solid var(--border-primary) !important;
+    color: var(--text-primary) !important;
+}
+
+html[data-theme="brutalist"] [role="menuitem"]:hover {
+    background: var(--bg-elevated) !important;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+/* Harsh, snappy animations */
+[data-theme="brutalist"] * {
+    transition-timing-function: linear !important;
+    transition-duration: 100ms !important;
+}
+
+/* Grid lines effect (optional - adds brutalist aesthetic) */
+html[data-theme="brutalist"] body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+    z-index: 9998;
+}
+
+/* Scanline effect */
+html[data-theme="brutalist"] body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg,
+            rgba(255, 255, 255, 0.01) 0px,
+            transparent 1px,
+            transparent 2px,
+            rgba(255, 255, 255, 0.01) 3px);
+    pointer-events: none;
+    z-index: 9999;
+}
