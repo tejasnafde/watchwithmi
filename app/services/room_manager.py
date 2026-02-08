@@ -17,9 +17,17 @@ class RoomManager:
         self._user_sessions: Dict[str, Dict] = {}
         logger.info("RoomManager initialized")
     
-    def create_room(self, host_name: str) -> str:
+    def create_room(self, host_name: str, requested_code: Optional[str] = None) -> str:
         """Create a new room and return the room code."""
-        room_code = self._generate_unique_room_code()
+        if requested_code:
+            requested_code = requested_code.upper()
+            if requested_code not in self._rooms:
+                room_code = requested_code
+            else:
+                room_code = self._generate_unique_room_code()
+        else:
+            room_code = self._generate_unique_room_code()
+            
         room = Room(room_code)
         self._rooms[room_code] = room
         

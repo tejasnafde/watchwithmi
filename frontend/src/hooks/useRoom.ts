@@ -55,7 +55,7 @@ export const useRoom = (roomCode: string, userName: string) => {
       // If room not found, try to create it (but only once)
       if (error && (error.message === 'Room not found' || error.detail === 'Room not found')) {
         console.log('🏠 Room not found, creating new room:', roomCode);
-        newSocket.emit('create_room', { user_name: userName });
+        newSocket.emit('create_room', { user_name: userName, room_code: roomCode });
       }
     });
 
@@ -88,6 +88,14 @@ export const useRoom = (roomCode: string, userName: string) => {
       // Update the actual room code (important for correct sharing)
       if (data.room_code) {
         setActualRoomCode(data.room_code);
+
+        // Update URL to match actual room code if it changed (e.g. initial creation)
+        if (typeof window !== 'undefined' && data.room_code !== roomCode) {
+          const currentUrl = new URL(window.location.href);
+          currentUrl.pathname = `/room/${data.room_code}`;
+          window.history.replaceState({}, '', currentUrl.toString());
+          console.log('📍 Updated URL to match actual room code:', data.room_code);
+        }
       }
 
       // Convert users object to array if needed (backend sends object)

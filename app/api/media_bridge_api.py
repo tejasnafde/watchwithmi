@@ -78,31 +78,42 @@ async def get_media_status(media_id: str):
 @router.get("/stream/{media_id}/{file_index}")
 async def stream_media_file(media_id: str, file_index: int, request: Request):
     """Stream a file from a media source (supports progressive streaming)"""
+    """Stream a file from a media source (supports progressive streaming)"""
     try:
-        # Get file path
-        file_path = await media_bridge.get_file_path(media_id, file_index)
+        # 1. Get media status first to check if it exists and has metadata
+        status = media_bridge.get_media_status(media_id)
         
+        if 'error' in status:
+            logger.error(f"❌ Media {media_id} not found: {status['error']}")
+            raise HTTPException(status_code=404, detail=status['error'])
+            
+        if not status.get('has_metadata'):
+            logger.warning(f"⏳ Media {media_id} still waiting for metadata...")
+            raise HTTPException(status_code=425, detail="Torrent metadata not yet available")
+
+        # 2. Get file path
+        file_path = await media_bridge.get_file_path(media_id, file_index)
         if not file_path:
+            logger.error(f"❌ File index {file_index} not found in media {media_id}")
             raise HTTPException(status_code=404, detail="File not found")
         
-        # Check if file exists
+        # 3. Check physical file existence
         if not os.path.exists(file_path):
+            logger.warning(f"📩 File {file_path} does not exist on disk yet")
             raise HTTPException(status_code=404, detail="File not yet downloaded")
         
-        # Check if enough data is available for streaming
+        # 4. Check streaming readiness (data threshold)
         if not media_bridge.is_streaming_ready(media_id, file_index):
-            status = media_bridge.get_media_status(media_id)
             progress = status.get('file_progress', 0) * 100
-            threshold = status.get('streaming_threshold', 0.05) * 100
+            threshold = status.get('streaming_threshold', 0.10) * 100
+            logger.warning(f"📉 Media {media_id} not ready: {progress:.1f}% / {threshold:.1f}%")
             raise HTTPException(
                 status_code=425, 
-                detail=f"Not enough data for streaming. Progress: {progress:.1f}%, need {threshold:.1f}%"
+                detail=f"Not enough data for streaming ({progress:.1f}%)"
             )
         
-        # Get current file size (may be growing)
+        # 5. File is ready to stream!
         file_size = os.path.getsize(file_path)
-        
-        # Determine content type based on file extension
         file_ext = os.path.splitext(file_path)[1].lower()
         content_type_map = {
             '.mp4': 'video/mp4',
@@ -114,43 +125,35 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
             '.flv': 'video/x-flv',
             '.m4v': 'video/x-m4v'
         }
-        content_type = content_type_map.get(file_ext, 'video/mp4')  # Default to mp4
-        logger.info(f"📺 File extension: {file_ext}, Content-Type: {content_type}")
+        content_type = content_type_map.get(file_ext, 'video/mp4')
         
-        # For progressive streaming, we need to handle the case where file is still growing
-        status = media_bridge.get_media_status(media_id)
-        if status.get('largest_file') and file_index == status['largest_file']['index']:
-            # Use the expected final size from media metadata
-            expected_size = status['largest_file']['size']
-            logger.info(f"📺 Streaming {media_id} file {file_index}: {file_size}/{expected_size} bytes available")
-        else:
-            expected_size = file_size
+        # Use largest file size as expected size for the stream if it's the main file
+        largest_file = status.get('largest_file')
+        expected_size = largest_file['size'] if largest_file and file_index == largest_file['index'] else file_size
         
-        # Handle range requests for video streaming
+        logger.info(f"� Streaming {media_id} ({content_type}): {file_size}/{expected_size} bytes")
+
         range_header = request.headers.get('range')
-        
         if range_header:
             # Parse range header
             range_match = range_header.replace('bytes=', '').split('-')
             start = int(range_match[0]) if range_match[0] else 0
             end = int(range_match[1]) if range_match[1] else expected_size - 1
             
-            # For progressive streaming, limit end to what's actually downloaded
+            # Limit end to what's actually available on disk
             available_end = min(end, file_size - 1)
             
-            # If requested range is beyond what's downloaded, wait a bit or return what we have
             if start >= file_size:
                 raise HTTPException(status_code=416, detail="Requested range not yet downloaded")
             
             content_length = available_end - start + 1
             
-            # Create streaming response with range
             async def stream_file_range():
                 async with aiofiles.open(file_path, 'rb') as file:
                     await file.seek(start)
                     remaining = content_length
                     while remaining > 0:
-                        chunk_size = min(8192, remaining)
+                        chunk_size = min(32768, remaining) # Increased chunk size for better throughput
                         chunk = await file.read(chunk_size)
                         if not chunk:
                             break
@@ -164,18 +167,14 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
                 'Content-Type': content_type
             }
             
-            return StreamingResponse(
-                stream_file_range(),
-                status_code=206,
-                headers=headers
-            )
+            return StreamingResponse(stream_file_range(), status_code=206, headers=headers)
         
         else:
-            # Stream entire file
-            async def stream_file():
+            # Stream from beginning up to current download point
+            async def stream_file_full():
                 async with aiofiles.open(file_path, 'rb') as file:
                     while True:
-                        chunk = await file.read(8192)
+                        chunk = await file.read(32768)
                         if not chunk:
                             break
                         yield chunk
@@ -185,11 +184,13 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
                 'Content-Type': content_type,
                 'Accept-Ranges': 'bytes'
             }
+            return StreamingResponse(stream_file_full(), headers=headers)
             
-            return StreamingResponse(stream_file(), headers=headers)
-            
+    except HTTPException:
+        # Re-raise HTTP exceptions so FastAPI handles them properly
+        raise
     except Exception as e:
-        logger.error(f" Error streaming file: {e}")
+        logger.error(f"🔥 Critical error streaming file: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/remove/{media_id}")
