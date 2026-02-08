@@ -62,12 +62,16 @@ if isinstance(cors_origins, str) and cors_origins != "*":
     cors_origins = [o.strip() for o in cors_origins.split(",")]
     
     # Render provides host without protocol, so we need to add https://
-    # We add both with and without protocol to be safe
+    # If it's just a hostname (no dots), append .onrender.com
     processed_origins = []
     for origin in cors_origins:
         processed_origins.append(origin)
         if not origin.startswith("http") and origin != "*" and "localhost" not in origin:
-            processed_origins.append(f"https://{origin}")
+            # If it's a bare hostname (no dots), it's from Render's fromService
+            if "." not in origin:
+                processed_origins.append(f"https://{origin}.onrender.com")
+            else:
+                processed_origins.append(f"https://{origin}")
     cors_origins = processed_origins
 
 # Create Socket.IO server
