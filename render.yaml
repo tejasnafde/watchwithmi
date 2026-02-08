@@ -18,13 +18,14 @@ services:
       - key: YOUTUBE_API_KEY
         sync: false
 
-  # React Frontend (Static Site)
-  - type: static_site
-    name: watchwithmi-frontend
+# React Frontend (Static Site - Defined in its own section)
+staticSites:
+  - name: watchwithmi-frontend
     buildCommand: cd frontend && npm install && npm run build
     publishPath: frontend/out
     envVars:
       - key: NEXT_PUBLIC_BACKEND_URL
-        fromStack: true
-        name: watchwithmi-backend
-        property: url
+        fromService:
+          type: web
+          name: watchwithmi-backend
+          property: url
