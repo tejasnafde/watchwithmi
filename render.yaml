@@ -14,14 +14,14 @@ services:
       - key: CORS_ALLOWED_ORIGINS
         fromService:
           type: web
-          name: watchwithmi-frontend
+          name: watchwithmi-web
           property: host
       - key: YOUTUBE_API_KEY
         sync: false
 
   # React Frontend (Next.js Node.js Service)
   - type: web
-    name: watchwithmi-frontend
+    name: watchwithmi-web
     env: node
     buildCommand: cd frontend && npm install && npm run build
     startCommand: cd frontend && npm run start
