@@ -187,11 +187,11 @@ class MediaBridge:
                 self.active_media[media_id].update({
                     'files': files,
                     'largest_file': largest_file,
-                    'name': media_info.name(),
-                    'total_size': media_info.total_size()
+                    'name': torrent_info.name(),
+                    'total_size': torrent_info.total_size()
                 })
                 
-                logger.info(f"Metadata received for {media_id}: {media_info.name()}")
+                logger.info(f"Metadata received for {media_id}: {torrent_info.name()}")
                 logger.info(f"Found {len(files)} files, largest video: {largest_file['path'] if largest_file else 'None'}")
                 return
             
@@ -367,16 +367,16 @@ class MediaBridge:
         }
     
     def _get_status_string(self, state) -> str:
-        """Convert libmedia state to readable string"""
+        """Convert libtorrent state to readable string"""
         state_map = {
-            lt.media_status.queued_for_checking: 'queued',
-            lt.media_status.checking_files: 'checking',
-            lt.media_status.downloading_metadata: 'metadata',
-            lt.media_status.downloading: 'downloading',
-            lt.media_status.finished: 'finished',
-            lt.media_status.seeding: 'seeding',
-            lt.media_status.allocating: 'allocating',
-            lt.media_status.checking_resume_data: 'checking'
+            lt.torrent_status.states.queued_for_checking: 'queued',
+            lt.torrent_status.states.checking_files: 'checking',
+            lt.torrent_status.states.downloading_metadata: 'metadata',
+            lt.torrent_status.states.downloading: 'downloading',
+            lt.torrent_status.states.finished: 'finished',
+            lt.torrent_status.states.seeding: 'seeding',
+            lt.torrent_status.states.allocating: 'allocating',
+            lt.torrent_status.states.checking_resume_data: 'checking'
         }
         return state_map.get(state, 'unknown')
     
