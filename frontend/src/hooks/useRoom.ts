@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Socket } from 'socket.io-client';
-import { createSocket, searchContent, searchYouTube, addMediaSource } from '@/lib/api';
+import { createSocket, searchContent, searchYouTube, addMediaSource, BACKEND_URL } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import type {
   User,
@@ -233,7 +233,7 @@ export const useRoom = (roomCode: string, userName: string) => {
       if (type === 'media') {
         const response = await addMediaSource(url);
         if (response.success) {
-          const streamUrl = `/api/media/stream/${response.media_id}/0`;
+          const streamUrl = `${BACKEND_URL}/api/media/stream/${response.media_id}/0`;
           socket.emit('media_control', { action: 'change', url: streamUrl, type: 'media', title: 'P2P Video' });
         }
       } else {
