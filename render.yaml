@@ -6,6 +6,7 @@ services:
     dockerContext: .
     dockerfilePath: Dockerfile
     plan: free
+    region: singapore
     envVars:
       - key: DEBUG
         value: "true"
@@ -26,6 +27,7 @@ services:
     buildCommand: cd frontend && npm install && npm run build
     startCommand: cd frontend && npm run start
     plan: free
+    region: singapore
     envVars:
       - key: NEXT_PUBLIC_BACKEND_URL
         fromService:
