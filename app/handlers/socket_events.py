@@ -298,7 +298,7 @@ class SocketEventHandler:
                     'user_name': user_name
                 }, room=room_code)
                 
-            elif action == 'change_media':
+            elif action == 'change' or action == 'change_media':
                 media_url = data.get('url', '').strip()
                 media_type = data.get('type', 'youtube')
                 media_title = data.get('title', '')
@@ -312,6 +312,7 @@ class SocketEventHandler:
                         timestamp=0
                     )
                     
+                    logger.info(f"📺 Broadcasting media_changed to room {room_code}: {media_title}")
                     await self.sio.emit('media_changed', {
                         'url': media_url,
                         'type': media_type,
