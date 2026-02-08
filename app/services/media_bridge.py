@@ -98,11 +98,17 @@ class MediaBridge:
             params = {
                 'save_path': self.temp_dir,
                 'storage_mode': lt.storage_mode_t.storage_mode_sparse,
-                'flags': lt.media_flags.auto_managed | lt.media_flags.default_flags  # Remove duplicate_is_error
+                'flags': lt.torrent_flags.auto_managed | lt.torrent_flags.default_flags  # Remove duplicate_is_error
             }
             
-            # Add media to session
-            handle = self.session.add_media({'url': magnet_url, **params})
+            # Add torrent to session using proper libtorrent API
+            # First parse the magnet URI
+            atp = lt.parse_magnet_uri(magnet_url)
+            atp.save_path = self.temp_dir
+            atp.storage_mode = lt.storage_mode_t.storage_mode_sparse
+            atp.flags = lt.torrent_flags.auto_managed | lt.torrent_flags.default_flags
+            
+            handle = self.session.add_torrent(atp)
             
             # Store media info
             self.active_media[media_id] = {
@@ -216,7 +222,7 @@ class MediaBridge:
             handle.prioritize_files(file_priorities)
             
             # Enable sequential download using flags
-            handle.set_flags(handle.flags() | lt.media_flags.sequential_download)
+            handle.set_flags(handle.flags() | lt.torrent_flags.sequential_download)
             
             logger.info(f"Streaming setup complete for {media_id}: {largest_file['path']}")
             # Get dynamic threshold for this file type
