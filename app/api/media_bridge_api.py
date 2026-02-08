@@ -117,7 +117,7 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
         file_ext = os.path.splitext(file_path)[1].lower()
         content_type_map = {
             '.mp4': 'video/mp4',
-            '.mkv': 'video/x-matroska',
+            '.mkv': 'video/webm', # Use video/webm for MKV as it's more standard for browsers and uses similar container structure
             '.avi': 'video/x-msvideo',
             '.webm': 'video/webm',
             '.mov': 'video/quicktime',
@@ -131,7 +131,7 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
         largest_file = status.get('largest_file')
         expected_size = largest_file['size'] if largest_file and file_index == largest_file['index'] else file_size
         
-        logger.info(f"� Streaming {media_id} ({content_type}): {file_size}/{expected_size} bytes")
+        logger.info(f"🚀 Streaming {media_id} ({content_type}): {file_size}/{expected_size} bytes")
 
         range_header = request.headers.get('range')
         if range_header:
@@ -165,9 +165,6 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
                 'Accept-Ranges': 'bytes',
                 'Content-Length': str(content_length),
                 'Content-Type': content_type,
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
                 'Cross-Origin-Resource-Policy': 'cross-origin'
             }
             
@@ -187,9 +184,6 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
                 'Content-Length': str(file_size),
                 'Content-Type': content_type,
                 'Accept-Ranges': 'bytes',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Expose-Headers': 'Content-Length, Accept-Ranges',
                 'Cross-Origin-Resource-Policy': 'cross-origin'
             }
             return StreamingResponse(stream_file_full(), headers=headers)
