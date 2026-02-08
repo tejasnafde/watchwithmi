@@ -11,14 +11,13 @@ import socketio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 import os
 
 # Import our modules
-from .config import setup_logging, APP_NAME, VERSION, TEMPLATES_DIR, STATIC_DIR, SOCKETIO_CORS_ALLOWED_ORIGINS
+from .config import setup_logging, APP_NAME, VERSION, STATIC_DIR, SOCKETIO_CORS_ALLOWED_ORIGINS
 from .services.room_manager import RoomManager
 from .handlers.socket_events import SocketEventHandler
 from .services.p2p_search import ContentSearchService  # New robust P2P search
