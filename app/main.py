@@ -61,6 +61,15 @@ async def lifespan(app: FastAPI):
 cors_origins = SOCKETIO_CORS_ALLOWED_ORIGINS
 if isinstance(cors_origins, str) and cors_origins != "*":
     cors_origins = [o.strip() for o in cors_origins.split(",")]
+    
+    # Render provides host without protocol, so we need to add https://
+    # We add both with and without protocol to be safe
+    processed_origins = []
+    for origin in cors_origins:
+        processed_origins.append(origin)
+        if not origin.startswith("http") and origin != "*" and "localhost" not in origin:
+            processed_origins.append(f"https://{origin}")
+    cors_origins = processed_origins
 
 # Create Socket.IO server
 sio = socketio.AsyncServer(

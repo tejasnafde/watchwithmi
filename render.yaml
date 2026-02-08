@@ -15,7 +15,7 @@ services:
         fromService:
           type: web
           name: watchwithmi-frontend
-          property: url
+          property: host
       - key: YOUTUBE_API_KEY
         sync: false
 
@@ -30,4 +30,4 @@ services:
         fromService:
           type: web
           name: watchwithmi-backend
-          property: url
+          property: host
