@@ -91,10 +91,14 @@ app = FastAPI(
 )
 
 # Add CORS middleware for React frontend
+# allow_credentials must be False if allow_origins is ["*"]
+origins_list = cors_origins if isinstance(cors_origins, list) else [cors_origins]
+is_wildcard = "*" in origins_list
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins if isinstance(cors_origins, list) else [cors_origins],
-    allow_credentials=True,
+    allow_origins=origins_list,
+    allow_credentials=not is_wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
 )

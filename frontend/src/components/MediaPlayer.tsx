@@ -233,6 +233,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 onWaiting={handleWaiting}
                 onCanPlay={handleCanPlay}
                 controls={canControl}
+                crossOrigin="anonymous"
                 playsInline
             />
 
