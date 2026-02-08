@@ -142,3 +142,7 @@ tests/
 readmes/
 .cursor/
 templates/
+scripts/
+
+# Allow frontend lib directory
+!frontend/src/lib/
