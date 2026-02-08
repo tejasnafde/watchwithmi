@@ -274,10 +274,11 @@ class SocketEventHandler:
             user_name = session.get('user_name', 'Unknown')
             
             if action == 'play':
-                self.room_manager.update_media(sid, state='playing')
-                logger.info(f" Broadcasting media_play to room {room_code} (users: {list(room.users.keys())})")
+                timestamp = data.get('timestamp', room.media.timestamp)
+                self.room_manager.update_media(sid, state='playing', timestamp=timestamp)
+                logger.info(f"▶️ Broadcasting media_play to room {room_code} at {timestamp}s (users: {list(room.users.keys())})")
                 await self.sio.emit('media_play', {
-                    'timestamp': room.media.timestamp,
+                    'timestamp': timestamp,
                     'user_name': user_name
                 }, room=room_code)
                 
