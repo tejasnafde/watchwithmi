@@ -69,10 +69,14 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         lastVideoErrorTime.current = now;
         videoErrorRetryCount.current++;
 
+        const error = video.error;
         logger.error('Video error occurred', {
-            error: video.error,
+            code: error?.code,
+            message: error?.message,
             retryCount: videoErrorRetryCount.current,
-            src: video.src
+            src: video.src,
+            readyState: video.readyState,
+            networkState: video.networkState
         });
 
         // Retry up to 3 times

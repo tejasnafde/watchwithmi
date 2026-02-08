@@ -101,6 +101,7 @@ app.add_middleware(
     allow_credentials=not is_wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length", "Content-Type", "Date"],
 )
 
 # Mount static files (optional, mostly for alignment with production structure if needed)
