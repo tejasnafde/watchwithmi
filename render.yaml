@@ -19,12 +19,13 @@ services:
       - key: YOUTUBE_API_KEY
         sync: false
 
-  # React Frontend (Static Site - defined as a web service with env: static)
+  # React Frontend (Next.js Node.js Service)
   - type: web
     name: watchwithmi-frontend
-    env: static
+    env: node
     buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/out
+    startCommand: cd frontend && npm run start
+    plan: free
     envVars:
       - key: NEXT_PUBLIC_BACKEND_URL
         fromService:

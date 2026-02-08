@@ -15,6 +15,8 @@ import { ChatPanel } from "@/components/ChatPanel"
 import { MediaControls } from "@/components/MediaControls"
 import { logger } from "@/lib/logger"
 
+export const dynamic = 'force-dynamic';
+
 // Toast notification component
 function Toast({
   message,
