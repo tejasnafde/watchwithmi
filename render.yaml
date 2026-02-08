@@ -5,7 +5,7 @@ services:
     env: docker
     dockerContext: .
     dockerfilePath: Dockerfile
-    plan: free # Change to starter if you need more power
+    plan: free
     envVars:
       - key: DEBUG
         value: "false"
@@ -16,14 +16,13 @@ services:
         name: watchwithmi-frontend
         property: url
       - key: YOUTUBE_API_KEY
-        sync: false # Set this manually in Render dashboard
+        sync: false
 
-  # React Frontend (Static Site - Fast & CDN)
-  - type: static
+  # React Frontend (Static Site)
+  - type: static_site
     name: watchwithmi-frontend
-    env: static
     buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/out
+    publishPath: frontend/out
     envVars:
       - key: NEXT_PUBLIC_BACKEND_URL
         fromStack: true
