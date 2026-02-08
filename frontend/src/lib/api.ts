@@ -20,6 +20,9 @@ if (process.env.NEXT_PUBLIC_BACKEND_URL && !BACKEND_URL.startsWith('http')) {
   }
 }
 
+// Export BACKEND_URL for use in other modules
+export { BACKEND_URL };
+
 // API client
 const api = axios.create({
   baseURL: BACKEND_URL,
