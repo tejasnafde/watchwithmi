@@ -54,7 +54,15 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
         if (!directUrl.trim()) return;
 
         logger.info('Loading direct URL', directUrl);
-        await onLoadMedia(directUrl, 'direct');
+
+        // Auto-detect magnet links and route to P2P handler
+        if (directUrl.startsWith('magnet:')) {
+            logger.info('Detected magnet link, routing to P2P handler');
+            await onLoadMedia(directUrl, 'media');
+        } else {
+            await onLoadMedia(directUrl, 'direct');
+        }
+
         setDirectUrl('');
     };
 
@@ -234,7 +242,7 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                             value={directUrl}
                             onChange={(e) => setDirectUrl(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleLoadDirect()}
-                            placeholder="ENTER DIRECT VIDEO URL..."
+                            placeholder="ENTER VIDEO URL OR MAGNET LINK..."
                             className="flex-1 bg-black border-4 border-white text-white placeholder:text-white/40 font-mono h-12 uppercase"
                         />
                         <Button
@@ -246,7 +254,7 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                         </Button>
                     </div>
                     <p className="text-white font-mono text-xs uppercase opacity-70">
-                        PASTE A DIRECT LINK TO A VIDEO FILE (MP4, WEBM, ETC.)
+                        PASTE A DIRECT VIDEO URL (MP4, WEBM) OR MAGNET LINK FOR P2P STREAMING
                     </p>
                 </TabsContent>
             </Tabs>
