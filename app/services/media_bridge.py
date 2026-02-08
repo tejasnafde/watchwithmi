@@ -156,13 +156,13 @@ class MediaBridge:
             
             if status.has_metadata:
                 # Get file info
-                media_info = handle.media_file()
+                torrent_info = handle.torrent_file()
                 files = []
                 largest_file = None
                 largest_size = 0
                 
-                for i in range(media_info.num_files()):
-                    file_info = media_info.file_at(i)
+                for i in range(torrent_info.num_files()):
+                    file_info = torrent_info.file_at(i)
                     file_path = file_info.path
                     file_size = file_info.size
                     
@@ -217,7 +217,7 @@ class MediaBridge:
         
         if largest_file:
             # Set file priority to highest for the main video file
-            file_priorities = [1] * handle.media_file().num_files()  # Normal priority for all
+            file_priorities = [1] * handle.torrent_file().num_files()  # Normal priority for all
             file_priorities[largest_file['index']] = 7  # Highest priority for video file
             handle.prioritize_files(file_priorities)
             
@@ -420,9 +420,9 @@ class MediaBridge:
             handle = self.active_media[media_id]['handle']
             
             if delete_files:
-                self.session.remove_media(handle, lt.options_t.delete_files)
+                self.session.remove_torrent(handle, lt.options_t.delete_files)
             else:
-                self.session.remove_media(handle)
+                self.session.remove_torrent(handle)
             
             del self.active_media[media_id]
             logger.info(f"Removed media: {media_id}")
