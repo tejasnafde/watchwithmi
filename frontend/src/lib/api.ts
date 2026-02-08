@@ -12,7 +12,12 @@ import type {
 // FastAPI backend URL - adjust this based on your setup
 let BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 if (process.env.NEXT_PUBLIC_BACKEND_URL && !BACKEND_URL.startsWith('http')) {
-  BACKEND_URL = `https://${BACKEND_URL}`;
+  // If it's just a hostname (from Render's fromService), append .onrender.com
+  if (!BACKEND_URL.includes('.')) {
+    BACKEND_URL = `https://${BACKEND_URL}.onrender.com`;
+  } else {
+    BACKEND_URL = `https://${BACKEND_URL}`;
+  }
 }
 
 // API client
