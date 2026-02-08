@@ -17,3 +17,4 @@ cloudscraper==1.2.71
 # Or download wheel from: https://www.lfd.uci.edu/~gohlke/pythonlibs/
 libtorrent==2.0.11
 google-api-python-client==2.188.0
+gunicorn==21.2.0
