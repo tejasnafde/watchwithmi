@@ -17,7 +17,6 @@ PORT = int(os.getenv("PORT", 8000))
 # Paths
 BASE_DIR = Path(__file__).parent.parent
 LOGS_DIR = BASE_DIR / "logs"
-TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 
 # Create logs directory if it doesn't exist
