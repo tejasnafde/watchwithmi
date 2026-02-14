@@ -42,6 +42,8 @@ export namespace YT {
         origin?: string;
         rel?: 0 | 1;
         start?: number;
+        list?: string;
+        listType?: 'playlist' | 'user_uploads';
     }
 
     export interface Events {
@@ -172,4 +174,20 @@ export const extractYouTubeVideoId = (url: string): string | null => {
         // Silently fail as this may be called with non-YouTube URLs (e.g. magnet links)
         return null;
     }
+};
+
+export const extractYouTubePlaylistId = (url: string): string | null => {
+    try {
+        if (!url) return null;
+        const parsed = new URL(url);
+        return parsed.searchParams.get('list');
+    } catch {
+        return null;
+    }
+};
+
+export const isYouTubePlaylistUrl = (url: string): boolean => {
+    if (!url) return false;
+    const playlistId = extractYouTubePlaylistId(url);
+    return Boolean(playlistId);
 };

@@ -34,8 +34,17 @@ export interface ChatMessage {
 // Media Types
 // ============================================================================
 
-export type MediaType = 'youtube' | 'media' | 'direct';
+export type MediaType = 'youtube' | 'media' | 'direct' | 'youtube_playlist';
 export type MediaPlayState = 'playing' | 'paused';
+
+export interface PlaylistItem {
+    id?: string;
+    title: string;
+    url: string;
+    thumbnail?: string;
+    channel?: string;
+    position?: number;
+}
 
 export interface MediaState {
     url: string;
@@ -44,6 +53,12 @@ export interface MediaState {
     timestamp: number;
     loading: boolean;
     title?: string;
+    is_playlist?: boolean;
+    playlist_id?: string;
+    playlist_title?: string;
+    playlist_items?: PlaylistItem[];
+    current_index?: number;
+    fallback_mode?: boolean;
 }
 
 export interface MediaStatus {
@@ -78,10 +93,10 @@ export interface MediaFile {
 export interface RoomJoinedData {
     room_code: string;
     user_id: string;
-    user_name: string;
-    users: User[];
-    chat_history: ChatMessage[];
-    media: MediaState | null;
+    users: User[] | Record<string, User>;
+    chat_history?: ChatMessage[];
+    chat?: ChatMessage[];
+    media: Partial<MediaState> | null;
 }
 
 export interface UserJoinedData {
@@ -103,13 +118,23 @@ export interface ChatMessageData {
     timestamp: string;
 }
 
-export type MediaAction = 'play' | 'pause' | 'seek' | 'change';
+export type MediaAction =
+    | 'play'
+    | 'pause'
+    | 'seek'
+    | 'change'
+    | 'change_media'
+    | 'load_playlist'
+    | 'playlist_next'
+    | 'playlist_prev'
+    | 'playlist_select';
 
 export interface MediaControlData {
     action: MediaAction;
     timestamp?: number;
     url?: string;
     type?: MediaType;
+    title?: string;
     user_name: string;
 }
 
@@ -183,6 +208,17 @@ export interface YouTubeSearchResponse {
     count: number;
 }
 
+export interface YouTubePlaylistResponse {
+    enabled: boolean;
+    fallback_mode: boolean;
+    error?: string;
+    playlist_id: string;
+    playlist_title: string;
+    playlist_channel?: string;
+    items: PlaylistItem[];
+    count?: number;
+}
+
 export interface AddMediaResponse {
     success: boolean;
     media_id: string;
@@ -194,7 +230,7 @@ export interface MediaStatusResponse extends MediaStatus { }
 export interface RoomStatsResponse {
     total_rooms: number;
     total_users: number;
-    active_rooms: number;
+    rooms: Record<string, number>;
 }
 
 // ============================================================================
@@ -215,6 +251,13 @@ export interface ServerToClientEvents {
     media_pause: (data: any) => void; // Legacy event
     media_seek: (data: any) => void; // Legacy event
     media_progress: (data: MediaProgressData) => void;
+    playlist_updated: (data: {
+        playlist_id: string;
+        playlist_title: string;
+        playlist_items: PlaylistItem[];
+        current_index: number;
+        user_name: string;
+    }) => void;
     room_created: (data: { room_code: string }) => void;
     webrtc_offer: (data: WebRTCOfferData) => void;
     webrtc_answer: (data: WebRTCAnswerData) => void;
@@ -231,7 +274,14 @@ export interface ClientToServerEvents {
         timestamp?: number;
         url?: string;
         type?: MediaType;
+        title?: string;
+        playlist_id?: string;
+        playlist_title?: string;
+        items?: PlaylistItem[];
+        index?: number;
     }) => void;
+    toggle_video: (data: { enabled: boolean }) => void;
+    toggle_audio: (data: { enabled: boolean }) => void;
     webrtc_offer: (data: { target_user_id: string; offer: RTCSessionDescriptionInit }) => void;
     webrtc_answer: (data: { target_user_id: string; answer: RTCSessionDescriptionInit }) => void;
     webrtc_ice_candidate: (data: { target_user_id: string; candidate: RTCIceCandidateInit }) => void;

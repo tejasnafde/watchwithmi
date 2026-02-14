@@ -260,8 +260,15 @@ class SocketEventHandler:
             if not room:
                 await self.sio.emit('error', {'message': 'Room not found'}, room=sid)
                 return
+
+            # Compatibility path for older clients that emit AV toggle as media_control.
+            if action == 'video_toggle':
+                await self.handle_toggle_video(sid, {'enabled': bool(data.get('enabled', False))})
+                return
+            if action == 'audio_toggle':
+                await self.handle_toggle_audio(sid, {'enabled': bool(data.get('enabled', False))})
+                return
             
-            is_host = self.room_manager.is_user_host(sid)
             room_user = room.users.get(sid)
             can_control = room_user.can_control if room_user else False
             
@@ -311,7 +318,13 @@ class SocketEventHandler:
                         url=media_url, 
                         media_type=media_type, 
                         state='paused', 
-                        timestamp=0
+                        timestamp=0,
+                        title=media_title,
+                        is_playlist=False,
+                        playlist_id='',
+                        playlist_title='',
+                        playlist_items=[],
+                        current_index=0
                     )
                     
                     logger.info(f"📺 Broadcasting media_changed to room {room_code}: {media_title}")
@@ -319,8 +332,125 @@ class SocketEventHandler:
                         'url': media_url,
                         'type': media_type,
                         'title': media_title,
-                        'user_name': user_name
+                        'user_name': user_name,
+                        'is_playlist': False,
+                        'playlist_id': '',
+                        'playlist_title': '',
+                        'playlist_items': [],
+                        'current_index': 0
                     }, room=room_code)
+
+            elif action == 'load_playlist':
+                playlist_items = data.get('items') or []
+                if not isinstance(playlist_items, list) or len(playlist_items) == 0:
+                    await self.sio.emit('error', {'message': 'Playlist has no playable items'}, room=sid)
+                    return
+
+                playlist_id = (data.get('playlist_id') or '').strip()
+                playlist_title = (data.get('playlist_title') or '').strip()
+                current_index = 0
+                first_item = playlist_items[current_index]
+                media_url = (first_item.get('url') or '').strip()
+                media_title = first_item.get('title', '')
+
+                if not media_url:
+                    await self.sio.emit('error', {'message': 'Invalid playlist item URL'}, room=sid)
+                    return
+
+                self.room_manager.update_media(
+                    sid,
+                    url=media_url,
+                    media_type='youtube',
+                    state='paused',
+                    timestamp=0,
+                    title=media_title,
+                    is_playlist=True,
+                    playlist_id=playlist_id,
+                    playlist_title=playlist_title,
+                    playlist_items=playlist_items,
+                    current_index=current_index
+                )
+
+                await self.sio.emit('media_changed', {
+                    'url': media_url,
+                    'type': 'youtube',
+                    'title': media_title,
+                    'user_name': user_name,
+                    'is_playlist': True,
+                    'playlist_id': playlist_id,
+                    'playlist_title': playlist_title,
+                    'playlist_items': playlist_items,
+                    'current_index': current_index
+                }, room=room_code)
+
+                await self.sio.emit('playlist_updated', {
+                    'playlist_id': playlist_id,
+                    'playlist_title': playlist_title,
+                    'playlist_items': playlist_items,
+                    'current_index': current_index,
+                    'user_name': user_name
+                }, room=room_code)
+
+            elif action in ('playlist_next', 'playlist_prev', 'playlist_select'):
+                playlist_items = room.media.playlist_items or []
+                if not room.media.is_playlist or not playlist_items:
+                    await self.sio.emit('error', {'message': 'No active playlist in this room'}, room=sid)
+                    return
+
+                current_index = room.media.current_index or 0
+                new_index = current_index
+
+                if action == 'playlist_next':
+                    if current_index < len(playlist_items) - 1:
+                        new_index = current_index + 1
+                elif action == 'playlist_prev':
+                    if current_index > 0:
+                        new_index = current_index - 1
+                elif action == 'playlist_select':
+                    requested_index = data.get('index')
+                    if isinstance(requested_index, int) and 0 <= requested_index < len(playlist_items):
+                        new_index = requested_index
+
+                selected_item = playlist_items[new_index]
+                media_url = (selected_item.get('url') or '').strip()
+                media_title = selected_item.get('title', '')
+                if not media_url:
+                    await self.sio.emit('error', {'message': 'Selected playlist item is invalid'}, room=sid)
+                    return
+
+                self.room_manager.update_media(
+                    sid,
+                    url=media_url,
+                    media_type='youtube',
+                    state='paused',
+                    timestamp=0,
+                    title=media_title,
+                    is_playlist=True,
+                    playlist_id=room.media.playlist_id,
+                    playlist_title=room.media.playlist_title,
+                    playlist_items=playlist_items,
+                    current_index=new_index
+                )
+
+                await self.sio.emit('media_changed', {
+                    'url': media_url,
+                    'type': 'youtube',
+                    'title': media_title,
+                    'user_name': user_name,
+                    'is_playlist': True,
+                    'playlist_id': room.media.playlist_id,
+                    'playlist_title': room.media.playlist_title,
+                    'playlist_items': playlist_items,
+                    'current_index': new_index
+                }, room=room_code)
+
+                await self.sio.emit('playlist_updated', {
+                    'playlist_id': room.media.playlist_id,
+                    'playlist_title': room.media.playlist_title,
+                    'playlist_items': playlist_items,
+                    'current_index': new_index,
+                    'user_name': user_name
+                }, room=room_code)
                     
             elif action == 'start_loading':
                 media_type = data.get('type', 'media')

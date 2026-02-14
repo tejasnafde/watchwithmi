@@ -60,6 +60,9 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
     loadMedia,
     playPause,
     seekTo,
+    playlistNext,
+    playlistPrev,
+    playlistSelect,
     grantControl,
     searchMediaFiles,
     searchYouTubeVideos,
@@ -92,7 +95,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
     }, 1000)
   }
 
-  const handleLoadMedia = async (url: string, type: 'youtube' | 'media' | 'direct') => {
+  const handleLoadMedia = async (url: string, type: 'youtube' | 'media' | 'direct' | 'youtube_playlist') => {
     logger.info('Loading media', { url, type })
     showToast(`Loading ${type} media...`, "info")
 
@@ -215,11 +218,12 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
             <div className="flex-1 bg-[#0a0a0a]">
               <MediaPlayer
                 currentMedia={currentMedia}
-                isHost={isHost}
                 canControl={canControl}
                 socket={socket}
                 onPlayPause={playPause}
                 onSeek={seekTo}
+                onPlaylistNext={playlistNext}
+                onPlaylistPrev={playlistPrev}
               />
             </div>
 
@@ -259,12 +263,15 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
                 isSearching={isSearching}
                 hasSearched={hasSearched}
                 contentResults={contentResults}
+                playlistItems={currentMedia.playlist_items || []}
+                currentPlaylistIndex={currentMedia.current_index || 0}
+                onPlaylistSelect={playlistSelect}
               />
             </div>
           </div>
 
           {/* Right Sidebar: Users + Chat (30%) */}
-          <div className="w-[400px] flex flex-col bg-black min-h-0">
+          <div className="w-[400px] flex flex-col bg-black min-h-0 overflow-y-auto">
             {/* Users Section */}
             <div className="border-b-4 border-white bg-black p-4">
               <h3 className="text-white font-bold uppercase mb-3 flex items-center gap-2">
@@ -317,7 +324,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
             </div>
 
             {/* Chat Section - Takes remaining space */}
-            <div className="flex-1 flex flex-col border-b-4 border-white">
+            <div className="shrink-0 h-[340px] flex flex-col border-b-4 border-white">
               <div className="p-4 border-b-2 border-white bg-black">
                 <h3 className="text-white font-bold uppercase flex items-center gap-2">
                   <MessageCircle className="h-4 w-4" />
@@ -334,7 +341,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
             </div>
 
             {/* Video Chat Section */}
-            <div className="bg-black p-4">
+            <div className="shrink-0 bg-black p-4">
               <h3 className="text-white font-bold uppercase mb-3 flex items-center gap-2">
                 <Video className="h-4 w-4" />
                 VIDEO CHAT

@@ -50,6 +50,17 @@ class MediaBridgeDisabled:
     def clear_all_medias(self):
         pass
 
+    # Backward-compatible aliases used by API layer
+    @property
+    def active_media_items(self):
+        return self.active_media
+
+    def cleanup_old_media_items(self, max_age_hours: int = 24):
+        return self.cleanup_old_medias(max_age_hours)
+
+    def clear_all_media_items(self):
+        return self.clear_all_medias()
+
 class MediaBridge:
     """Handles server-side media downloading and streaming"""
     
@@ -467,6 +478,17 @@ class MediaBridge:
             self.remove_media(media_id, delete_files=False)  # Don't delete files, might be reused
         
         logger.info(f"Cleared {len(media_ids)} medias from session")
+
+    # Backward-compatible aliases used by API layer
+    @property
+    def active_media_items(self):
+        return self.active_media
+
+    def cleanup_old_media_items(self, max_age_hours: int = 24):
+        return self.cleanup_old_medias(max_age_hours)
+
+    def clear_all_media_items(self):
+        return self.clear_all_medias()
     
     def __del__(self):
         """Cleanup when object is destroyed"""

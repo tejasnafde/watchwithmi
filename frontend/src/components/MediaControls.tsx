@@ -9,11 +9,12 @@
 import React, { useState } from 'react';
 import { logger } from '@/lib/logger';
 import type { ContentSearchResult, MediaType } from '@/types';
+import { isYouTubePlaylistUrl } from '@/lib/youtube-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Youtube, Download, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Search, Youtube, Download, Link as LinkIcon, Loader2, ListMusic } from 'lucide-react';
 
 interface MediaControlsProps {
     onLoadMedia: (url: string, type: MediaType) => Promise<void>;
@@ -23,6 +24,9 @@ interface MediaControlsProps {
     isSearching: boolean;
     hasSearched: boolean;
     contentResults: ContentSearchResult[];
+    playlistItems?: Array<{ title: string; url: string }>;
+    currentPlaylistIndex?: number;
+    onPlaylistSelect?: (index: number) => void;
 }
 
 export const MediaControls: React.FC<MediaControlsProps> = ({
@@ -32,7 +36,10 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
     canControl,
     isSearching,
     hasSearched,
-    contentResults
+    contentResults,
+    playlistItems = [],
+    currentPlaylistIndex = 0,
+    onPlaylistSelect
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [directUrl, setDirectUrl] = useState('');
@@ -56,7 +63,10 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
         logger.info('Loading direct URL', directUrl);
 
         // Auto-detect magnet links and route to P2P handler
-        if (directUrl.startsWith('magnet:')) {
+        if (isYouTubePlaylistUrl(directUrl)) {
+            logger.info('Detected YouTube playlist link, routing to playlist handler');
+            await onLoadMedia(directUrl, 'youtube_playlist');
+        } else if (directUrl.startsWith('magnet:')) {
             logger.info('Detected magnet link, routing to P2P handler');
             await onLoadMedia(directUrl, 'media');
         } else {
@@ -254,10 +264,36 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                         </Button>
                     </div>
                     <p className="text-white font-mono text-xs uppercase opacity-70">
-                        PASTE A DIRECT VIDEO URL (MP4, WEBM) OR MAGNET LINK FOR P2P STREAMING
+                        PASTE A DIRECT VIDEO URL, YOUTUBE PLAYLIST LINK, OR MAGNET LINK FOR P2P STREAMING
                     </p>
                 </TabsContent>
             </Tabs>
+
+            {playlistItems.length > 0 && (
+                <div className="mt-6 border-4 border-white p-3">
+                    <div className="flex items-center gap-2 mb-3 text-white">
+                        <ListMusic className="h-4 w-4" />
+                        <h4 className="font-bold uppercase text-sm">Playlist Queue ({playlistItems.length})</h4>
+                    </div>
+                    <ScrollArea className="h-48">
+                        <div className="space-y-2 pr-2">
+                            {playlistItems.map((item, index) => (
+                                <button
+                                    key={`${item.url}-${index}`}
+                                    type="button"
+                                    className={`w-full text-left p-2 border-2 font-mono text-xs uppercase ${index === currentPlaylistIndex
+                                        ? 'bg-white text-black border-white'
+                                        : 'bg-black text-white border-white/50 hover:border-white'
+                                        }`}
+                                    onClick={() => onPlaylistSelect?.(index)}
+                                >
+                                    {index + 1}. {item.title}
+                                </button>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                </div>
+            )}
         </div>
     );
 };

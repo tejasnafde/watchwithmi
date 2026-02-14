@@ -313,10 +313,7 @@ export const useWebRTC = ({ socket, currentUserId, users }: WebRTCHookOptions) =
 
       // Notify peers about video enable
       if (socket) {
-        socket.emit('media_control', {
-          action: 'video_toggle',
-          enabled: true
-        });
+        socket.emit('toggle_video', { enabled: true });
       }
     } else {
       // Disabling video - just mute tracks, don't close connections
@@ -329,10 +326,7 @@ export const useWebRTC = ({ socket, currentUserId, users }: WebRTCHookOptions) =
 
       // Notify peers about video disable
       if (socket) {
-        socket.emit('media_control', {
-          action: 'video_toggle',
-          enabled: false
-        });
+        socket.emit('toggle_video', { enabled: false });
       }
     }
   }, [videoEnabled, localStream, socket, initializeLocalStream]);
@@ -361,10 +355,7 @@ export const useWebRTC = ({ socket, currentUserId, users }: WebRTCHookOptions) =
 
       // Notify peers
       if (socket) {
-        socket.emit('media_control', {
-          action: 'audio_toggle',
-          enabled: true
-        });
+        socket.emit('toggle_audio', { enabled: true });
       }
     } else {
       // Disabling audio
@@ -377,10 +368,7 @@ export const useWebRTC = ({ socket, currentUserId, users }: WebRTCHookOptions) =
 
       // Notify peers
       if (socket) {
-        socket.emit('media_control', {
-          action: 'audio_toggle',
-          enabled: false
-        });
+        socket.emit('toggle_audio', { enabled: false });
       }
     }
   }, [audioEnabled, localStream, socket, initializeLocalStream]);

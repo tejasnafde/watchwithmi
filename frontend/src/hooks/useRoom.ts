@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Socket } from 'socket.io-client';
-import { createSocket, searchContent, searchYouTube, addMediaSource, BACKEND_URL } from '@/lib/api';
+import { createSocket, searchContent, searchYouTube, addMediaSource, fetchYouTubePlaylist, BACKEND_URL } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import type {
   User,
@@ -22,6 +22,12 @@ export const useRoom = (roomCode: string, userName: string) => {
     state: 'paused',
     timestamp: 0,
     loading: false,
+    is_playlist: false,
+    playlist_id: '',
+    playlist_title: '',
+    playlist_items: [],
+    current_index: 0,
+    fallback_mode: false,
   });
   const [contentResults, setContentResults] = useState<ContentSearchResult[]>([]);
   const [mediaStatus, setMediaStatus] = useState<MediaStatus | null>(null);
@@ -148,6 +154,12 @@ export const useRoom = (roomCode: string, userName: string) => {
           timestamp: m.timestamp || 0,
           loading: false,
           title: m.title || '',
+          is_playlist: !!m.is_playlist,
+          playlist_id: m.playlist_id || '',
+          playlist_title: m.playlist_title || '',
+          playlist_items: m.playlist_items || [],
+          current_index: m.current_index || 0,
+          fallback_mode: !!m.fallback_mode,
         });
       }
     };
@@ -174,7 +186,24 @@ export const useRoom = (roomCode: string, userName: string) => {
         timestamp: 0,
         loading: data.type === 'media',
         title: data.title || '',
+        is_playlist: !!data.is_playlist,
+        playlist_id: data.playlist_id || '',
+        playlist_title: data.playlist_title || '',
+        playlist_items: data.playlist_items || [],
+        current_index: data.current_index || 0,
+        fallback_mode: !!data.fallback_mode,
       });
+    });
+
+    newSocket.on('playlist_updated', (data: any) => {
+      setCurrentMedia(prev => ({
+        ...prev,
+        is_playlist: true,
+        playlist_id: data.playlist_id || prev.playlist_id,
+        playlist_title: data.playlist_title || prev.playlist_title,
+        playlist_items: data.playlist_items || prev.playlist_items || [],
+        current_index: typeof data.current_index === 'number' ? data.current_index : (prev.current_index || 0),
+      }));
     });
 
     // Listen for media control events to sync state
@@ -221,7 +250,7 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     // Update media status (progress)
     newSocket.on('media_progress', (data: any) => {
-      setMediaStatus(data);
+      setMediaStatus(data?.media_status || null);
     });
 
     return () => {
@@ -236,13 +265,42 @@ export const useRoom = (roomCode: string, userName: string) => {
     }
   };
 
-  const loadMedia = async (url: string, type: 'youtube' | 'media' | 'direct') => {
+  const loadMedia = async (url: string, type: 'youtube' | 'media' | 'direct' | 'youtube_playlist') => {
     if (socket && connected) {
       if (type === 'media') {
         const response = await addMediaSource(url);
         if (response.success) {
-          const streamUrl = `${BACKEND_URL}/api/media/stream/${response.media_id}/0`;
+          const fileIndex = response.status?.largest_file?.index ?? 0;
+          const streamUrl = `${BACKEND_URL}/api/media/stream/${response.media_id}/${fileIndex}`;
           socket.emit('media_control', { action: 'change', url: streamUrl, type: 'media', title: 'P2P Video' });
+        }
+      } else if (type === 'youtube_playlist') {
+        try {
+          const playlist = await fetchYouTubePlaylist(url, 200);
+          if (playlist.enabled && playlist.items && playlist.items.length > 0 && !playlist.fallback_mode) {
+            socket.emit('media_control', {
+              action: 'load_playlist',
+              playlist_id: playlist.playlist_id,
+              playlist_title: playlist.playlist_title,
+              items: playlist.items,
+            });
+          } else {
+            // Graceful fallback: load playlist URL directly in YouTube player.
+            socket.emit('media_control', {
+              action: 'change',
+              url,
+              type: 'youtube',
+              title: 'YouTube Playlist',
+            });
+          }
+        } catch (error) {
+          logger.warn('Playlist expansion failed, falling back to native playlist URL', error);
+          socket.emit('media_control', {
+            action: 'change',
+            url,
+            type: 'youtube',
+            title: 'YouTube Playlist',
+          });
         }
       } else {
         socket.emit('media_control', { action: 'change', url, type, title: 'YouTube Video' });
@@ -265,6 +323,24 @@ export const useRoom = (roomCode: string, userName: string) => {
   const grantControl = (userId: string, enabled: boolean) => {
     if (socket && connected) {
       socket.emit('grant_control', { user_id: userId, enabled });
+    }
+  };
+
+  const playlistNext = () => {
+    if (socket && connected) {
+      socket.emit('media_control', { action: 'playlist_next' });
+    }
+  };
+
+  const playlistPrev = () => {
+    if (socket && connected) {
+      socket.emit('media_control', { action: 'playlist_prev' });
+    }
+  };
+
+  const playlistSelect = (index: number) => {
+    if (socket && connected) {
+      socket.emit('media_control', { action: 'playlist_select', index });
     }
   };
 
@@ -332,6 +408,9 @@ export const useRoom = (roomCode: string, userName: string) => {
     playPause,
     seekTo,
     grantControl,
+    playlistNext,
+    playlistPrev,
+    playlistSelect,
     searchMediaFiles,
     searchYouTubeVideos,
   };
