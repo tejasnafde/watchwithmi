@@ -12,7 +12,7 @@ import type { MediaState } from '@/types';
 interface UseVideoSyncOptions {
     videoRef: React.RefObject<HTMLVideoElement | null>;
     currentMedia: MediaState;
-    isHost: boolean;
+    canControl: boolean;
     onPlayPause: (action: 'play' | 'pause', timestamp: number) => void;
     onSeek: (timestamp: number) => void;
 }
@@ -20,7 +20,7 @@ interface UseVideoSyncOptions {
 export const useVideoSync = ({
     videoRef,
     currentMedia,
-    isHost,
+    canControl,
     onPlayPause,
     onSeek
 }: UseVideoSyncOptions) => {
@@ -115,38 +115,38 @@ export const useVideoSync = ({
      * Handle video play event (host only)
      */
     const handleVideoPlay = useCallback(() => {
-        if (!videoRef.current || !isHost || isUpdatingFromSocket.current) return;
+        if (!videoRef.current || !canControl || isUpdatingFromSocket.current) return;
 
-        logger.debug('Video play event (host)');
+        logger.debug('Video play event (controller)');
         onPlayPause('play', videoRef.current.currentTime);
-    }, [isHost, onPlayPause, videoRef]);
+    }, [canControl, onPlayPause, videoRef]);
 
     /**
      * Handle video pause event (host only)
      */
     const handleVideoPause = useCallback(() => {
-        if (!videoRef.current || !isHost || isUpdatingFromSocket.current) return;
+        if (!videoRef.current || !canControl || isUpdatingFromSocket.current) return;
 
-        logger.debug('Video pause event (host)');
+        logger.debug('Video pause event (controller)');
         onPlayPause('pause', videoRef.current.currentTime);
-    }, [isHost, onPlayPause, videoRef]);
+    }, [canControl, onPlayPause, videoRef]);
 
     /**
      * Handle video seek event (host only)
      */
     const handleVideoSeeked = useCallback(() => {
-        if (!videoRef.current || !isHost || isUpdatingFromSocket.current) return;
+        if (!videoRef.current || !canControl || isUpdatingFromSocket.current) return;
 
-        logger.debug('Video seeked event (host)', { time: videoRef.current.currentTime });
+        logger.debug('Video seeked event (controller)', { time: videoRef.current.currentTime });
         onSeek(videoRef.current.currentTime);
-    }, [isHost, onSeek, videoRef]);
+    }, [canControl, onSeek, videoRef]);
 
     /**
      * Handle video time update for drift detection
      */
     const handleTimeUpdate = useCallback(() => {
         if (!videoRef.current || !currentMedia.url || currentMedia.state !== 'playing') return;
-        if (isHost || isUpdatingFromSocket.current) return;
+        if (canControl || isUpdatingFromSocket.current) return;
 
         const video = videoRef.current;
         const timeDiff = Math.abs(video.currentTime - currentMedia.timestamp);
@@ -160,7 +160,7 @@ export const useVideoSync = ({
             });
             syncTimestamp();
         }
-    }, [currentMedia.timestamp, currentMedia.url, currentMedia.state, isHost, syncTimestamp, videoRef]);
+    }, [currentMedia.timestamp, currentMedia.url, currentMedia.state, canControl, syncTimestamp, videoRef]);
 
     // Sync play/pause state when it changes
     useEffect(() => {

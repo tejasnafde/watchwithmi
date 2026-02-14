@@ -14,24 +14,26 @@ import { useVideoSync } from '@/hooks/useVideoSync';
 import { useYouTubePlayer } from '@/hooks/useYouTubePlayer';
 import type { MediaState } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Play, Maximize, Loader2 } from 'lucide-react';
+import { Play, Maximize, Loader2, SkipBack, SkipForward } from 'lucide-react';
 
 interface MediaPlayerProps {
     currentMedia: MediaState;
-    isHost: boolean;
     canControl: boolean;
     socket: Socket | null;
     onPlayPause: (action: 'play' | 'pause', timestamp: number) => void;
     onSeek: (timestamp: number) => void;
+    onPlaylistNext?: () => void;
+    onPlaylistPrev?: () => void;
 }
 
 export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     currentMedia,
-    isHost,
     canControl,
     socket,
     onPlayPause,
-    onSeek
+    onSeek,
+    onPlaylistNext,
+    onPlaylistPrev
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [videoError, setVideoError] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     } = useVideoSync({
         videoRef,
         currentMedia,
-        isHost,
+        canControl,
         onPlayPause,
         onSeek
     });
@@ -214,9 +216,31 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 )}
 
                 {/* Viewer mode info overlay */}
-                {!isHost && ytReady && (
+                {!canControl && ytReady && (
                     <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-2 rounded-lg text-white text-sm">
                         {ytPlaying ? '▶️ Playing' : '⏸️ Paused'} • {Math.floor(ytTime)}s / {Math.floor(ytDuration)}s
+                    </div>
+                )}
+
+                {/* Playlist controls for controllers */}
+                {currentMedia.is_playlist && canControl && (
+                    <div className="absolute bottom-4 right-4 flex items-center gap-2 z-20">
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="bg-black/60 hover:bg-black/80 text-white"
+                            onClick={onPlaylistPrev}
+                        >
+                            <SkipBack className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="bg-black/60 hover:bg-black/80 text-white"
+                            onClick={onPlaylistNext}
+                        >
+                            <SkipForward className="h-4 w-4" />
+                        </Button>
                     </div>
                 )}
             </div>
@@ -277,7 +301,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
             )}
 
             {/* Viewer mode indicator */}
-            {!isHost && (
+            {!canControl && (
                 <div className="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-full text-white text-sm backdrop-blur-sm">
                     Viewer Mode
                 </div>

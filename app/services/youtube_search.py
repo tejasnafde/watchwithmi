@@ -8,6 +8,7 @@ and graceful degradation when API key is not configured.
 import os
 import logging
 from typing import List, Dict, Any, Optional
+from urllib.parse import urlparse, parse_qs
 
 logger = logging.getLogger("watchwithmi.services.youtube_search")
 
@@ -127,6 +128,122 @@ class YouTubeSearchService:
         except Exception as e:
             logger.error(f"❌ Unexpected error during YouTube search: {e}")
             return []
+
+    def extract_playlist_id(self, playlist_url: str) -> Optional[str]:
+        """Extract playlist ID from a YouTube playlist URL."""
+        try:
+            parsed = urlparse(playlist_url)
+            query_params = parse_qs(parsed.query)
+            playlist_id = query_params.get('list', [None])[0]
+            return playlist_id
+        except Exception:
+            return None
+
+    async def get_playlist_items(
+        self,
+        playlist_url: Optional[str] = None,
+        playlist_id: Optional[str] = None,
+        max_items: int = 200
+    ) -> Dict[str, Any]:
+        """Fetch playlist metadata and items from YouTube Data API."""
+        if not self.enabled:
+            return {
+                "enabled": False,
+                "fallback_mode": True,
+                "error": "YouTube API unavailable",
+                "playlist_id": playlist_id or "",
+                "playlist_title": "",
+                "items": []
+            }
+
+        resolved_playlist_id = playlist_id
+        if not resolved_playlist_id and playlist_url:
+            resolved_playlist_id = self.extract_playlist_id(playlist_url)
+
+        if not resolved_playlist_id:
+            raise ValueError("Invalid YouTube playlist URL or missing playlist ID")
+
+        max_items = max(1, min(max_items, 500))
+
+        try:
+            playlist_title = ""
+            playlist_channel = ""
+            try:
+                playlist_resp = self.youtube.playlists().list(
+                    part='snippet',
+                    id=resolved_playlist_id,
+                    maxResults=1
+                ).execute()
+                items = playlist_resp.get('items', [])
+                if items:
+                    snippet = items[0].get('snippet', {})
+                    playlist_title = snippet.get('title', '')
+                    playlist_channel = snippet.get('channelTitle', '')
+            except Exception as e:
+                logger.warning(f"Failed to fetch playlist metadata for {resolved_playlist_id}: {e}")
+
+            results: List[Dict[str, Any]] = []
+            page_token = None
+
+            while len(results) < max_items:
+                request = self.youtube.playlistItems().list(
+                    part='snippet,contentDetails',
+                    playlistId=resolved_playlist_id,
+                    maxResults=min(50, max_items - len(results)),
+                    pageToken=page_token
+                )
+                response = request.execute()
+
+                for item in response.get('items', []):
+                    snippet = item.get('snippet', {})
+                    content_details = item.get('contentDetails', {})
+                    video_id = content_details.get('videoId') or snippet.get('resourceId', {}).get('videoId')
+                    if not video_id:
+                        continue
+
+                    results.append({
+                        'id': video_id,
+                        'title': snippet.get('title', 'Untitled'),
+                        'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url', ''),
+                        'channel': snippet.get('videoOwnerChannelTitle', '') or snippet.get('channelTitle', ''),
+                        'url': f'https://www.youtube.com/watch?v={video_id}',
+                        'position': snippet.get('position', len(results))
+                    })
+
+                page_token = response.get('nextPageToken')
+                if not page_token:
+                    break
+
+            return {
+                "enabled": True,
+                "fallback_mode": False,
+                "playlist_id": resolved_playlist_id,
+                "playlist_title": playlist_title,
+                "playlist_channel": playlist_channel,
+                "items": results,
+                "count": len(results)
+            }
+        except HttpError as e:
+            reason = e.error_details[0].get('reason', 'unknown') if e.error_details else 'unknown'
+            logger.error(f"YouTube playlist API error ({e.resp.status}): {reason}")
+            return {
+                "enabled": False,
+                "fallback_mode": True,
+                "error": f"YouTube playlist API error: {reason}",
+                "playlist_id": resolved_playlist_id,
+                "playlist_title": "",
+                "items": []
+            }
+        except Exception as e:
+            logger.error(f"Unexpected playlist fetch error: {e}")
+            return {
+                "enabled": False,
+                "fallback_mode": True,
+                "error": str(e),
+                "playlist_id": resolved_playlist_id,
+                "playlist_title": "",
+                "items": []
+            }
     
     def is_enabled(self) -> bool:
         """Check if YouTube search is enabled and ready to use."""

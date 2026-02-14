@@ -149,6 +149,11 @@ class YouTubeSearchRequest(BaseModel):
             raise ValueError('Query contains invalid characters')
         return v.strip()
 
+class YouTubePlaylistRequest(BaseModel):
+    playlist_url: str | None = Field(None, description="YouTube playlist URL")
+    playlist_id: str | None = Field(None, description="YouTube playlist ID")
+    max_items: int = Field(200, ge=1, le=500, description="Maximum playlist items to fetch")
+
 logger.info(f"{APP_NAME} v{VERSION} initialized")
 
 # REST API endpoints
@@ -235,6 +240,30 @@ async def search_youtube(request: YouTubeSearchRequest):
     except Exception as e:
         logger.error(f" YouTube search failed: {e}")
         raise HTTPException(status_code=500, detail="Search failed")
+
+@app.post("/api/youtube/playlist")
+async def get_youtube_playlist(request: YouTubePlaylistRequest):
+    """Resolve YouTube playlist URL/ID into a queue of videos."""
+    try:
+        if not request.playlist_url and not request.playlist_id:
+            raise HTTPException(status_code=400, detail="playlist_url or playlist_id is required")
+
+        if not youtube_search:
+            raise HTTPException(status_code=503, detail="YouTube service unavailable")
+
+        result = await youtube_search.get_playlist_items(
+            playlist_url=request.playlist_url,
+            playlist_id=request.playlist_id,
+            max_items=request.max_items
+        )
+        return result
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f" YouTube playlist fetch failed: {e}")
+        raise HTTPException(status_code=500, detail="Playlist fetch failed")
 
 @app.get("/health")
 async def health_check():

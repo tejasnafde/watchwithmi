@@ -5,7 +5,7 @@ Room models and data structures for WatchWithMi.
 import logging
 from datetime import datetime
 from typing import Dict, Optional, List
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 import random
 import string
 
@@ -19,6 +19,12 @@ class MediaState:
     state: str = "paused"  # playing, paused
     timestamp: float = 0.0
     last_update: str = ""
+    title: str = ""
+    is_playlist: bool = False
+    playlist_id: str = ""
+    playlist_title: str = ""
+    playlist_items: List[dict] = field(default_factory=list)
+    current_index: int = 0
     
     def to_dict(self) -> dict:
         return asdict(self)
@@ -138,8 +144,11 @@ class Room:
         logger.info(f"Control {'granted to' if enabled else 'revoked from'} {self.users[user_id].name} in {self.room_code}")
         return True
     
-    def update_media(self, url: str = None, media_type: str = None, 
-                    state: str = None, timestamp: float = None) -> None:
+    def update_media(self, url: str = None, media_type: str = None,
+                    state: str = None, timestamp: float = None,
+                    title: str = None, is_playlist: bool = None,
+                    playlist_id: str = None, playlist_title: str = None,
+                    playlist_items: List[dict] = None, current_index: int = None) -> None:
         """Update media state."""
         if url is not None:
             self.media.url = url
@@ -154,6 +163,24 @@ class Room:
             
         if timestamp is not None:
             self.media.timestamp = timestamp
+
+        if title is not None:
+            self.media.title = title
+
+        if is_playlist is not None:
+            self.media.is_playlist = is_playlist
+
+        if playlist_id is not None:
+            self.media.playlist_id = playlist_id
+
+        if playlist_title is not None:
+            self.media.playlist_title = playlist_title
+
+        if playlist_items is not None:
+            self.media.playlist_items = playlist_items
+
+        if current_index is not None:
+            self.media.current_index = current_index
             
         self.media.last_update = datetime.now().isoformat()
     

@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import type {
   ContentSearchResponse,
   YouTubeSearchResponse,
+  YouTubePlaylistResponse,
   AddMediaResponse,
   MediaStatusResponse,
   ServerToClientEvents,
@@ -49,6 +50,17 @@ export const searchYouTube = async (
   const response = await api.post<YouTubeSearchResponse>('/api/search-youtube', {
     query,
     max_results: maxResults
+  });
+  return response.data;
+};
+
+export const fetchYouTubePlaylist = async (
+  playlistUrl: string,
+  maxItems: number = 200
+): Promise<YouTubePlaylistResponse> => {
+  const response = await api.post<YouTubePlaylistResponse>('/api/youtube/playlist', {
+    playlist_url: playlistUrl,
+    max_items: maxItems
   });
   return response.data;
 };

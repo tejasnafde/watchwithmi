@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Socket } from 'socket.io-client';
-import { loadYouTubeAPI, YT, extractYouTubeVideoId } from '@/lib/youtube-api';
+import { loadYouTubeAPI, YT, extractYouTubeVideoId, extractYouTubePlaylistId } from '@/lib/youtube-api';
 import { logger } from '@/lib/logger';
 
 interface UseYouTubePlayerProps {
@@ -52,6 +52,7 @@ export const useYouTubePlayer = ({
 
     // Extract video ID
     const videoId = extractYouTubeVideoId(videoUrl);
+    const playlistId = extractYouTubePlaylistId(videoUrl);
 
     // Helper to safely call player methods
     const callPlayerMethod = useCallback((methodName: string, ...args: any[]) => {
@@ -169,7 +170,7 @@ export const useYouTubePlayer = ({
 
     // Initialize YouTube player
     useEffect(() => {
-        if (!videoId || !playerContainerRef.current) {
+        if ((!videoId && !playlistId) || !playerContainerRef.current) {
             return;
         }
 
@@ -190,7 +191,7 @@ export const useYouTubePlayer = ({
                 }
 
                 player = new YTClass.Player(playerContainerRef.current!, {
-                    videoId,
+                    videoId: videoId || '',
                     width: '100%',
                     height: '100%',
                     playerVars: {
@@ -201,6 +202,7 @@ export const useYouTubePlayer = ({
                         fs: 1,
                         modestbranding: 1,
                         rel: 0,
+                        ...(playlistId ? { list: playlistId, listType: 'playlist' as const } : {}),
                     },
                     events: {
                         onReady: handleReady,
@@ -210,7 +212,7 @@ export const useYouTubePlayer = ({
                 });
 
                 playerRef.current = player;
-                logger.info('YouTube player initialized', { videoId, isHost });
+                logger.info('YouTube player initialized', { videoId, playlistId, isHost });
             } catch (err) {
                 logger.error('Failed to initialize YouTube player', err);
                 setError('Failed to load YouTube player');
@@ -232,7 +234,7 @@ export const useYouTubePlayer = ({
                 playerRef.current = null;
             }
         };
-    }, [videoId, isHost, handleReady, handleStateChange, handleError]);
+    }, [videoId, playlistId, isHost, handleReady, handleStateChange, handleError]);
 
     // Sync playback state for viewers
     useEffect(() => {
