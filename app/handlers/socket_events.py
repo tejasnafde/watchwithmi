@@ -308,24 +308,51 @@ class SocketEventHandler:
             
             if action == 'play':
                 timestamp = data.get('timestamp', room.media.timestamp)
+
+                # Guard against buffer glitch: timestamp 0 when room is well past the start
+                if timestamp == 0 and room.media.timestamp > 30:
+                    logger.warning(
+                        f"⚠️ Rejecting play event with timestamp=0 from {user_name} in room {room_code} "
+                        f"(room timestamp is {room.media.timestamp}s) — likely a buffer glitch"
+                    )
+                    return
+
                 self.room_manager.update_media(sid, state='playing', timestamp=timestamp)
                 logger.info(f"▶️ Broadcasting media_play to room {room_code} at {timestamp}s (users: {list(room.users.keys())})")
                 await self.sio.emit('media_play', {
                     'timestamp': timestamp,
                     'user_name': user_name
                 }, room=room_code)
-                
+
             elif action == 'pause':
                 timestamp = data.get('timestamp', room.media.timestamp)
+
+                # Guard against buffer glitch: timestamp 0 when room is well past the start
+                if timestamp == 0 and room.media.timestamp > 30:
+                    logger.warning(
+                        f"⚠️ Rejecting pause event with timestamp=0 from {user_name} in room {room_code} "
+                        f"(room timestamp is {room.media.timestamp}s) — likely a buffer glitch"
+                    )
+                    return
+
                 self.room_manager.update_media(sid, state='paused', timestamp=timestamp)
                 logger.info(f" Broadcasting media_pause to room {room_code} (users: {list(room.users.keys())})")
                 await self.sio.emit('media_pause', {
                     'timestamp': timestamp,
                     'user_name': user_name
                 }, room=room_code)
-                
+
             elif action == 'seek':
                 timestamp = data.get('timestamp', 0)
+
+                # Guard against buffer glitch: timestamp 0 when room is well past the start
+                if timestamp == 0 and room.media.timestamp > 30:
+                    logger.warning(
+                        f"⚠️ Rejecting seek event with timestamp=0 from {user_name} in room {room_code} "
+                        f"(room timestamp is {room.media.timestamp}s) — likely a buffer glitch"
+                    )
+                    return
+
                 self.room_manager.update_media(sid, timestamp=timestamp)
                 await self.sio.emit('media_seek', {
                     'timestamp': timestamp,

@@ -25,6 +25,50 @@ import urllib.parse
 
 logger = logging.getLogger("watchwithmi.services.p2p_search")
 
+# Rotating user agents to avoid detection
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.4; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
+]
+
+# Common public trackers appended to constructed magnet links
+COMMON_TRACKERS = [
+    "udp://tracker.opentrackr.org:1337/announce",
+    "udp://open.demonii.com:1337/announce",
+    "udp://tracker.openbittorrent.com:80/announce",
+    "udp://tracker.leechers-paradise.org:6969/announce",
+    "udp://exodus.desync.com:6969/announce",
+    "udp://tracker.cyberia.is:6969/announce",
+    "udp://tracker.torrent.eu.org:451/announce",
+    "udp://open.stealth.si:80/announce",
+]
+
+
+def _build_magnet(info_hash: str, display_name: str = "") -> str:
+    """Build a magnet URI from an info hash, with common trackers."""
+    magnet = f"magnet:?xt=urn:btih:{info_hash}"
+    if display_name:
+        magnet += f"&dn={urllib.parse.quote(display_name)}"
+    for tracker in COMMON_TRACKERS:
+        magnet += f"&tr={urllib.parse.quote(tracker)}"
+    return magnet
+
+
+def _random_ua() -> str:
+    """Return a random user agent string."""
+    return random.choice(USER_AGENTS)
+
+
+class RateLimitError(Exception):
+    """Raised when a provider returns HTTP 429."""
+    pass
+
 
 class ProviderHealth(Enum):
     """Provider circuit breaker states."""
@@ -116,30 +160,33 @@ class ContentSearchService:
     def __init__(self):
         self.timeout = 15.0  # Per-provider timeout
         self.max_retries = 5  # Maximum retry attempts
-        self.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-        
+
         # Caching
         self.memory_cache: Dict[str, Tuple[float, List[ContentSearchResult]]] = {}
         self.cache_ttl = 600  # 10 minutes
-        
+
         # Circuit breaker settings
         self.provider_stats: Dict[str, ProviderStats] = {}
         self.circuit_failure_threshold = 5  # Open circuit after 5 failures
         self.circuit_reset_timeout = 300  # Try again after 5 minutes
-        
+
         # Provider tiers (ordered by reliability)
+        # Tier 1: most reliable — JSON APIs, run concurrently
         self.tier1_providers = [
             ('bitsearch', self._search_bitsearch),
+            ('piratebay', self._search_piratebay),
         ]
+        # Tier 2: specialised content
         self.tier2_providers = [
+            ('yts', self._search_yts),
             ('nyaa', self._search_nyaa_api),
         ]
+        # Tier 3: less reliable / rate-limited
         self.tier3_providers = [
             ('btdig', self._search_btdig_api),
-            ('contentproject', self._search_contentproject_api),
         ]
-        
-        logger.info("✅ P2P content search service initialized")
+
+        logger.info("P2P content search service initialized")
         logger.info(f"   Tier 1 providers: {len(self.tier1_providers)}")
         logger.info(f"   Tier 2 providers: {len(self.tier2_providers)}")
         logger.info(f"   Tier 3 providers: {len(self.tier3_providers)}")
@@ -197,68 +244,81 @@ class ContentSearchService:
         logger.info(f"✅ Returning {len(sorted_results)} results for: {query}")
         return sorted_results[:max_results]
     
-    async def _search_tier(self, providers: List[Tuple[str, Callable]], 
+    async def _search_tier(self, providers: List[Tuple[str, Callable]],
                           query: str, required_results: int) -> List[ContentSearchResult]:
-        """Search a tier of providers with circuit breaker protection."""
-        all_results = []
-        
-        for provider_name, provider_func in providers:
-            # Check circuit breaker
-            if not self._is_provider_available(provider_name):
-                logger.debug(f"⚡ Circuit open for {provider_name}, skipping")
-                continue
-            
+        """Search a tier of providers concurrently with circuit breaker protection."""
+        available = [
+            (name, func) for name, func in providers
+            if self._is_provider_available(name)
+        ]
+        if not available:
+            return []
+
+        async def _run_provider(provider_name: str, provider_func: Callable) -> List[ContentSearchResult]:
+            """Run a single provider with tracking."""
+            # Small random delay to stagger requests and avoid bot detection
+            await asyncio.sleep(random.uniform(0.5, 1.5))
             try:
                 start_time = time.time()
                 results = await self._search_with_adaptive_retry(
                     provider_name, provider_func, query
                 )
                 response_time = time.time() - start_time
-                
+
                 if results:
-                    logger.info(f"✅ {provider_name}: {len(results)} results ({response_time:.2f}s)")
-                    all_results.extend(results)
+                    logger.info(f"{provider_name}: {len(results)} results ({response_time:.2f}s)")
                     self._record_success(provider_name, response_time)
-                    
-                    # Early exit if we have enough results
-                    if len(all_results) >= required_results:
-                        break
+                    return results
                 else:
-                    logger.debug(f"📭 {provider_name}: 0 results")
-                    
+                    logger.debug(f"{provider_name}: 0 results")
+                    return []
             except Exception as e:
-                logger.warning(f"❌ {provider_name} failed: {e}")
+                logger.warning(f"{provider_name} failed: {e}")
                 self._record_failure(provider_name)
-        
+                return []
+
+        # Run all available providers in this tier concurrently
+        tasks = [_run_provider(name, func) for name, func in available]
+        provider_results = await asyncio.gather(*tasks)
+
+        all_results: List[ContentSearchResult] = []
+        for results in provider_results:
+            all_results.extend(results)
+
         return all_results
     
-    async def _search_with_adaptive_retry(self, provider_name: str, 
+    async def _search_with_adaptive_retry(self, provider_name: str,
                                          search_func: Callable, query: str) -> List[ContentSearchResult]:
-        """Retry search with exponential backoff and jitter."""
+        """Retry search with exponential backoff, jitter, and rate-limit awareness."""
         last_exception = None
-        
+
         for attempt in range(self.max_retries):
             try:
-                # Add timeout per attempt
                 return await asyncio.wait_for(
                     search_func(query),
                     timeout=self.timeout
                 )
             except asyncio.TimeoutError:
                 last_exception = TimeoutError(f"{provider_name} timeout")
-                logger.debug(f"⏱️ {provider_name} timeout on attempt {attempt + 1}/{self.max_retries}")
+                logger.debug(f"{provider_name} timeout on attempt {attempt + 1}/{self.max_retries}")
+            except RateLimitError:
+                # Special handling: wait 2s and retry once, then give up
+                logger.debug(f"{provider_name} rate limited on attempt {attempt + 1}")
+                if attempt == 0:
+                    await asyncio.sleep(2.0)
+                    continue
+                last_exception = Exception(f"{provider_name} rate limited")
+                break
             except Exception as e:
                 last_exception = e
-                logger.debug(f"❌ {provider_name} error on attempt {attempt + 1}/{self.max_retries}: {e}")
-            
+                logger.debug(f"{provider_name} error on attempt {attempt + 1}/{self.max_retries}: {e}")
+
             # Don't retry on last attempt
             if attempt < self.max_retries - 1:
-                # Exponential backoff with jitter: 1s, 2s, 4s, 8s, 16s
                 wait_time = (2 ** attempt) + random.uniform(0, 1)
-                logger.debug(f"⏳ Retrying {provider_name} in {wait_time:.1f}s...")
+                logger.debug(f"Retrying {provider_name} in {wait_time:.1f}s...")
                 await asyncio.sleep(wait_time)
-        
-        # All retries failed
+
         raise last_exception or Exception("Unknown error")
     
     def _is_provider_available(self, provider_name: str) -> bool:
@@ -387,8 +447,11 @@ class ContentSearchService:
         try:
             async with httpx.AsyncClient() as client:
                 url = f"https://bitsearch.to/search?q={urllib.parse.quote(query)}"
-                response = await client.get(url, headers={'User-Agent': self.user_agent}, timeout=self.timeout)
-                
+                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
+
+                if response.status_code == 429:
+                    raise RateLimitError("BitSearch rate limited")
+
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
                     items = soup.find_all('li', class_='search-result')
@@ -448,8 +511,11 @@ class ContentSearchService:
         try:
             async with httpx.AsyncClient() as client:
                 url = f"https://nyaa.si/?f=0&c=0_0&q={urllib.parse.quote(query)}"
-                response = await client.get(url, headers={'User-Agent': self.user_agent}, timeout=self.timeout)
-                
+                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
+
+                if response.status_code == 429:
+                    raise RateLimitError("Nyaa rate limited")
+
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
                     rows = soup.find_all('tr', class_='default')
@@ -503,11 +569,11 @@ class ContentSearchService:
         try:
             async with httpx.AsyncClient() as client:
                 url = f"https://btdig.com/search?q={urllib.parse.quote(query)}"
-                response = await client.get(url, headers={'User-Agent': self.user_agent}, timeout=self.timeout)
-                
+                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
+
                 if response.status_code == 429:
-                    raise Exception("Rate limited")
-                
+                    raise RateLimitError("BTDigg rate limited")
+
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
                     items = soup.find_all('div', class_='one_result')
@@ -523,7 +589,7 @@ class ContentSearchService:
                             
                             if info_hash_elem:
                                 info_hash = info_hash_elem.get_text(strip=True)
-                                magnet = f"magnet:?xt=urn:btih:{info_hash}"
+                                magnet = _build_magnet(info_hash, title)
                                 
                                 size_elem = item.find('span', class_='content_size')
                                 size = size_elem.get_text(strip=True) if size_elem else ""
@@ -544,11 +610,120 @@ class ContentSearchService:
         
         return results
     
-    async def _search_contentproject_api(self, query: str) -> List[ContentSearchResult]:
-        """Search ContentProject - backup provider."""
-        # Placeholder - implement if needed
-        return []
-    
+    async def _search_piratebay(self, query: str) -> List[ContentSearchResult]:
+        """Search The Pirate Bay via apibay.org JSON API."""
+        results = []
+        try:
+            async with httpx.AsyncClient() as client:
+                url = f"https://apibay.org/q.php?q={urllib.parse.quote(query)}"
+                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
+
+                if response.status_code == 429:
+                    raise RateLimitError("PirateBay API rate limited")
+
+                if response.status_code == 200:
+                    items = response.json()
+                    # apibay returns a list; a single item with id "0" means no results
+                    if not items or (len(items) == 1 and str(items[0].get('id')) == '0'):
+                        return []
+
+                    for item in items[:20]:
+                        try:
+                            name = item.get('name', '')
+                            info_hash = item.get('info_hash', '')
+                            if not name or not info_hash:
+                                continue
+
+                            magnet = _build_magnet(info_hash, name)
+
+                            # Size is in bytes — convert to human-readable
+                            raw_size = int(item.get('size', 0))
+                            size = self._format_bytes(raw_size)
+
+                            seeders = int(item.get('seeders', 0))
+                            leechers = int(item.get('leechers', 0))
+
+                            results.append(ContentSearchResult(
+                                title=name,
+                                magnet=magnet,
+                                size=size,
+                                seeders=seeders,
+                                leechers=leechers,
+                            ))
+                        except Exception as e:
+                            logger.debug(f"Error parsing PirateBay item: {e}")
+                            continue
+        except RateLimitError:
+            raise
+        except Exception as e:
+            logger.debug(f"PirateBay search failed: {e}")
+            raise
+
+        return results
+
+    async def _search_yts(self, query: str) -> List[ContentSearchResult]:
+        """Search YTS/YIFY JSON API - movies only, very reliable."""
+        results = []
+        try:
+            async with httpx.AsyncClient() as client:
+                url = f"https://yts.mx/api/v2/list_movies.json?query_term={urllib.parse.quote(query)}&limit=20"
+                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
+
+                if response.status_code == 429:
+                    raise RateLimitError("YTS rate limited")
+
+                if response.status_code == 200:
+                    data = response.json()
+                    movies = data.get('data', {}).get('movies') or []
+
+                    for movie in movies:
+                        try:
+                            title = movie.get('title_long') or movie.get('title', 'Unknown')
+                            torrents = movie.get('torrents', [])
+
+                            for torrent in torrents:
+                                torrent_hash = torrent.get('hash', '')
+                                if not torrent_hash:
+                                    continue
+
+                                quality = torrent.get('quality', '')
+                                size = torrent.get('size', '')
+                                seeds = int(torrent.get('seeds', 0))
+                                peers = int(torrent.get('peers', 0))
+
+                                display = f"{title} [{quality}]" if quality else title
+                                magnet = _build_magnet(torrent_hash, display)
+
+                                results.append(ContentSearchResult(
+                                    title=display,
+                                    magnet=magnet,
+                                    size=size,
+                                    seeders=seeds,
+                                    leechers=peers,
+                                    quality=quality,
+                                ))
+                        except Exception as e:
+                            logger.debug(f"Error parsing YTS movie: {e}")
+                            continue
+        except RateLimitError:
+            raise
+        except Exception as e:
+            logger.debug(f"YTS search failed: {e}")
+            raise
+
+        return results
+
+    @staticmethod
+    def _format_bytes(num_bytes: int) -> str:
+        """Convert bytes to human-readable size string."""
+        if num_bytes <= 0:
+            return ""
+        for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
+            if abs(num_bytes) < 1024.0:
+                return f"{num_bytes:.1f} {unit}"
+            num_bytes /= 1024.0
+        return f"{num_bytes:.1f} PB"
+
     def get_provider_stats(self) -> Dict[str, Dict[str, Any]]:
         """Get statistics for all providers."""
         stats = {}

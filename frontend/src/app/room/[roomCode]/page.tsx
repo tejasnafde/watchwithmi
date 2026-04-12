@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, use } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Copy, LogOut, Users, MessageCircle, Video, Crown, Music } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -44,6 +44,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
   const userName = searchParams.get('name') || 'Guest'
   const roomCode = resolvedParams.roomCode.toUpperCase()
 
+  const router = useRouter()
+
   const {
     connected,
     users,
@@ -53,6 +55,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
     mediaStatus,
     isSearching,
     hasSearched,
+    roomError,
     actualRoomCode,
     socket,
     currentUserId,
@@ -124,6 +127,90 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
   const currentUser = users.find(u => u.id === currentUserId)
   const isHost = currentUser?.is_host || false
   const canControl = currentUser?.can_control || false
+
+  // Room error state
+  if (roomError) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-black">
+        <div className="text-center max-w-md px-6">
+          <div className="w-16 h-16 border-4 border-white flex items-center justify-center mx-auto mb-6">
+            <span className="text-white text-2xl font-bold">!</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white uppercase tracking-tight mb-3">
+            Room Not Found
+          </h1>
+          <p className="text-zinc-400 mb-8 font-mono text-sm">{roomError}</p>
+          <Button
+            onClick={() => router.push('/')}
+            className="bg-white text-black hover:bg-zinc-200 border-2 border-white font-bold uppercase"
+          >
+            Back to Home
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Loading skeleton state
+  if (!connected) {
+    return (
+      <div className="h-screen flex flex-col bg-black overflow-hidden">
+        {/* Header skeleton */}
+        <div className="border-b-4 border-white bg-black">
+          <div className="max-w-full px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <div className="h-8 w-48 animate-pulse bg-zinc-800 rounded" />
+                <div className="flex items-center gap-3">
+                  <div className="h-7 w-24 animate-pulse bg-zinc-800 rounded" />
+                  <div className="h-7 w-16 animate-pulse bg-zinc-800 rounded" />
+                </div>
+              </div>
+              <div className="h-9 w-32 animate-pulse bg-zinc-800 rounded" />
+            </div>
+          </div>
+        </div>
+
+        {/* Main content skeleton */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left: Video player skeleton */}
+          <div className="flex-1 flex flex-col border-r-4 border-white">
+            <div className="flex-1 bg-[#0a0a0a] p-4">
+              <div className="aspect-video animate-pulse bg-zinc-800 rounded" />
+            </div>
+            <div className="bg-black border-t-4 border-white p-4">
+              <div className="h-10 w-full animate-pulse bg-zinc-800 rounded" />
+            </div>
+          </div>
+
+          {/* Right: Users + Chat skeleton */}
+          <div className="w-[400px] flex flex-col bg-black">
+            {/* Users skeleton */}
+            <div className="border-b-4 border-white p-4">
+              <div className="h-5 w-24 animate-pulse bg-zinc-800 rounded mb-3" />
+              <div className="space-y-2">
+                <div className="h-10 w-full animate-pulse bg-zinc-800 rounded" />
+                <div className="h-10 w-full animate-pulse bg-zinc-800 rounded" />
+                <div className="h-10 w-3/4 animate-pulse bg-zinc-800 rounded" />
+              </div>
+            </div>
+
+            {/* Chat skeleton */}
+            <div className="flex-1 border-b-4 border-white p-4">
+              <div className="h-5 w-16 animate-pulse bg-zinc-800 rounded mb-3" />
+              <div className="space-y-3">
+                <div className="h-6 w-4/5 animate-pulse bg-zinc-800 rounded" />
+                <div className="h-6 w-3/5 animate-pulse bg-zinc-800 rounded" />
+                <div className="h-6 w-full animate-pulse bg-zinc-800 rounded" />
+                <div className="h-6 w-2/3 animate-pulse bg-zinc-800 rounded" />
+                <div className="h-6 w-4/5 animate-pulse bg-zinc-800 rounded" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <ErrorBoundary>
@@ -220,6 +307,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
                 currentMedia={currentMedia}
                 canControl={canControl}
                 socket={socket}
+                mediaStatus={mediaStatus}
                 onPlayPause={playPause}
                 onSeek={seekTo}
                 onPlaylistNext={playlistNext}
@@ -271,9 +359,9 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
           </div>
 
           {/* Right Sidebar: Users + Chat (30%) */}
-          <div className="w-[400px] flex flex-col bg-black min-h-0 overflow-y-auto">
+          <div className="w-[400px] flex flex-col bg-black min-h-0 overflow-hidden">
             {/* Users Section */}
-            <div className="border-b-4 border-white bg-black p-4">
+            <div className="shrink-0 border-b-4 border-white bg-black p-4">
               <h3 className="text-white font-bold uppercase mb-3 flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 USERS ({users.length})
@@ -324,8 +412,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
             </div>
 
             {/* Chat Section - Takes remaining space */}
-            <div className="shrink-0 h-[340px] flex flex-col border-b-4 border-white">
-              <div className="p-4 border-b-2 border-white bg-black">
+            <div className="flex-1 min-h-0 flex flex-col border-b-4 border-white">
+              <div className="p-4 border-b-2 border-white bg-black shrink-0">
                 <h3 className="text-white font-bold uppercase flex items-center gap-2">
                   <MessageCircle className="h-4 w-4" />
                   CHAT

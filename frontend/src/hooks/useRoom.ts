@@ -33,6 +33,7 @@ export const useRoom = (roomCode: string, userName: string) => {
   const [mediaStatus, setMediaStatus] = useState<MediaStatus | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [roomError, setRoomError] = useState<string | null>(null);
 
   // Use a state for actual room code to avoid dependency cycles
   const [actualRoomCode, setActualRoomCode] = useState(roomCode);
@@ -76,11 +77,21 @@ export const useRoom = (roomCode: string, userName: string) => {
     newSocket.on('error', (error: any) => {
       console.error('🚨 Socket error:', error);
 
+      const errorMsg = error?.message || error?.detail || '';
+
       // If room not found, try to create it (but only once)
-      if (error && (error.message === 'Room not found' || error.detail === 'Room not found')) {
+      if (errorMsg === 'Room not found') {
         console.log('🏠 Room not found, creating new room:', roomCode);
         newSocket.emit('create_room', { user_name: userName, room_code: roomCode });
+      } else if (errorMsg) {
+        setRoomError(errorMsg);
       }
+    });
+
+    newSocket.on('room_error', (error: any) => {
+      console.error('🚨 Room error:', error);
+      const errorMsg = error?.message || error?.detail || 'An unknown error occurred';
+      setRoomError(errorMsg);
     });
 
     newSocket.on('connect_error', (error: any) => {
@@ -328,6 +339,7 @@ export const useRoom = (roomCode: string, userName: string) => {
       newSocket.off('user_joined');
       newSocket.off('user_left');
       newSocket.off('media_loading');
+      newSocket.off('room_error');
       newSocket.io.off('reconnect');
       newSocket.disconnect();
     };
@@ -478,6 +490,7 @@ export const useRoom = (roomCode: string, userName: string) => {
     mediaStatus,
     isSearching,
     hasSearched,
+    roomError,
     actualRoomCode,
     currentUserId: socket?.id || '',
     sendMessage,

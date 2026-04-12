@@ -49,6 +49,7 @@ export const useYouTubePlayer = ({
 
     // Track if we're currently syncing to avoid feedback loops
     const isSyncingRef = useRef(false);
+    const isSeekingRef = useRef(false);
     const lastSyncTimeRef = useRef(0);
 
     // Extract video ID
@@ -71,15 +72,16 @@ export const useYouTubePlayer = ({
     // Handle player state changes
     const handleStateChange = useCallback((event: YT.OnStateChangeEvent) => {
         const state = event.data;
-        logger.debug('YouTube player state changed', { state });
+        logger.debug('YouTube player state changed', { state, isSyncing: isSyncingRef.current, isSeeking: isSeekingRef.current });
 
         switch (state) {
             case YT.PlayerState.PLAYING:
                 setIsPlaying(true);
                 setBuffering(false);
+                isSeekingRef.current = false;
 
-                // Host: Emit play event
-                if (isHost && !isSyncingRef.current && socket) {
+                // Host: Emit play event (skip if syncing, seeking, or buffering recovery)
+                if (isHost && !isSyncingRef.current && !isSeekingRef.current && socket) {
                     const playerCurrentTime = callPlayerMethod('getCurrentTime') || 0;
                     logger.info('Host playing YouTube video', { playerCurrentTime });
                     socket.emit('media_control', {
@@ -92,9 +94,10 @@ export const useYouTubePlayer = ({
             case YT.PlayerState.PAUSED:
                 setIsPlaying(false);
                 setBuffering(false);
+                isSeekingRef.current = false;
 
-                // Host: Emit pause event
-                if (isHost && !isSyncingRef.current && socket) {
+                // Host: Emit pause event (skip if syncing or seeking)
+                if (isHost && !isSyncingRef.current && !isSeekingRef.current && socket) {
                     const playerCurrentTime = callPlayerMethod('getCurrentTime') || 0;
                     logger.info('Host paused YouTube video', { playerCurrentTime });
                     socket.emit('media_control', {
@@ -106,11 +109,15 @@ export const useYouTubePlayer = ({
 
             case YT.PlayerState.BUFFERING:
                 setBuffering(true);
+                // Don't emit any sync events while buffering — this is a transient state.
+                // Mark as seeking so no sync operations overlap with the buffer resolution.
+                isSeekingRef.current = true;
                 break;
 
             case YT.PlayerState.ENDED:
                 setIsPlaying(false);
                 setBuffering(false);
+                isSeekingRef.current = false;
                 break;
 
             case YT.PlayerState.UNSTARTED:
@@ -245,27 +252,19 @@ export const useYouTubePlayer = ({
 
         // Use a small delay to avoid fighting with immediate player events
         const syncTimer = setTimeout(() => {
-            if (isSyncingRef.current) return;
+            if (isSyncingRef.current || isSeekingRef.current) return;
 
-            const currentPlayerTime = callPlayerMethod('getCurrentTime') || 0;
-            const drift = Math.abs(currentPlayerTime - targetTimestamp);
-
-            // Sync if drift is significant
-            if (drift > SYNC_THRESHOLD) {
-                logger.debug('Syncing YouTube player position', {
-                    currentTime: currentPlayerTime,
-                    targetTime: targetTimestamp,
-                    drift,
-                });
-                isSyncingRef.current = true;
-                callPlayerMethod('seekTo', targetTimestamp, true);
-                setTimeout(() => { isSyncingRef.current = false; }, 500);
-            }
-
-            // Sync play/pause state
             const playerState = callPlayerMethod('getPlayerState');
             const isCurrentlyPlaying = playerState === YT.PlayerState.PLAYING;
+            const isCurrentlyBuffering = playerState === YT.PlayerState.BUFFERING;
 
+            // Don't try to sync while YouTube is buffering — let it resolve naturally
+            if (isCurrentlyBuffering) {
+                logger.debug('Skipping sync: player is buffering');
+                return;
+            }
+
+            // Sync play/pause state first
             if (shouldPlay && !isCurrentlyPlaying) {
                 logger.debug('Forcing YouTube play (sync)');
                 isSyncingRef.current = true;
@@ -276,6 +275,33 @@ export const useYouTubePlayer = ({
                 isSyncingRef.current = true;
                 callPlayerMethod('pauseVideo');
                 setTimeout(() => { isSyncingRef.current = false; }, 500);
+            }
+
+            // Only seek if drift is significant — and skip seeking entirely when paused
+            // and the player is already paused (no point seeking a paused video unless
+            // the timestamp jumped significantly, e.g., host seeked while paused)
+            const currentPlayerTime = callPlayerMethod('getCurrentTime') || 0;
+            const drift = Math.abs(currentPlayerTime - targetTimestamp);
+
+            if (drift > SYNC_THRESHOLD) {
+                // When paused: only seek if drift is very large (host explicitly seeked)
+                // This prevents the pause→seek→buffer→stuck loop
+                const seekThreshold = shouldPlay ? SYNC_THRESHOLD : SYNC_THRESHOLD * 3;
+                if (drift > seekThreshold) {
+                    logger.debug('Syncing YouTube player position', {
+                        currentTime: currentPlayerTime,
+                        targetTime: targetTimestamp,
+                        drift,
+                        shouldPlay,
+                    });
+                    isSyncingRef.current = true;
+                    isSeekingRef.current = true;
+                    callPlayerMethod('seekTo', targetTimestamp, true);
+                    setTimeout(() => {
+                        isSyncingRef.current = false;
+                        isSeekingRef.current = false;
+                    }, 1000);
+                }
             }
         }, 100);
 
@@ -292,35 +318,45 @@ export const useYouTubePlayer = ({
                 // If time is moving, we can't be buffering
                 if (Math.abs(time - currentTime) > 0.01 && buffering && isPlaying) {
                     setBuffering(false);
+                    isSeekingRef.current = false;
                 }
                 setCurrentTime(time);
             }
 
-            // Fallback for stuck buffering state
+            // Fallback for stuck buffering state: clear buffering if player
+            // has resolved to PLAYING or PAUSED
             const state = callPlayerMethod('getPlayerState');
-            if (state === YT.PlayerState.PLAYING && buffering) {
+            if (buffering && (state === YT.PlayerState.PLAYING || state === YT.PlayerState.PAUSED)) {
                 setBuffering(false);
+                isSeekingRef.current = false;
             }
         }, 100);
 
         return () => clearInterval(interval);
     }, [isReady, callPlayerMethod, buffering, currentTime, isPlaying]);
 
-    // Drift detection for viewers
+    // Drift detection for viewers — only runs while playing
     useEffect(() => {
-        if (isHost || !isReady || !isPlaying) {
+        // Completely disable drift detection when paused, not ready, or host
+        if (isHost || !isReady || !isPlaying || !shouldPlay) {
             return;
         }
 
         const interval = setInterval(() => {
-            if (isSyncingRef.current) return;
+            if (isSyncingRef.current || isSeekingRef.current) return;
+
+            // Double-check actual player state to avoid acting on stale React state
+            const playerState = callPlayerMethod('getPlayerState');
+            if (playerState !== YT.PlayerState.PLAYING) {
+                logger.debug('Drift check skipped: player not actually playing', { playerState });
+                return;
+            }
 
             const playerCurrentTime = callPlayerMethod('getCurrentTime');
             if (playerCurrentTime === null || playerCurrentTime === undefined) return;
 
             const timeSinceLastSync = (Date.now() - lastSyncTimeRef.current) / 1000;
-            // Only add elapsed time when actually playing; when paused, expected position is the target itself
-            const expectedTime = isPlaying ? targetTimestamp + timeSinceLastSync : targetTimestamp;
+            const expectedTime = targetTimestamp + timeSinceLastSync;
             const drift = Math.abs(playerCurrentTime - expectedTime);
 
             if (drift > SYNC_THRESHOLD) {
@@ -331,15 +367,17 @@ export const useYouTubePlayer = ({
                 });
 
                 isSyncingRef.current = true;
+                isSeekingRef.current = true;
                 callPlayerMethod('seekTo', expectedTime, true);
                 setTimeout(() => {
                     isSyncingRef.current = false;
-                }, 500);
+                    isSeekingRef.current = false;
+                }, 1000);
             }
         }, SYNC_CHECK_INTERVAL);
 
         return () => clearInterval(interval);
-    }, [isHost, isReady, isPlaying, targetTimestamp, callPlayerMethod]);
+    }, [isHost, isReady, isPlaying, shouldPlay, targetTimestamp, callPlayerMethod]);
 
     // Update last sync time when target changes
     useEffect(() => {

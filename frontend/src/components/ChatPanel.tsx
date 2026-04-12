@@ -26,12 +26,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     currentUserName
 }) => {
     const [messageInput, setMessageInput] = useState('');
-    const scrollRef = useRef<HTMLDivElement>(null);
+    const viewportRef = useRef<HTMLDivElement>(null);
 
     // Auto-scroll to bottom when new messages arrive
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        if (viewportRef.current) {
+            viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
         }
     }, [messages]);
 
@@ -51,8 +51,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     };
 
     return (
-        <div className="flex flex-col h-full">
-            <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+        <div className="flex flex-col h-full min-h-0">
+            <ScrollArea className="flex-1 min-h-0 p-4" viewportRef={viewportRef}>
                 <div className="space-y-3">
                     {messages.map((msg) => (
                         <div
@@ -88,7 +88,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
             </ScrollArea>
 
-            <div className="p-4 border-t-2 border-white">
+            <div className="shrink-0 p-4 border-t-2 border-white">
                 <div className="flex gap-2">
                     <Input
                         value={messageInput}
