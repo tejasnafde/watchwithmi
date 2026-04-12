@@ -17,6 +17,12 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Play, Maximize, Loader2, SkipBack, SkipForward } from 'lucide-react';
 
+interface VideoReaction {
+    id: string;
+    emoji: string;
+    user_name: string;
+}
+
 interface MediaPlayerProps {
     currentMedia: MediaState;
     canControl: boolean;
@@ -26,7 +32,72 @@ interface MediaPlayerProps {
     onSeek: (timestamp: number) => void;
     onPlaylistNext?: () => void;
     onPlaylistPrev?: () => void;
+    videoReactions?: VideoReaction[];
+    onVideoReaction?: (emoji: string) => void;
 }
+
+const REACTION_EMOJIS = ['😂', '❤️', '👍', '🔥', '😮', '🎉'];
+
+const floatUpKeyframes = `
+@keyframes floatUpReaction {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  70% { opacity: 1; transform: translateY(-200px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-300px) scale(0.8); }
+}
+`;
+
+const VideoReactions: React.FC<{ reactions: VideoReaction[] }> = ({ reactions }) => {
+    // Memoize random positions per reaction id so they don't shift on re-render
+    const positionsRef = useRef<Record<string, number>>({});
+
+    return (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-30">
+            <style>{floatUpKeyframes}</style>
+            {reactions.map((reaction) => {
+                if (!(reaction.id in positionsRef.current)) {
+                    positionsRef.current[reaction.id] = 60 + Math.random() * 35;
+                }
+                const leftPos = positionsRef.current[reaction.id];
+                return (
+                    <div
+                        key={reaction.id}
+                        style={{
+                            position: 'absolute',
+                            bottom: '60px',
+                            left: `${leftPos}%`,
+                            animation: 'floatUpReaction 3s ease-out forwards',
+                        }}
+                        className="flex flex-col items-center"
+                    >
+                        <span className="text-2xl">{reaction.emoji}</span>
+                        <span className="text-[10px] text-white bg-black/60 px-1 rounded whitespace-nowrap">
+                            {reaction.user_name}
+                        </span>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+const ReactionBar: React.FC<{ onReaction: (emoji: string) => void }> = ({ onReaction }) => {
+    return (
+        <div className="absolute bottom-0 left-0 right-0 z-20 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+            <div className="flex gap-1 bg-black/50 backdrop-blur-sm rounded-t-lg px-2 py-1.5 pointer-events-auto">
+                {REACTION_EMOJIS.map((emoji) => (
+                    <button
+                        key={emoji}
+                        onClick={() => onReaction(emoji)}
+                        className="text-xl hover:scale-125 transition-transform duration-150 px-1 cursor-pointer"
+                        title={`React with ${emoji}`}
+                    >
+                        {emoji}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     currentMedia,
@@ -36,7 +107,9 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     onPlayPause,
     onSeek,
     onPlaylistNext,
-    onPlaylistPrev
+    onPlaylistPrev,
+    videoReactions = [],
+    onVideoReaction,
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [videoError, setVideoError] = useState<string | null>(null);
@@ -183,12 +256,20 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     // YouTube player rendering
     if (currentMedia.type === 'youtube') {
         return (
-            <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
+            <div className="relative aspect-video rounded-lg overflow-hidden bg-black group">
                 {/* YouTube Player Container */}
                 <div
                     ref={playerContainerRef}
                     className="w-full h-full"
                 />
+
+                {/* Floating emoji reactions */}
+                <VideoReactions reactions={videoReactions} />
+
+                {/* Reaction bar */}
+                {onVideoReaction && (
+                    <ReactionBar onReaction={onVideoReaction} />
+                )}
 
                 {/* Interaction blocker for viewers */}
                 {!canControl && ytReady && (
@@ -287,6 +368,14 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 crossOrigin="anonymous"
                 playsInline
             />
+
+            {/* Floating emoji reactions */}
+            <VideoReactions reactions={videoReactions} />
+
+            {/* Reaction bar */}
+            {onVideoReaction && (
+                <ReactionBar onReaction={onVideoReaction} />
+            )}
 
             {/* Loading overlay */}
             {(currentMedia.loading || isBuffering) && (

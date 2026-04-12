@@ -40,7 +40,7 @@ function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void;
     return (
         <div
             ref={ref}
-            className="absolute bottom-full mb-1 left-0 z-50 bg-black border border-white p-1 grid grid-cols-4 gap-0.5"
+            className="absolute bottom-full mb-1 right-0 z-50 bg-black border-2 border-white p-1.5 grid grid-cols-8 gap-1"
         >
             {REACTION_EMOJIS.map((emoji) => (
                 <button
@@ -49,7 +49,7 @@ function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void;
                         onSelect(emoji);
                         onClose();
                     }}
-                    className="w-7 h-7 flex items-center justify-center text-sm hover:bg-white/20 transition-colors"
+                    className="w-8 h-8 flex items-center justify-center text-base hover:bg-white/20 transition-colors"
                 >
                     {emoji}
                 </button>

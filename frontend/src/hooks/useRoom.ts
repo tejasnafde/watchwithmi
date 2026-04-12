@@ -36,6 +36,7 @@ export const useRoom = (roomCode: string, userName: string) => {
   const [hasSearched, setHasSearched] = useState(false);
   const [roomError, setRoomError] = useState<string | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [videoReactions, setVideoReactions] = useState<Array<{ id: string; emoji: string; user_name: string }>>([]);
 
   // Use a state for actual room code to avoid dependency cycles
   const [actualRoomCode, setActualRoomCode] = useState(roomCode);
@@ -343,6 +344,15 @@ export const useRoom = (roomCode: string, userName: string) => {
       }
     });
 
+    // Handle ephemeral video reactions
+    newSocket.on('video_reaction', (data: { emoji: string; user_name: string; user_id: string }) => {
+      const reactionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      setVideoReactions(prev => [...prev, { id: reactionId, emoji: data.emoji, user_name: data.user_name }]);
+      setTimeout(() => {
+        setVideoReactions(prev => prev.filter(r => r.id !== reactionId));
+      }, 3000);
+    });
+
     return () => {
       console.log('🔌 Disconnecting socket...');
       // Remove all event listeners before disconnecting
@@ -366,6 +376,7 @@ export const useRoom = (roomCode: string, userName: string) => {
       newSocket.off('media_loading');
       newSocket.off('queue_updated');
       newSocket.off('reaction_updated');
+      newSocket.off('video_reaction');
       newSocket.off('room_error');
       newSocket.io.off('reconnect');
       newSocket.disconnect();
@@ -496,6 +507,12 @@ export const useRoom = (roomCode: string, userName: string) => {
     }
   };
 
+  const sendVideoReaction = (emoji: string) => {
+    if (socket && connected) {
+      socket.emit('video_reaction', { emoji });
+    }
+  };
+
   const searchMediaFiles = async (query: string): Promise<ContentSearchResult[]> => {
     setIsSearching(true);
     setHasSearched(false);
@@ -573,5 +590,7 @@ export const useRoom = (roomCode: string, userName: string) => {
     clearQueue,
     searchMediaFiles,
     searchYouTubeVideos,
+    videoReactions,
+    sendVideoReaction,
   };
 };

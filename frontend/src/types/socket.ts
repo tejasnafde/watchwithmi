@@ -276,6 +276,7 @@ export interface ServerToClientEvents {
     webrtc_answer: (data: WebRTCAnswerData) => void;
     webrtc_ice_candidate: (data: WebRTCIceCandidateData) => void;
     reaction_updated: (data: { message_id: string; reactions: Record<string, string[]> }) => void;
+    video_reaction: (data: { emoji: string; user_name: string; user_id: string }) => void;
     error: (data: ErrorData) => void;
     room_error: (data: ErrorData) => void;
 }
@@ -307,4 +308,5 @@ export interface ClientToServerEvents {
     queue_reorder: (data: { item_id: string; new_index: number }) => void;
     queue_play_next: (data: {}) => void;
     queue_clear: (data: {}) => void;
+    video_reaction: (data: { emoji: string }) => void;
 }

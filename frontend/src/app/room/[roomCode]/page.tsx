@@ -76,6 +76,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
     clearQueue,
     searchMediaFiles,
     searchYouTubeVideos,
+    videoReactions,
+    sendVideoReaction,
   } = useRoom(roomCode, userName)
 
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
@@ -319,6 +321,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
                 onSeek={seekTo}
                 onPlaylistNext={playlistNext}
                 onPlaylistPrev={playlistPrev}
+                videoReactions={videoReactions}
+                onVideoReaction={sendVideoReaction}
               />
             </div>
 
