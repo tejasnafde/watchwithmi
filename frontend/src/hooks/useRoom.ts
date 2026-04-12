@@ -8,7 +8,8 @@ import type {
   MediaState,
   MediaStatus,
   ContentSearchResult,
-  YouTubeSearchResult
+  YouTubeSearchResult,
+  QueueItem
 } from '@/types';
 
 export const useRoom = (roomCode: string, userName: string) => {
@@ -34,6 +35,7 @@ export const useRoom = (roomCode: string, userName: string) => {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [roomError, setRoomError] = useState<string | null>(null);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
 
   // Use a state for actual room code to avoid dependency cycles
   const [actualRoomCode, setActualRoomCode] = useState(roomCode);
@@ -191,6 +193,11 @@ export const useRoom = (roomCode: string, userName: string) => {
           fallback_mode: !!m.fallback_mode,
         });
       }
+
+      // Sync queue state
+      if (data.queue && Array.isArray(data.queue)) {
+        setQueue(data.queue);
+      }
     };
 
     newSocket.on('room_joined', handleRoomData);
@@ -199,11 +206,21 @@ export const useRoom = (roomCode: string, userName: string) => {
     newSocket.on('new_message', (data: any) => {
       setChatMessages(prev => [...prev, {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        message_id: data.message_id,
         user_name: data.user_name,
         message: data.message,
         timestamp: data.timestamp,
         isServer: data.is_server || false,
+        reactions: data.reactions || {},
       }]);
+    });
+
+    newSocket.on('reaction_updated', (data: { message_id: string; reactions: Record<string, string[]> }) => {
+      setChatMessages(prev => prev.map(msg =>
+        msg.message_id === data.message_id
+          ? { ...msg, reactions: data.reactions }
+          : msg
+      ));
     });
 
     newSocket.on('media_changed', (data: any) => {
@@ -318,6 +335,14 @@ export const useRoom = (roomCode: string, userName: string) => {
       }));
     });
 
+    // Handle queue updates
+    newSocket.on('queue_updated', (data: any) => {
+      console.log('📋 Queue updated:', data);
+      if (data.queue && Array.isArray(data.queue)) {
+        setQueue(data.queue);
+      }
+    });
+
     return () => {
       console.log('🔌 Disconnecting socket...');
       // Remove all event listeners before disconnecting
@@ -339,6 +364,8 @@ export const useRoom = (roomCode: string, userName: string) => {
       newSocket.off('user_joined');
       newSocket.off('user_left');
       newSocket.off('media_loading');
+      newSocket.off('queue_updated');
+      newSocket.off('reaction_updated');
       newSocket.off('room_error');
       newSocket.io.off('reconnect');
       newSocket.disconnect();
@@ -348,6 +375,12 @@ export const useRoom = (roomCode: string, userName: string) => {
   const sendMessage = (message: string) => {
     if (socket && connected) {
       socket.emit('send_message', { message });
+    }
+  };
+
+  const toggleReaction = (messageId: string, emoji: string) => {
+    if (socket && connected) {
+      socket.emit('toggle_reaction', { message_id: messageId, emoji });
     }
   };
 
@@ -433,6 +466,36 @@ export const useRoom = (roomCode: string, userName: string) => {
     }
   };
 
+  const addToQueue = (url: string, title: string, mediaType: string, thumbnail?: string) => {
+    if (socket && connected) {
+      socket.emit('queue_add', { url, title, media_type: mediaType, thumbnail });
+    }
+  };
+
+  const removeFromQueue = (itemId: string) => {
+    if (socket && connected) {
+      socket.emit('queue_remove', { item_id: itemId });
+    }
+  };
+
+  const reorderQueue = (itemId: string, newIndex: number) => {
+    if (socket && connected) {
+      socket.emit('queue_reorder', { item_id: itemId, new_index: newIndex });
+    }
+  };
+
+  const playNextFromQueue = () => {
+    if (socket && connected) {
+      socket.emit('queue_play_next', {});
+    }
+  };
+
+  const clearQueue = () => {
+    if (socket && connected) {
+      socket.emit('queue_clear', {});
+    }
+  };
+
   const searchMediaFiles = async (query: string): Promise<ContentSearchResult[]> => {
     setIsSearching(true);
     setHasSearched(false);
@@ -494,6 +557,7 @@ export const useRoom = (roomCode: string, userName: string) => {
     actualRoomCode,
     currentUserId: socket?.id || '',
     sendMessage,
+    toggleReaction,
     loadMedia,
     playPause,
     seekTo,
@@ -501,6 +565,12 @@ export const useRoom = (roomCode: string, userName: string) => {
     playlistNext,
     playlistPrev,
     playlistSelect,
+    queue,
+    addToQueue,
+    removeFromQueue,
+    reorderQueue,
+    playNextFromQueue,
+    clearQueue,
     searchMediaFiles,
     searchYouTubeVideos,
   };

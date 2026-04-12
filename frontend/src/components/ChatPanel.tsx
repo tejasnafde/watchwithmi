@@ -1,7 +1,7 @@
 /**
  * Chat Panel Component
- * 
- * Displays chat messages and input
+ *
+ * Displays chat messages and input with emoji reactions
  */
 
 'use client';
@@ -12,18 +12,108 @@ import type { ChatMessage } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send } from 'lucide-react';
+import { Send, Plus } from 'lucide-react';
+
+const REACTION_EMOJIS = ['😂', '❤️', '👍', '👎', '🔥', '😮', '😢', '🎉'];
 
 interface ChatPanelProps {
     messages: ChatMessage[];
     onSendMessage: (message: string) => void;
     currentUserName: string;
+    currentUserId?: string;
+    onToggleReaction?: (messageId: string, emoji: string) => void;
+}
+
+function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) {
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose]);
+
+    return (
+        <div
+            ref={ref}
+            className="absolute bottom-full mb-1 left-0 z-50 bg-black border border-white p-1 grid grid-cols-4 gap-0.5"
+        >
+            {REACTION_EMOJIS.map((emoji) => (
+                <button
+                    key={emoji}
+                    onClick={() => {
+                        onSelect(emoji);
+                        onClose();
+                    }}
+                    className="w-7 h-7 flex items-center justify-center text-sm hover:bg-white/20 transition-colors"
+                >
+                    {emoji}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+function MessageReactions({
+    reactions,
+    currentUserId,
+    onToggle,
+}: {
+    reactions: Record<string, string[]>;
+    currentUserId: string;
+    onToggle: (emoji: string) => void;
+}) {
+    const [showPicker, setShowPicker] = useState(false);
+
+    const entries = Object.entries(reactions).filter(([, users]) => users.length > 0);
+
+    return (
+        <div className="flex items-center gap-1 mt-1 flex-wrap relative">
+            {entries.map(([emoji, users]) => {
+                const isActive = users.includes(currentUserId);
+                return (
+                    <button
+                        key={emoji}
+                        onClick={() => onToggle(emoji)}
+                        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono border transition-colors ${
+                            isActive
+                                ? 'bg-white/20 border-white/40 text-white'
+                                : 'bg-transparent border-white/20 text-white/70 hover:border-white/40'
+                        }`}
+                    >
+                        <span>{emoji}</span>
+                        <span>{users.length}</span>
+                    </button>
+                );
+            })}
+            <div className="relative">
+                <button
+                    onClick={() => setShowPicker(!showPicker)}
+                    className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-mono border border-white/20 text-white/50 hover:border-white/40 hover:text-white transition-colors"
+                >
+                    <Plus className="w-3 h-3" />
+                </button>
+                {showPicker && (
+                    <EmojiPicker
+                        onSelect={(emoji) => onToggle(emoji)}
+                        onClose={() => setShowPicker(false)}
+                    />
+                )}
+            </div>
+        </div>
+    );
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
     messages,
     onSendMessage,
-    currentUserName
+    currentUserName,
+    currentUserId = '',
+    onToggleReaction,
 }) => {
     const [messageInput, setMessageInput] = useState('');
     const viewportRef = useRef<HTMLDivElement>(null);
@@ -77,6 +167,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                                     >
                                         {msg.message}
                                     </div>
+                                    {msg.message_id && onToggleReaction && (
+                                        <MessageReactions
+                                            reactions={msg.reactions || {}}
+                                            currentUserId={currentUserId}
+                                            onToggle={(emoji) => onToggleReaction(msg.message_id!, emoji)}
+                                        />
+                                    )}
                                     <div className="text-[10px] text-white/60 font-mono mt-1 uppercase">
                                         {new Date(msg.timestamp).toLocaleTimeString()}
                                     </div>

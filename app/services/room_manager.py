@@ -3,8 +3,10 @@ Room management service for WatchWithMi.
 """
 
 import logging
-from typing import Dict, Optional
-from ..models.room import Room, generate_room_code
+from typing import Dict, Optional, Tuple
+import time
+import uuid
+from ..models.room import Room, QueueItem, generate_room_code
 from ..config import MAX_USERS_PER_ROOM, ROOM_CODE_LENGTH
 
 logger = logging.getLogger("watchwithmi.services.room_manager")
@@ -158,6 +160,114 @@ class RoomManager:
             
         return room.grant_control(target_id, enabled)
     
+    def toggle_reaction(self, user_id: str, message_id: str, emoji: str) -> Optional[Tuple[str, str, Dict]]:
+        """Toggle a reaction on a message. Returns (room_code, message_id, updated_reactions) or None."""
+        session = self.get_user_session(user_id)
+        if not session or not session.get('room_code'):
+            return None
+
+        room_code = session['room_code']
+        room = self.get_room(room_code)
+        if not room:
+            return None
+
+        updated_reactions = room.toggle_reaction(message_id, emoji, user_id)
+        if updated_reactions is None:
+            return None
+
+        return room_code, message_id, updated_reactions
+
+    def add_to_queue(self, user_id: str, url: str, title: str, media_type: str, thumbnail: str = "") -> Optional[Tuple[str, QueueItem]]:
+        """Add an item to the room queue. Returns (room_code, queue_item) or None."""
+        session = self.get_user_session(user_id)
+        if not session or not session.get('room_code'):
+            return None
+
+        room_code = session['room_code']
+        room = self.get_room(room_code)
+        if not room or user_id not in room.users:
+            return None
+
+        item = QueueItem(
+            id=str(uuid.uuid4()),
+            url=url,
+            title=title,
+            media_type=media_type,
+            added_by=user_id,
+            added_by_name=room.users[user_id].name,
+            added_at=time.time(),
+            thumbnail=thumbnail,
+        )
+
+        if room.add_to_queue(item):
+            return room_code, item
+        return None
+
+    def remove_from_queue(self, user_id: str, item_id: str) -> Optional[str]:
+        """Remove an item from the room queue. Returns room_code or None."""
+        session = self.get_user_session(user_id)
+        if not session or not session.get('room_code'):
+            return None
+
+        room_code = session['room_code']
+        room = self.get_room(room_code)
+        if not room or user_id not in room.users:
+            return None
+
+        if room.remove_from_queue(item_id, user_id):
+            return room_code
+        return None
+
+    def reorder_queue(self, user_id: str, item_id: str, new_index: int) -> Optional[str]:
+        """Reorder a queue item. Returns room_code or None."""
+        session = self.get_user_session(user_id)
+        if not session or not session.get('room_code'):
+            return None
+
+        room_code = session['room_code']
+        room = self.get_room(room_code)
+        if not room or user_id not in room.users:
+            return None
+
+        if room.reorder_queue(item_id, new_index, user_id):
+            return room_code
+        return None
+
+    def play_next_from_queue(self, user_id: str) -> Optional[Tuple[str, QueueItem]]:
+        """Pop the next queue item. Only host/can_control. Returns (room_code, item) or None."""
+        session = self.get_user_session(user_id)
+        if not session or not session.get('room_code'):
+            return None
+
+        room_code = session['room_code']
+        room = self.get_room(room_code)
+        if not room or user_id not in room.users:
+            return None
+
+        # Permission check: host or DJ
+        if user_id != room.host_id and not room.users[user_id].can_control:
+            return None
+
+        item = room.pop_next_from_queue()
+        if item:
+            return room_code, item
+        return None
+
+    def clear_queue(self, user_id: str) -> Optional[str]:
+        """Clear the entire queue. Host only. Returns room_code or None."""
+        session = self.get_user_session(user_id)
+        if not session or not session.get('room_code'):
+            return None
+
+        room_code = session['room_code']
+        room = self.get_room(room_code)
+        if not room or user_id not in room.users:
+            return None
+
+        if room.clear_queue(user_id):
+            return room_code
+        return None
+
     def is_user_host(self, user_id: str) -> bool:
         """Check if a user is the host of their room."""
         session = self.get_user_session(user_id)
