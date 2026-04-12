@@ -50,7 +50,7 @@ def setup_logging():
             if hasattr(sys.stdout, 'reconfigure'):
                 sys.stdout.reconfigure(encoding='utf-8')
                 sys.stderr.reconfigure(encoding='utf-8')
-        except:
+        except (OSError, AttributeError, LookupError):
             pass  # Fallback to default encoding
     
     # Configure root logger

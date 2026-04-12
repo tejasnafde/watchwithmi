@@ -121,6 +121,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         if (currentMedia.url && currentMedia.type !== 'youtube') {
             if (video.src !== currentMedia.url) {
                 logger.info('Updating video source', { url: currentMedia.url });
+                video.pause();
                 video.src = currentMedia.url;
                 video.load();
             }
@@ -155,7 +156,8 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         currentTime: ytTime,
         duration: ytDuration,
         error: ytError,
-        buffering: ytBuffering
+        buffering: ytBuffering,
+        clearError: ytClearError
     } = ytProps;
 
     // Empty state
@@ -204,13 +206,27 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                     <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
                         <div className="text-center text-white p-6">
                             <p className="text-red-400 mb-4">{ytError}</p>
-                            <Button
-                                onClick={() => window.location.reload()}
-                                variant="outline"
-                                className="border-white/20 text-white hover:bg-white/10"
-                            >
-                                Reload
-                            </Button>
+                            <div className="flex gap-3 justify-center">
+                                <Button
+                                    onClick={() => {
+                                        // Clear error state to allow the player to retry
+                                        ytClearError();
+                                    }}
+                                    variant="outline"
+                                    className="border-white/20 text-white hover:bg-white/10"
+                                >
+                                    Retry
+                                </Button>
+                                <Button
+                                    onClick={() => window.location.reload()}
+                                    variant="outline"
+                                    className="border-red-400/30 text-red-300 hover:bg-red-400/10"
+                                    title="This will disconnect you from the room"
+                                >
+                                    Reload Page
+                                </Button>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">Reload Page will disconnect you from the room</p>
                         </div>
                     </div>
                 )}

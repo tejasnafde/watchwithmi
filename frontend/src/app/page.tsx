@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Play, Users, Plus, LogIn, ArrowRight, MessageCircle } from 'lucide-react';
 import Image from 'next/image';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function HomePage() {
   const router = useRouter();
@@ -30,8 +31,11 @@ export default function HomePage() {
     setError('');
     setIsCreating(true);
     try {
-      const newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const newRoomCode = Array.from({length: 6}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
       router.push(`/room/${newRoomCode}?name=${encodeURIComponent(createUserName.trim())}`);
+      // Fallback reset in case navigation doesn't unmount this component
+      setTimeout(() => setIsCreating(false), 2000);
     } catch (error) {
       console.error('Error creating room:', error);
       setError('Failed to create room. Please try again.');
@@ -57,6 +61,7 @@ export default function HomePage() {
   };
 
   return (
+    <ErrorBoundary>
     <div className="min-h-screen bg-black flex items-center justify-center p-6">
       {/* Main Container */}
       <div className="w-full max-w-4xl">
@@ -241,5 +246,6 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
     </div>
+    </ErrorBoundary>
   );
 } 

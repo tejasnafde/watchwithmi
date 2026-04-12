@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { createSocket, searchContent, searchYouTube, addMediaSource, fetchYouTubePlaylist, BACKEND_URL } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -37,16 +37,34 @@ export const useRoom = (roomCode: string, userName: string) => {
   // Use a state for actual room code to avoid dependency cycles
   const [actualRoomCode, setActualRoomCode] = useState(roomCode);
 
+  // Track whether this is the initial connection or a reconnection
+  const hasConnectedRef = useRef(false);
+
   useEffect(() => {
     if (!roomCode || !userName) return;
+
+    hasConnectedRef.current = false;
 
     console.log('🔌 Creating socket connection for room:', roomCode, 'user:', userName);
     const newSocket = createSocket();
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('✅ Socket connected, joining room...');
+      if (!hasConnectedRef.current) {
+        // First connection: join the room
+        console.log('✅ Socket connected, joining room...');
+        hasConnectedRef.current = true;
+        newSocket.emit('join_room', { room_code: roomCode, user_name: userName });
+      } else {
+        // Reconnection: backend should still have session within 30s grace period
+        console.log('✅ Socket reconnected, relying on backend session');
+      }
       setConnected(true);
+    });
+
+    // Handle reconnection after grace period expired (re-join needed)
+    newSocket.io.on('reconnect', () => {
+      console.log('🔄 Socket.IO reconnect event, re-joining room...');
       newSocket.emit('join_room', { room_code: roomCode, user_name: userName });
     });
 
@@ -135,7 +153,7 @@ export const useRoom = (roomCode: string, userName: string) => {
       const rawChat = data.chat || data.chat_history || [];
       if (Array.isArray(rawChat)) {
         setChatMessages(rawChat.map((msg: any) => ({
-          id: Date.now() + Math.random(),
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           user_name: msg.user_name,
           message: msg.message,
           timestamp: msg.timestamp,
@@ -169,7 +187,7 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     newSocket.on('new_message', (data: any) => {
       setChatMessages(prev => [...prev, {
-        id: Date.now(),
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         user_name: data.user_name,
         message: data.message,
         timestamp: data.timestamp,
@@ -253,8 +271,64 @@ export const useRoom = (roomCode: string, userName: string) => {
       setMediaStatus(data?.media_status || null);
     });
 
+    // Handle user joined
+    newSocket.on('user_joined', (data: any) => {
+      console.log('👤 User joined:', data);
+      if (data.user) {
+        setUsers(prev => {
+          // Avoid duplicates
+          if (prev.some(u => u.id === data.user.id)) return prev;
+          return [...prev, {
+            id: data.user.id,
+            name: data.user.name,
+            is_host: data.user.is_host || false,
+            can_control: data.user.can_control || false,
+            video_enabled: data.user.video_enabled || false,
+            audio_enabled: data.user.audio_enabled || false,
+          }];
+        });
+      }
+    });
+
+    // Handle user left
+    newSocket.on('user_left', (data: any) => {
+      console.log('👤 User left:', data);
+      if (data.user_id) {
+        setUsers(prev => prev.filter(u => u.id !== data.user_id));
+      }
+    });
+
+    // Handle media loading indicator
+    newSocket.on('media_loading', (data: any) => {
+      console.log('⏳ Media loading:', data);
+      setCurrentMedia(prev => ({
+        ...prev,
+        loading: data.loading !== undefined ? data.loading : true,
+      }));
+    });
+
     return () => {
       console.log('🔌 Disconnecting socket...');
+      // Remove all event listeners before disconnecting
+      newSocket.off('connect');
+      newSocket.off('disconnect');
+      newSocket.off('error');
+      newSocket.off('connect_error');
+      newSocket.off('users_updated');
+      newSocket.off('room_joined');
+      newSocket.off('room_created');
+      newSocket.off('new_message');
+      newSocket.off('media_changed');
+      newSocket.off('playlist_updated');
+      newSocket.off('media_control');
+      newSocket.off('media_play');
+      newSocket.off('media_pause');
+      newSocket.off('media_seek');
+      newSocket.off('media_progress');
+      newSocket.off('user_joined');
+      newSocket.off('user_left');
+      newSocket.off('media_loading');
+      newSocket.io.off('reconnect');
       newSocket.disconnect();
     };
   }, [roomCode, userName]);
@@ -269,6 +343,7 @@ export const useRoom = (roomCode: string, userName: string) => {
     if (socket && connected) {
       if (type === 'media') {
         const response = await addMediaSource(url);
+        if (!socket?.connected) return;
         if (response.success) {
           const fileIndex = response.status?.largest_file?.index ?? 0;
           const streamUrl = `${BACKEND_URL}/api/media/stream/${response.media_id}/${fileIndex}`;
@@ -277,6 +352,7 @@ export const useRoom = (roomCode: string, userName: string) => {
       } else if (type === 'youtube_playlist') {
         try {
           const playlist = await fetchYouTubePlaylist(url, 200);
+          if (!socket?.connected) return;
           if (playlist.enabled && playlist.items && playlist.items.length > 0 && !playlist.fallback_mode) {
             socket.emit('media_control', {
               action: 'load_playlist',
@@ -295,6 +371,7 @@ export const useRoom = (roomCode: string, userName: string) => {
           }
         } catch (error) {
           logger.warn('Playlist expansion failed, falling back to native playlist URL', error);
+          if (!socket?.connected) return;
           socket.emit('media_control', {
             action: 'change',
             url,

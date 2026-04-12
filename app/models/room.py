@@ -3,6 +3,7 @@ Room models and data structures for WatchWithMi.
 """
 
 import logging
+import time
 from datetime import datetime
 from typing import Dict, Optional, List
 from dataclasses import dataclass, asdict, field
@@ -49,6 +50,7 @@ class User:
     can_control: bool = False  # Allows controlling media (DJ permissions)
     video_enabled: bool = False
     audio_enabled: bool = False
+    joined_at_ts: float = field(default_factory=time.time)
     
     def to_dict(self) -> dict:
         return asdict(self)
@@ -102,8 +104,8 @@ class Room:
         
         # Handle host change
         if was_host and self.users:
-            # Transfer host status to the next longest-joined user
-            new_host_id = next(iter(self.users))
+            # Transfer host status to the user who joined earliest
+            new_host_id = min(self.users, key=lambda uid: self.users[uid].joined_at_ts)
             self.host_id = new_host_id
             self.users[new_host_id].is_host = True
             self.users[new_host_id].can_control = True  # New host gets control

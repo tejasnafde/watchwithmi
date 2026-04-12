@@ -23,7 +23,7 @@ export interface User {
 // ============================================================================
 
 export interface ChatMessage {
-    id: number;
+    id: string | number;
     user_name: string;
     message: string;
     timestamp: string;
@@ -93,8 +93,7 @@ export interface MediaFile {
 export interface RoomJoinedData {
     room_code: string;
     user_id: string;
-    users: User[] | Record<string, User>;
-    chat_history?: ChatMessage[];
+    users: Record<string, User>;
     chat?: ChatMessage[];
     media: Partial<MediaState> | null;
 }
@@ -108,7 +107,7 @@ export interface UserJoinedData {
 export interface UserLeftData {
     user_id: string;
     user_name: string;
-    new_host_id?: string;
+    new_host?: string;
 }
 
 export interface ChatMessageData {

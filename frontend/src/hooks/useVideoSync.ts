@@ -27,6 +27,7 @@ export const useVideoSync = ({
     // Track if we're updating from socket to prevent feedback loops
     const isUpdatingFromSocket = useRef(false);
     const syncTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+    const socketFlagTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
     const lastSyncTime = useRef<number>(0);
 
     // Constants for sync behavior
@@ -71,8 +72,11 @@ export const useVideoSync = ({
                 }
             }
         } finally {
-            // Reset flag after a brief delay
-            setTimeout(() => {
+            // Reset flag after a brief delay, clearing any previous timer
+            if (socketFlagTimeoutRef.current) {
+                clearTimeout(socketFlagTimeoutRef.current);
+            }
+            socketFlagTimeoutRef.current = setTimeout(() => {
                 isUpdatingFromSocket.current = false;
             }, SYNC_DEBOUNCE);
         }
@@ -105,7 +109,10 @@ export const useVideoSync = ({
                 diff: timeDiff
             });
 
-            setTimeout(() => {
+            if (socketFlagTimeoutRef.current) {
+                clearTimeout(socketFlagTimeoutRef.current);
+            }
+            socketFlagTimeoutRef.current = setTimeout(() => {
                 isUpdatingFromSocket.current = false;
             }, SYNC_DEBOUNCE);
         }
@@ -191,6 +198,9 @@ export const useVideoSync = ({
         return () => {
             if (syncTimeoutRef.current) {
                 clearTimeout(syncTimeoutRef.current);
+            }
+            if (socketFlagTimeoutRef.current) {
+                clearTimeout(socketFlagTimeoutRef.current);
             }
         };
     }, []);
