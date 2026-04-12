@@ -34,6 +34,12 @@ class SocketEventHandler:
         self.sio.on('webrtc_answer')(self.handle_webrtc_answer)
         self.sio.on('webrtc_ice_candidate')(self.handle_webrtc_ice_candidate)
         self.sio.on('grant_control')(self.handle_grant_control)
+        self.sio.on('toggle_reaction')(self.handle_toggle_reaction)
+        self.sio.on('queue_add')(self.handle_queue_add)
+        self.sio.on('queue_remove')(self.handle_queue_remove)
+        self.sio.on('queue_reorder')(self.handle_queue_reorder)
+        self.sio.on('queue_play_next')(self.handle_queue_play_next)
+        self.sio.on('queue_clear')(self.handle_queue_clear)
     
     async def handle_connect(self, sid: str, environ: Dict):
         """Handle client connection."""
@@ -128,7 +134,8 @@ class SocketEventHandler:
                     'is_host': True,
                     'media': room.media.to_dict(),
                     'users': {uid: user.to_dict() for uid, user in room.users.items()},
-                    'chat': [msg.to_dict() for msg in room.chat]
+                    'chat': [msg.to_dict() for msg in room.chat],
+                    'queue': [item.to_dict() for item in room.queue]
                 }, room=sid)
 
                 logger.info(f" Room {room_code} created successfully by {user_name}")
@@ -211,7 +218,8 @@ class SocketEventHandler:
                     'is_host': is_actually_host,
                     'media': updated_room.media.to_dict(),
                     'users': user_list,
-                    'chat': [msg.to_dict() for msg in updated_room.chat]
+                    'chat': [msg.to_dict() for msg in updated_room.chat],
+                    'queue': [item.to_dict() for item in updated_room.queue]
                 }, room=sid)
                 
                 # Only notify others if this is a new user (not a reconnection)
@@ -753,4 +761,171 @@ class SocketEventHandler:
                 await self.sio.emit('error', {'message': 'Action failed or unauthorized'}, room=sid)
                 
         except Exception as e:
-            logger.error(f" Error handling grant_control: {e}") 
+            logger.error(f" Error handling grant_control: {e}")
+
+    async def handle_toggle_reaction(self, sid: str, data: Dict[str, Any]):
+        """Handle toggling an emoji reaction on a chat message."""
+        message_id = data.get('message_id', '')
+        emoji = data.get('emoji', '')
+
+        if not message_id or not emoji:
+            await self.sio.emit('error', {'message': 'message_id and emoji are required'}, room=sid)
+            return
+
+        # Validate emoji length (single emoji or short string up to 2 chars)
+        if len(emoji) > 2:
+            await self.sio.emit('error', {'message': 'Invalid emoji'}, room=sid)
+            return
+
+        try:
+            result = self.room_manager.toggle_reaction(sid, message_id, emoji)
+            if result:
+                room_code, msg_id, updated_reactions = result
+                await self.sio.emit('reaction_updated', {
+                    'message_id': msg_id,
+                    'reactions': updated_reactions
+                }, room=room_code)
+            else:
+                await self.sio.emit('error', {'message': 'Message not found or not in a room'}, room=sid)
+
+        except Exception as e:
+            logger.error(f"Error handling toggle_reaction: {e}")
+            await self.sio.emit('error', {'message': 'Failed to toggle reaction'}, room=sid)
+
+    async def _emit_queue_updated(self, room_code: str):
+        """Helper to emit queue_updated with the current queue state."""
+        room = self.room_manager.get_room(room_code)
+        if room:
+            await self.sio.emit('queue_updated', {
+                'queue': [item.to_dict() for item in room.queue]
+            }, room=room_code)
+
+    async def handle_queue_add(self, sid: str, data: Dict[str, Any]):
+        """Handle adding an item to the media queue. Any user in the room can add."""
+        url = (data.get('url') or '').strip()
+        title = (data.get('title') or '').strip()
+        media_type = data.get('media_type', 'youtube')
+        thumbnail = (data.get('thumbnail') or '').strip()
+
+        # Validate URL
+        if not isinstance(url, str) or not url.startswith(('http://', 'https://', 'magnet:', '/')):
+            await self.sio.emit('error', {'message': 'Invalid media URL'}, room=sid)
+            return
+
+        # Validate media_type
+        allowed_media_types = ('youtube', 'video', 'audio', 'media')
+        if media_type not in allowed_media_types:
+            await self.sio.emit('error', {
+                'message': f'Invalid media type. Must be one of: {", ".join(allowed_media_types)}'
+            }, room=sid)
+            return
+
+        try:
+            result = self.room_manager.add_to_queue(sid, url, title, media_type, thumbnail)
+            if result:
+                room_code, queue_item = result
+                logger.info(f"Queue item added in room {room_code}: '{title}' by {queue_item.added_by_name}")
+                await self._emit_queue_updated(room_code)
+            else:
+                await self.sio.emit('error', {'message': 'Failed to add to queue (queue may be full)'}, room=sid)
+        except Exception as e:
+            logger.error(f"Error handling queue_add: {e}")
+            await self.sio.emit('error', {'message': 'Failed to add to queue'}, room=sid)
+
+    async def handle_queue_remove(self, sid: str, data: Dict[str, Any]):
+        """Handle removing an item from the media queue."""
+        item_id = data.get('item_id', '')
+        if not item_id:
+            await self.sio.emit('error', {'message': 'item_id is required'}, room=sid)
+            return
+
+        try:
+            room_code = self.room_manager.remove_from_queue(sid, item_id)
+            if room_code:
+                logger.info(f"Queue item {item_id} removed in room {room_code}")
+                await self._emit_queue_updated(room_code)
+            else:
+                await self.sio.emit('error', {'message': 'Failed to remove item (not found or unauthorized)'}, room=sid)
+        except Exception as e:
+            logger.error(f"Error handling queue_remove: {e}")
+            await self.sio.emit('error', {'message': 'Failed to remove from queue'}, room=sid)
+
+    async def handle_queue_reorder(self, sid: str, data: Dict[str, Any]):
+        """Handle reordering a queue item. Host or DJ only."""
+        item_id = data.get('item_id', '')
+        new_index = data.get('new_index')
+
+        if not item_id or not isinstance(new_index, int):
+            await self.sio.emit('error', {'message': 'item_id and new_index (int) are required'}, room=sid)
+            return
+
+        try:
+            room_code = self.room_manager.reorder_queue(sid, item_id, new_index)
+            if room_code:
+                logger.info(f"Queue item {item_id} reordered to index {new_index} in room {room_code}")
+                await self._emit_queue_updated(room_code)
+            else:
+                await self.sio.emit('error', {'message': 'Failed to reorder (not found or unauthorized)'}, room=sid)
+        except Exception as e:
+            logger.error(f"Error handling queue_reorder: {e}")
+            await self.sio.emit('error', {'message': 'Failed to reorder queue'}, room=sid)
+
+    async def handle_queue_play_next(self, sid: str, data: Dict[str, Any]):
+        """Handle playing the next item from the queue. Host or DJ only."""
+        try:
+            result = self.room_manager.play_next_from_queue(sid)
+            if result:
+                room_code, queue_item = result
+                session = self.room_manager.get_user_session(sid)
+                user_name = session.get('user_name', 'Unknown') if session else 'Unknown'
+
+                # Update room media state to the queue item
+                self.room_manager.update_media(
+                    sid,
+                    url=queue_item.url,
+                    media_type=queue_item.media_type,
+                    state='paused',
+                    timestamp=0,
+                    title=queue_item.title,
+                    is_playlist=False,
+                    playlist_id='',
+                    playlist_title='',
+                    playlist_items=[],
+                    current_index=0
+                )
+
+                # Emit media_changed
+                await self.sio.emit('media_changed', {
+                    'url': queue_item.url,
+                    'type': queue_item.media_type,
+                    'title': queue_item.title,
+                    'user_name': user_name,
+                    'is_playlist': False,
+                    'playlist_id': '',
+                    'playlist_title': '',
+                    'playlist_items': [],
+                    'current_index': 0
+                }, room=room_code)
+
+                # Emit queue_updated
+                await self._emit_queue_updated(room_code)
+
+                logger.info(f"Playing next from queue in room {room_code}: '{queue_item.title}'")
+            else:
+                await self.sio.emit('error', {'message': 'Queue is empty or unauthorized'}, room=sid)
+        except Exception as e:
+            logger.error(f"Error handling queue_play_next: {e}")
+            await self.sio.emit('error', {'message': 'Failed to play next from queue'}, room=sid)
+
+    async def handle_queue_clear(self, sid: str, data: Dict[str, Any]):
+        """Handle clearing the entire queue. Host only."""
+        try:
+            room_code = self.room_manager.clear_queue(sid)
+            if room_code:
+                logger.info(f"Queue cleared in room {room_code}")
+                await self._emit_queue_updated(room_code)
+            else:
+                await self.sio.emit('error', {'message': 'Failed to clear queue (unauthorized)'}, room=sid)
+        except Exception as e:
+            logger.error(f"Error handling queue_clear: {e}")
+            await self.sio.emit('error', {'message': 'Failed to clear queue'}, room=sid)

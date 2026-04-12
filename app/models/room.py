@@ -4,6 +4,7 @@ Room models and data structures for WatchWithMi.
 
 import logging
 import time
+import uuid
 from datetime import datetime
 from typing import Dict, Optional, List
 from dataclasses import dataclass, asdict, field
@@ -37,9 +38,45 @@ class ChatMessage:
     user_name: str
     message: str
     timestamp: str
-    
+    message_id: str = ""
+    reactions: Dict[str, List[str]] = field(default_factory=dict)
+
     def to_dict(self) -> dict:
         return asdict(self)
+
+    def add_reaction(self, emoji: str, user_id: str) -> bool:
+        """Add a reaction. Returns False if user already reacted with this emoji."""
+        if emoji not in self.reactions:
+            self.reactions[emoji] = []
+        if user_id in self.reactions[emoji]:
+            return False
+        self.reactions[emoji].append(user_id)
+        return True
+
+    def remove_reaction(self, emoji: str, user_id: str) -> bool:
+        """Remove a reaction. Returns False if user hasn't reacted with this emoji."""
+        if emoji not in self.reactions or user_id not in self.reactions[emoji]:
+            return False
+        self.reactions[emoji].remove(user_id)
+        if not self.reactions[emoji]:
+            del self.reactions[emoji]
+        return True
+
+@dataclass
+class QueueItem:
+    """Represents an item in the media queue."""
+    id: str              # unique queue item ID
+    url: str             # media URL
+    title: str           # display title
+    media_type: str      # youtube, video, audio, media
+    added_by: str        # user_id who added it
+    added_by_name: str   # user name
+    added_at: float      # timestamp
+    thumbnail: str = ""  # optional thumbnail URL
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
 
 @dataclass
 class User:
@@ -64,8 +101,9 @@ class Room:
         self.users: Dict[str, User] = {}
         self.media = MediaState()
         self.chat: List[ChatMessage] = []
+        self.queue: List[QueueItem] = []
         self.created_at = datetime.now().isoformat()
-        
+
         logger.info(f"Room {room_code} created")
     
     def add_user(self, user_id: str, user_name: str, is_host: bool = False) -> bool:
@@ -126,12 +164,29 @@ class Room:
             user_id=user_id,
             user_name=self.users[user_id].name,
             message=message,
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now().isoformat(),
+            message_id=f"{user_id}_{int(time.time() * 1000)}"
         )
         
         self.chat.append(chat_message)
         logger.debug(f"Message in room {self.room_code}: {self.users[user_id].name}: {message}")
         return chat_message
+
+    def get_message(self, message_id: str) -> Optional[ChatMessage]:
+        """Find a message by ID in the chat history."""
+        for msg in self.chat:
+            if msg.message_id == message_id:
+                return msg
+        return None
+
+    def toggle_reaction(self, message_id: str, emoji: str, user_id: str) -> Optional[Dict]:
+        """Toggle a reaction on a message. Returns updated reactions dict or None if message not found."""
+        msg = self.get_message(message_id)
+        if not msg:
+            return None
+        if not msg.remove_reaction(emoji, user_id):
+            msg.add_reaction(emoji, user_id)
+        return msg.reactions
 
     def grant_control(self, user_id: str, enabled: bool) -> bool:
         """Grant or revoke control (DJ) permissions."""
@@ -146,6 +201,58 @@ class Room:
         logger.info(f"Control {'granted to' if enabled else 'revoked from'} {self.users[user_id].name} in {self.room_code}")
         return True
     
+    def add_to_queue(self, item: QueueItem) -> bool:
+        """Append an item to the queue. Max 50 items."""
+        if len(self.queue) >= 50:
+            return False
+        self.queue.append(item)
+        logger.info(f"Queue item '{item.title}' added by {item.added_by_name} in room {self.room_code} (queue size: {len(self.queue)})")
+        return True
+
+    def remove_from_queue(self, item_id: str, requester_id: str) -> bool:
+        """Remove an item from the queue. Only the adder, host, or users with can_control can remove."""
+        for i, item in enumerate(self.queue):
+            if item.id == item_id:
+                # Check permissions: item adder, host, or DJ
+                if (requester_id == item.added_by or
+                        requester_id == self.host_id or
+                        (requester_id in self.users and self.users[requester_id].can_control)):
+                    self.queue.pop(i)
+                    logger.info(f"Queue item '{item.title}' removed by {requester_id} in room {self.room_code}")
+                    return True
+                return False
+        return False
+
+    def reorder_queue(self, item_id: str, new_index: int, requester_id: str) -> bool:
+        """Move a queue item to a new position. Only host/can_control users can reorder."""
+        if requester_id not in self.users:
+            return False
+        if requester_id != self.host_id and not self.users[requester_id].can_control:
+            return False
+
+        for i, item in enumerate(self.queue):
+            if item.id == item_id:
+                self.queue.pop(i)
+                new_index = max(0, min(new_index, len(self.queue)))
+                self.queue.insert(new_index, item)
+                logger.info(f"Queue item '{item.title}' moved to index {new_index} in room {self.room_code}")
+                return True
+        return False
+
+    def pop_next_from_queue(self) -> Optional[QueueItem]:
+        """Remove and return the first item from the queue."""
+        if not self.queue:
+            return None
+        return self.queue.pop(0)
+
+    def clear_queue(self, requester_id: str) -> bool:
+        """Clear all items from the queue. Host only."""
+        if requester_id != self.host_id:
+            return False
+        self.queue.clear()
+        logger.info(f"Queue cleared by host in room {self.room_code}")
+        return True
+
     def update_media(self, url: str = None, media_type: str = None,
                     state: str = None, timestamp: float = None,
                     title: str = None, is_playlist: bool = None,
@@ -194,6 +301,7 @@ class Room:
             'users': {uid: user.to_dict() for uid, user in self.users.items()},
             'media': self.media.to_dict(),
             'chat': [msg.to_dict() for msg in self.chat],
+            'queue': [item.to_dict() for item in self.queue],
             'created_at': self.created_at
         }
     

@@ -67,6 +67,13 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
     playlistPrev,
     playlistSelect,
     grantControl,
+    toggleReaction,
+    queue,
+    addToQueue,
+    removeFromQueue,
+    reorderQueue,
+    playNextFromQueue,
+    clearQueue,
     searchMediaFiles,
     searchYouTubeVideos,
   } = useRoom(roomCode, userName)
@@ -354,6 +361,14 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
                 playlistItems={currentMedia.playlist_items || []}
                 currentPlaylistIndex={currentMedia.current_index || 0}
                 onPlaylistSelect={playlistSelect}
+                queue={queue}
+                onAddToQueue={addToQueue}
+                onRemoveFromQueue={removeFromQueue}
+                onReorderQueue={reorderQueue}
+                onPlayNext={playNextFromQueue}
+                onClearQueue={clearQueue}
+                currentUserId={currentUserId}
+                isHost={isHost}
               />
             </div>
           </div>
@@ -361,7 +376,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
           {/* Right Sidebar: Users + Chat (30%) */}
           <div className="w-[400px] flex flex-col bg-black min-h-0 overflow-hidden">
             {/* Users Section */}
-            <div className="shrink-0 border-b-4 border-white bg-black p-4">
+            <div className="shrink-0 max-h-[30%] overflow-y-auto border-b-4 border-white bg-black p-4">
               <h3 className="text-white font-bold uppercase mb-3 flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 USERS ({users.length})
@@ -411,8 +426,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
               </div>
             </div>
 
-            {/* Chat Section - Takes remaining space */}
-            <div className="flex-1 min-h-0 flex flex-col border-b-4 border-white">
+            {/* Chat Section - Takes remaining space, always visible */}
+            <div className="flex-1 min-h-[200px] flex flex-col border-b-4 border-white overflow-hidden">
               <div className="p-4 border-b-2 border-white bg-black shrink-0">
                 <h3 className="text-white font-bold uppercase flex items-center gap-2">
                   <MessageCircle className="h-4 w-4" />
@@ -424,12 +439,14 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
                   messages={chatMessages}
                   onSendMessage={sendMessage}
                   currentUserName={userName}
+                  currentUserId={currentUserId}
+                  onToggleReaction={toggleReaction}
                 />
               </div>
             </div>
 
             {/* Video Chat Section */}
-            <div className="shrink-0 bg-black p-4">
+            <div className="shrink-0 max-h-[40%] overflow-y-auto bg-black p-4">
               <h3 className="text-white font-bold uppercase mb-3 flex items-center gap-2">
                 <Video className="h-4 w-4" />
                 VIDEO CHAT

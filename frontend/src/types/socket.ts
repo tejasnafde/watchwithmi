@@ -24,10 +24,12 @@ export interface User {
 
 export interface ChatMessage {
     id: string | number;
+    message_id?: string;
     user_name: string;
     message: string;
     timestamp: string;
     isServer?: boolean;
+    reactions?: Record<string, string[]>;
 }
 
 // ============================================================================
@@ -44,6 +46,17 @@ export interface PlaylistItem {
     thumbnail?: string;
     channel?: string;
     position?: number;
+}
+
+export interface QueueItem {
+    id: string;
+    url: string;
+    title: string;
+    media_type: string;
+    added_by: string;
+    added_by_name: string;
+    added_at: number;
+    thumbnail?: string;
 }
 
 export interface MediaState {
@@ -258,9 +271,11 @@ export interface ServerToClientEvents {
         user_name: string;
     }) => void;
     room_created: (data: { room_code: string }) => void;
+    queue_updated: (data: { queue: QueueItem[] }) => void;
     webrtc_offer: (data: WebRTCOfferData) => void;
     webrtc_answer: (data: WebRTCAnswerData) => void;
     webrtc_ice_candidate: (data: WebRTCIceCandidateData) => void;
+    reaction_updated: (data: { message_id: string; reactions: Record<string, string[]> }) => void;
     error: (data: ErrorData) => void;
     room_error: (data: ErrorData) => void;
 }
@@ -286,4 +301,10 @@ export interface ClientToServerEvents {
     webrtc_answer: (data: { target_user_id: string; answer: RTCSessionDescriptionInit }) => void;
     webrtc_ice_candidate: (data: { target_user_id: string; candidate: RTCIceCandidateInit }) => void;
     grant_control: (data: { user_id: string; enabled: boolean }) => void;
+    toggle_reaction: (data: { message_id: string; emoji: string }) => void;
+    queue_add: (data: { url: string; title: string; media_type: string; thumbnail?: string }) => void;
+    queue_remove: (data: { item_id: string }) => void;
+    queue_reorder: (data: { item_id: string; new_index: number }) => void;
+    queue_play_next: (data: {}) => void;
+    queue_clear: (data: {}) => void;
 }
