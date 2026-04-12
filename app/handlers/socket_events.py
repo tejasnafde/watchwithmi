@@ -40,6 +40,7 @@ class SocketEventHandler:
         self.sio.on('queue_reorder')(self.handle_queue_reorder)
         self.sio.on('queue_play_next')(self.handle_queue_play_next)
         self.sio.on('queue_clear')(self.handle_queue_clear)
+        self.sio.on('video_reaction')(self.handle_video_reaction)
     
     async def handle_connect(self, sid: str, environ: Dict):
         """Handle client connection."""
@@ -929,3 +930,25 @@ class SocketEventHandler:
         except Exception as e:
             logger.error(f"Error handling queue_clear: {e}")
             await self.sio.emit('error', {'message': 'Failed to clear queue'}, room=sid)
+
+    async def handle_video_reaction(self, sid: str, data: Dict[str, Any]):
+        """Handle ephemeral video reactions. Fire and forget — no storage."""
+        try:
+            emoji = data.get('emoji', '')
+            if not isinstance(emoji, str) or len(emoji) == 0 or len(emoji) > 2:
+                return
+
+            session = self.room_manager.get_user_session(sid)
+            if not session or not session.get('room_code'):
+                return
+
+            room_code = session['room_code']
+            user_name = session.get('user_name', 'Unknown')
+
+            await self.sio.emit('video_reaction', {
+                'emoji': emoji,
+                'user_name': user_name,
+                'user_id': sid,
+            }, room=room_code)
+        except Exception as e:
+            logger.error(f"Error handling video_reaction: {e}")
