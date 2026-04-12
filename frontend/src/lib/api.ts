@@ -12,7 +12,7 @@ import type {
 
 // FastAPI backend URL - adjust this based on your setup
 let BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
-if (process.env.NEXT_PUBLIC_BACKEND_URL && !BACKEND_URL.startsWith('http')) {
+if (BACKEND_URL && !BACKEND_URL.startsWith('http')) {
   // If it's just a hostname (from Render's fromService), append .onrender.com
   if (!BACKEND_URL.includes('.')) {
     BACKEND_URL = `https://${BACKEND_URL}.onrender.com`;
@@ -20,6 +20,8 @@ if (process.env.NEXT_PUBLIC_BACKEND_URL && !BACKEND_URL.startsWith('http')) {
     BACKEND_URL = `https://${BACKEND_URL}`;
   }
 }
+// Strip trailing slashes
+BACKEND_URL = BACKEND_URL.replace(/\/+$/, '');
 
 // Export BACKEND_URL for use in other modules
 export { BACKEND_URL };
@@ -29,6 +31,35 @@ const api = axios.create({
   baseURL: BACKEND_URL,
   timeout: 30000,
 });
+
+// Response interceptor for consistent error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      return Promise.reject({
+        message: 'Request timed out. Please try again.',
+        code: 'TIMEOUT',
+        originalError: error,
+      });
+    }
+    if (!error.response) {
+      return Promise.reject({
+        message: 'Network error. Please check your connection and try again.',
+        code: 'NETWORK_ERROR',
+        originalError: error,
+      });
+    }
+    const status = error.response.status;
+    const serverMessage = error.response.data?.detail || error.response.data?.message;
+    return Promise.reject({
+      message: serverMessage || `Request failed with status ${status}`,
+      code: `HTTP_${status}`,
+      status,
+      originalError: error,
+    });
+  }
+);
 
 // ============================================================================
 // P2P Content Search
@@ -100,8 +131,8 @@ export const createSocket = (): Socket<ServerToClientEvents, ClientToServerEvent
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    reconnectionAttempts: 5,
+    reconnectionDelayMax: 15000,
+    reconnectionAttempts: 20,
   });
 };
 

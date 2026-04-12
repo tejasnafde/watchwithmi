@@ -324,11 +324,17 @@ class ContentSearchService:
     def _save_to_cache(self, cache_key: str, results: List[ContentSearchResult]):
         """Save results to cache."""
         self.memory_cache[cache_key] = (time.time(), results)
-        
-        # Simple cache cleanup: remove oldest entries if cache is too large
+
+        # Remove expired entries (older than cache_ttl)
+        now = time.time()
+        expired_keys = [k for k, (ts, _) in self.memory_cache.items() if now - ts >= self.cache_ttl]
+        for key in expired_keys:
+            del self.memory_cache[key]
+
+        # Simple cache cleanup: remove oldest entries if cache is still too large
         if len(self.memory_cache) > 100:
             # Remove oldest 20 entries
-            sorted_keys = sorted(self.memory_cache.keys(), 
+            sorted_keys = sorted(self.memory_cache.keys(),
                                key=lambda k: self.memory_cache[k][0])
             for key in sorted_keys[:20]:
                 del self.memory_cache[key]
@@ -412,12 +418,12 @@ class ContentSearchService:
                                     elif 'Seeders' in text:
                                         try:
                                             seeders = int(text.replace('Seeders', '').strip())
-                                        except:
+                                        except (ValueError, AttributeError, TypeError):
                                             pass
                                     elif 'Leechers' in text:
                                         try:
                                             leechers = int(text.replace('Leechers', '').strip())
-                                        except:
+                                        except (ValueError, AttributeError, TypeError):
                                             pass
                                 
                                 results.append(ContentSearchResult(
@@ -467,12 +473,12 @@ class ContentSearchService:
                                 
                                 try:
                                     seeders = int(cols[5].get_text(strip=True))
-                                except:
+                                except (ValueError, AttributeError, TypeError):
                                     seeders = 0
-                                
+
                                 try:
                                     leechers = int(cols[6].get_text(strip=True))
-                                except:
+                                except (ValueError, AttributeError, TypeError):
                                     leechers = 0
                                 
                                 results.append(ContentSearchResult(

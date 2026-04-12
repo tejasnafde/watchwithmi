@@ -176,11 +176,17 @@ class MediaBridge:
                     file_info = torrent_info.file_at(i)
                     file_path = file_info.path
                     file_size = file_info.size
-                    
+
+                    # Path traversal protection: sanitize and verify path is within temp dir
+                    safe_path = os.path.normpath(os.path.join(self.temp_dir, file_path))
+                    if not safe_path.startswith(os.path.normpath(self.temp_dir) + os.sep):
+                        logger.warning(f"Skipping file with path traversal attempt: {file_path}")
+                        continue
+
                     # Check if it's a video file
-                    is_video = any(file_path.lower().endswith(ext) for ext in 
+                    is_video = any(file_path.lower().endswith(ext) for ext in
                                  ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v'])
-                    
+
                     file_data = {
                         'index': i,
                         'path': file_path,
@@ -497,8 +503,8 @@ class MediaBridge:
                 # Remove all medias
                 for media_id in list(self.active_media.keys()):
                     self.remove_media(media_id, delete_files=True)
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Error during MediaBridge cleanup: {e}")
 
 # Global instance - use disabled version if libmedia not available
 try:

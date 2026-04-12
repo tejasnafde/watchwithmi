@@ -10,7 +10,10 @@ logger = logging.getLogger("watchwithmi.handlers.socket_events")
 
 class SocketEventHandler:
     """Handles all Socket.IO events."""
-    
+
+    # TODO: Add rate limiting to prevent abuse. Each event handler should enforce
+    # per-client rate limits (e.g., max messages per second, max room joins per minute).
+
     def __init__(self, sio: socketio.AsyncServer, room_manager):
         self.sio = sio
         self.room_manager = room_manager
@@ -40,49 +43,52 @@ class SocketEventHandler:
     async def handle_disconnect(self, sid: str):
         """Handle client disconnection."""
         logger.info(f" Client {sid} disconnected")
-        
-        session = self.room_manager.get_user_session(sid)
-        if session and session.get('room_code'):
-            room_code = session['room_code']
-            user_name = session.get('user_name')
-            
-            # Add a longer delay to allow for page transitions and reconnections
-            # This prevents immediate cleanup when user navigates between pages or refreshes
-            import asyncio
-            await asyncio.sleep(30)  # Increased from 3 to 30 seconds
-            
-            # Check if user has reconnected with a different session
-            room = self.room_manager.get_room(room_code)
-            if room and sid in room.users:
-                # Check if there's another active session for the same user
-                has_other_session = False
-                for other_sid, other_user in room.users.items():
-                    if other_sid != sid and other_user.name == user_name:
-                        has_other_session = True
-                        break
-                
-                # Only remove if user hasn't reconnected with different session
-                if not has_other_session:
-                    new_host_id = self.room_manager.leave_room(room_code, sid)
-                    
-                    # Notify room about user leaving
-                    await self.sio.emit('user_left', {
-                        'user_id': sid,
-                        'user_name': user_name,
-                        'new_host': new_host_id
-                    }, room=room_code)
-                    
-                    # Update user list for room
-                    updated_room = self.room_manager.get_room(room_code)
-                    if updated_room:
-                        await self.sio.emit('users_updated', {
-                            'users': {uid: user.to_dict() for uid, user in updated_room.users.items()},
-                            'host': updated_room.host_id
+
+        try:
+            session = self.room_manager.get_user_session(sid)
+            if session and session.get('room_code'):
+                room_code = session['room_code']
+                user_name = session.get('user_name')
+
+                # Add a longer delay to allow for page transitions and reconnections
+                # This prevents immediate cleanup when user navigates between pages or refreshes
+                import asyncio
+                await asyncio.sleep(30)  # Increased from 3 to 30 seconds
+
+                # Check if user has reconnected with a different session
+                room = self.room_manager.get_room(room_code)
+                if room and sid in room.users:
+                    # Check if there's another active session for the same user
+                    has_other_session = False
+                    for other_sid, other_user in room.users.items():
+                        if other_sid != sid and other_user.name == user_name:
+                            has_other_session = True
+                            break
+
+                    # Only remove if user hasn't reconnected with different session
+                    if not has_other_session:
+                        new_host_id = self.room_manager.leave_room(room_code, sid)
+
+                        # Notify room about user leaving
+                        await self.sio.emit('user_left', {
+                            'user_id': sid,
+                            'user_name': user_name,
+                            'new_host': new_host_id
                         }, room=room_code)
-                else:
-                    # Just remove the session without notifications since user is still present
-                    logger.info(f"User {user_name} has active session, cleaning up old session {sid}")
-                    self.room_manager.leave_room(room_code, sid)
+
+                        # Update user list for room
+                        updated_room = self.room_manager.get_room(room_code)
+                        if updated_room:
+                            await self.sio.emit('users_updated', {
+                                'users': {uid: user.to_dict() for uid, user in updated_room.users.items()},
+                                'host': updated_room.host_id
+                            }, room=room_code)
+                    else:
+                        # Just remove the session without notifications since user is still present
+                        logger.info(f"User {user_name} has active session, cleaning up old session {sid}")
+                        self.room_manager.leave_room(room_code, sid)
+        except Exception as e:
+            logger.error(f"Error handling disconnect for {sid}: {e}")
     
     async def handle_create_room(self, sid: str, data: Dict[str, Any]):
         """Handle room creation."""
@@ -96,18 +102,25 @@ class SocketEventHandler:
         try:
             # Create room
             room_code = self.room_manager.create_room(user_name, requested_code if requested_code else None)
-            
+
+            # Join Socket.IO room BEFORE updating room state to keep them atomic.
+            # If enter_room fails, we don't leave orphaned state in room_manager.
+            try:
+                await self.sio.enter_room(sid, room_code)
+            except Exception as e:
+                logger.error(f"Failed to enter Socket.IO room {room_code}: {e}")
+                await self.sio.emit('error', {'message': 'Failed to create room'}, room=sid)
+                return
+
             # Join as host
             success = self.room_manager.join_room(room_code, sid, user_name, True)
-            
+
             if success:
-                # Join Socket.IO room
-                await self.sio.enter_room(sid, room_code)
                 logger.debug(f" User {sid} entered Socket.IO room {room_code}")
-                
+
                 # Get room data
                 room = self.room_manager.get_room(room_code)
-                
+
                 # Send response
                 await self.sio.emit('room_created', {
                     'room_code': room_code,
@@ -117,11 +130,11 @@ class SocketEventHandler:
                     'users': {uid: user.to_dict() for uid, user in room.users.items()},
                     'chat': [msg.to_dict() for msg in room.chat]
                 }, room=sid)
-                
+
                 logger.info(f" Room {room_code} created successfully by {user_name}")
             else:
                 await self.sio.emit('error', {'message': 'Failed to create room'}, room=sid)
-                
+
         except Exception as e:
             logger.error(f" Error creating room: {e}")
             await self.sio.emit('error', {'message': 'Server error occurred'}, room=sid)
@@ -142,39 +155,50 @@ class SocketEventHandler:
                 await self.sio.emit('error', {'message': 'Room not found'}, room=sid)
                 return
             
-            # Check if this user is already in the room (reconnection scenario)
+            # Check if this user is reconnecting by matching their previous session ID.
+            # We don't match by username because names aren't unique -- two different
+            # people could share the same display name.
             existing_user = None
             was_existing_host = False
-            for existing_sid, user in room.users.items():
-                if user.name == user_name:
-                    existing_user = user
-                    was_existing_host = user.is_host
-                    break
-            
+            previous_session = self.room_manager.get_user_session(sid)
+            previous_sid = previous_session.get('previous_sid') if previous_session else None
+            if previous_sid and previous_sid in room.users:
+                existing_user = room.users[previous_sid]
+                was_existing_host = existing_user.is_host
+            elif sid in room.users:
+                existing_user = room.users[sid]
+                was_existing_host = existing_user.is_host
+
             # Determine if user should be host
             # Case 1: Empty room - first user becomes host
             # Case 2: Reconnecting as previous host
             # Case 3: Room exists but no active host (dead host session)
-            is_host = (room.user_count == 0 or 
-                      was_existing_host or 
-                      room.host_id is None or 
+            is_host = (room.user_count == 0 or
+                      was_existing_host or
+                      room.host_id is None or
                       room.host_id not in room.users)
-            
+
+            # Join Socket.IO room BEFORE updating room state to keep them atomic.
+            # If enter_room fails, we don't leave orphaned state in room_manager.
+            try:
+                await self.sio.enter_room(sid, room_code)
+            except Exception as e:
+                logger.error(f"Failed to enter Socket.IO room {room_code}: {e}")
+                await self.sio.emit('error', {'message': 'Failed to join room'}, room=sid)
+                return
+
             logger.info(f"Adding user {user_name} to room {room_code} (as host: {is_host})")
             success = self.room_manager.join_room(room_code, sid, user_name, is_host)
-            
+
             if success:
                 # Log host assignment details after join
                 updated_room = self.room_manager.get_room(room_code)
                 is_actually_host = updated_room.users[sid].is_host
-                
+
                 if existing_user:
                     logger.info(f"User {user_name} reconnected (was_host: {was_existing_host}, now_host: {is_actually_host})")
                 else:
                     logger.info(f"New user {user_name} joined (is_host: {is_actually_host})")
-                    
-                # Join Socket.IO room
-                await self.sio.enter_room(sid, room_code)
                 
                 # Prepare response payload
                 user_list = {uid: user.to_dict() for uid, user in updated_room.users.items()}
@@ -219,6 +243,7 @@ class SocketEventHandler:
         """Handle chat messages."""
         message = data.get('message', '').strip()
         if not message:
+            await self.sio.emit('error', {'message': 'Message cannot be empty'}, room=sid)
             return
         
         try:
@@ -311,7 +336,18 @@ class SocketEventHandler:
                 media_url = data.get('url', '').strip()
                 media_type = data.get('type', 'youtube')
                 media_title = data.get('title', '')
-                
+
+                # Validate media_url is a string with an allowed scheme
+                if not isinstance(media_url, str) or not media_url.startswith(('http://', 'https://', 'magnet:', '/')):
+                    await self.sio.emit('error', {'message': 'Invalid media URL'}, room=sid)
+                    return
+
+                # Validate media_type is one of the supported types
+                allowed_media_types = ('youtube', 'video', 'audio', 'media')
+                if media_type not in allowed_media_types:
+                    await self.sio.emit('error', {'message': f'Invalid media type. Must be one of: {", ".join(allowed_media_types)}'}, room=sid)
+                    return
+
                 if media_url:
                     self.room_manager.update_media(
                         sid, 
@@ -563,8 +599,9 @@ class SocketEventHandler:
         """Handle WebRTC offer signaling."""
         target_user_id = data.get('target_user_id')
         offer = data.get('offer')
-        
+
         if not target_user_id or not offer:
+            await self.sio.emit('error', {'message': 'Missing target_user_id or offer'}, room=sid)
             return
         
         try:
@@ -594,8 +631,9 @@ class SocketEventHandler:
         """Handle WebRTC answer signaling."""
         target_user_id = data.get('target_user_id')
         answer = data.get('answer')
-        
+
         if not target_user_id or not answer:
+            await self.sio.emit('error', {'message': 'Missing target_user_id or answer'}, room=sid)
             return
         
         try:
@@ -625,8 +663,9 @@ class SocketEventHandler:
         """Handle WebRTC ICE candidate signaling."""
         target_user_id = data.get('target_user_id')
         candidate = data.get('candidate')
-        
+
         if not target_user_id or not candidate:
+            await self.sio.emit('error', {'message': 'Missing target_user_id or candidate'}, room=sid)
             return
         
         try:
@@ -658,11 +697,13 @@ class SocketEventHandler:
         enabled = data.get('enabled', False)
         
         if not target_user_id:
+            await self.sio.emit('error', {'message': 'Missing target user_id'}, room=sid)
             return
-            
+
         try:
             session = self.room_manager.get_user_session(sid)
             if not session or not session.get('room_code'):
+                await self.sio.emit('error', {'message': 'Not in a room'}, room=sid)
                 return
                 
             room_code = session['room_code']

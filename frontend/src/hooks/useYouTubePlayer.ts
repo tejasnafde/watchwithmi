@@ -25,6 +25,7 @@ interface UseYouTubePlayerReturn {
     duration: number;
     error: string | null;
     buffering: boolean;
+    clearError: () => void;
 }
 
 const SYNC_THRESHOLD = 2.0; // seconds
@@ -318,7 +319,8 @@ export const useYouTubePlayer = ({
             if (playerCurrentTime === null || playerCurrentTime === undefined) return;
 
             const timeSinceLastSync = (Date.now() - lastSyncTimeRef.current) / 1000;
-            const expectedTime = targetTimestamp + timeSinceLastSync;
+            // Only add elapsed time when actually playing; when paused, expected position is the target itself
+            const expectedTime = isPlaying ? targetTimestamp + timeSinceLastSync : targetTimestamp;
             const drift = Math.abs(playerCurrentTime - expectedTime);
 
             if (drift > SYNC_THRESHOLD) {
@@ -352,5 +354,6 @@ export const useYouTubePlayer = ({
         duration,
         error,
         buffering,
+        clearError: useCallback(() => setError(null), []),
     };
 };

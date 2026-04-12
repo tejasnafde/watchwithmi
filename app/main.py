@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 import os
+import re
 
 # Import our modules
 from .config import setup_logging, APP_NAME, VERSION, STATIC_DIR, SOCKETIO_CORS_ALLOWED_ORIGINS
@@ -23,6 +24,7 @@ from .handlers.socket_events import SocketEventHandler
 from .services.p2p_search import ContentSearchService  # New robust P2P search
 from .services.youtube_search import YouTubeSearchService
 from .api.media_bridge_api import router as media_bridge_router
+from .services.media_bridge import media_bridge
 
 # Initialize logging
 logger = setup_logging()
@@ -55,6 +57,10 @@ async def lifespan(app: FastAPI):
         cleaned = room_manager.cleanup_empty_rooms()
         if cleaned > 0:
             logger.info(f" Cleaned up {cleaned} empty rooms")
+    # Clean up media bridge
+    if media_bridge and hasattr(media_bridge, 'active_media') and media_bridge.active_media:
+        logger.info(f" Cleaning up {len(media_bridge.active_media)} active media items")
+        media_bridge.clear_all_medias()
 
 # Handle CORS origins - convert string to list if necessary
 cors_origins = SOCKETIO_CORS_ALLOWED_ORIGINS
@@ -172,6 +178,8 @@ async def home():
 async def get_room_info(room_code: str):
     """Get room information."""
     room_code = room_code.upper()
+    if not re.match(r'^[A-Z0-9]{1,20}$', room_code):
+        raise HTTPException(status_code=400, detail="Invalid room code format")
     room = room_manager.get_room(room_code)
     
     if not room:

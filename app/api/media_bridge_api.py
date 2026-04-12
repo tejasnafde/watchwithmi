@@ -9,7 +9,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 import aiofiles
 
 from app.services.media_bridge import media_bridge
@@ -21,6 +21,14 @@ router = APIRouter(prefix="/api/media", tags=["media_bridge"])
 class AddMediaRequest(BaseModel):
     magnet_url: str
     title: Optional[str] = None
+
+    @validator('magnet_url')
+    def validate_magnet_url(cls, v):
+        if not v:
+            raise ValueError('magnet_url cannot be empty')
+        if not (v.startswith('magnet:?') or v.startswith('http://') or v.startswith('https://')):
+            raise ValueError('magnet_url must start with "magnet:?", "http://", or "https://"')
+        return v
 
 class MediaStatusResponse(BaseModel):
     id: str
@@ -139,10 +147,22 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
             range_match = range_header.replace('bytes=', '').split('-')
             start = int(range_match[0]) if range_match[0] else 0
             end = int(range_match[1]) if range_match[1] else expected_size - 1
-            
+
+            # Validate range bounds
+            if start < 0:
+                raise HTTPException(status_code=416, detail="Range start must be non-negative")
+            # Clamp end to valid maximum
+            end = min(end, expected_size - 1)
+            if start > end:
+                raise HTTPException(
+                    status_code=416,
+                    detail="Range not satisfiable: start exceeds end",
+                    headers={"Content-Range": f"bytes */{expected_size}"}
+                )
+
             # Limit end to what's actually available on disk
             available_end = min(end, file_size - 1)
-            
+
             if start >= file_size:
                 raise HTTPException(status_code=416, detail="Requested range not yet downloaded")
             
