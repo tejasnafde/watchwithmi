@@ -126,9 +126,16 @@ export const clearAllMedia = async (): Promise<{ success: boolean; message: stri
 // ============================================================================
 
 export const createSocket = (): Socket<ServerToClientEvents, ClientToServerEvents> => {
+  // Socket.IO automatically upgrades to wss:// when BACKEND_URL uses https://.
+  // The 'secure' option is set explicitly below as belt-and-suspenders to make
+  // the intent clear for production deployments.
+  const isSecure = BACKEND_URL.startsWith('https');
+
   return io(BACKEND_URL, {
     path: '/socket.io/',
     transports: ['websocket', 'polling'],
+    secure: isSecure,
+    withCredentials: false, // No cookie-based auth; avoids CORS preflight issues
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 15000,

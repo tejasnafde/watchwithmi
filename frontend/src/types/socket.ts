@@ -262,6 +262,7 @@ export interface ServerToClientEvents {
     webrtc_answer: (data: WebRTCAnswerData) => void;
     webrtc_ice_candidate: (data: WebRTCIceCandidateData) => void;
     error: (data: ErrorData) => void;
+    room_error: (data: ErrorData) => void;
 }
 
 export interface ClientToServerEvents {

@@ -1,10 +1,8 @@
 "use client"
 
-import React, { useEffect, useRef } from 'react';
-import { Video, VideoOff, Mic, MicOff, Users } from 'lucide-react';
+import React, { useCallback, useRef } from 'react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { Socket } from 'socket.io-client';
 import type { User } from '@/types';
@@ -15,75 +13,104 @@ interface VideoChatProps {
     users: User[];
 }
 
+function getInitials(name: string): string {
+    return name
+        .split(' ')
+        .map(part => part[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+}
+
+function getAvatarColor(name: string): string {
+    const colors = [
+        'bg-blue-600', 'bg-green-600', 'bg-purple-600',
+        'bg-pink-600', 'bg-yellow-600', 'bg-red-600',
+        'bg-indigo-600', 'bg-teal-600'
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+}
+
 const VideoTile: React.FC<{
     userName: string;
     isLocal?: boolean;
     videoStream?: MediaStream;
-    videoRef?: React.RefObject<HTMLVideoElement | null>;
     setVideoRef?: (element: HTMLVideoElement | null) => void;
     videoEnabled?: boolean;
     audioEnabled?: boolean;
-    isHost?: boolean;
-}> = ({ userName, isLocal = false, videoStream, videoRef, setVideoRef, videoEnabled = false, audioEnabled = false, isHost = false }) => {
-    const remoteVideoRef = useRef<HTMLVideoElement>(null);
+}> = ({ userName, isLocal = false, videoStream, setVideoRef, videoEnabled = false, audioEnabled = false }) => {
+    const videoStreamRef = useRef<MediaStream | undefined>(videoStream);
+    videoStreamRef.current = videoStream;
 
-    useEffect(() => {
-        if (!isLocal && videoStream && remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = videoStream;
+    const remoteVideoRef = useCallback((element: HTMLVideoElement | null) => {
+        if (element && videoStreamRef.current) {
+            element.srcObject = videoStreamRef.current;
+            element.play().catch(() => {});
         }
-    }, [videoStream, isLocal]);
+    }, []);
 
-    const currentVideoRef = isLocal ? videoRef : remoteVideoRef;
+    // Also handle stream changes after mount via a separate callback ref wrapper
+    const remoteVideoElementRef = useRef<HTMLVideoElement | null>(null);
+    const setRemoteRef = useCallback((element: HTMLVideoElement | null) => {
+        remoteVideoElementRef.current = element;
+        remoteVideoRef(element);
+    }, [remoteVideoRef]);
+
+    // When videoStream changes, update the existing element
+    const prevStreamRef = useRef<MediaStream | undefined>(undefined);
+    if (videoStream !== prevStreamRef.current && remoteVideoElementRef.current && videoStream) {
+        remoteVideoElementRef.current.srcObject = videoStream;
+        remoteVideoElementRef.current.play().catch(() => {});
+    }
+    prevStreamRef.current = videoStream;
 
     return (
-        <Card className="relative overflow-hidden bg-[#0a0a0a] border-2 border-white">
-            <div className="aspect-video relative">
-                {/* Always render video element but control visibility */}
-                <video
-                    ref={isLocal && setVideoRef ? setVideoRef : currentVideoRef}
-                    autoPlay
-                    playsInline
-                    muted={isLocal} // Always mute local video to prevent feedback
-                    className={`w-full h-full object-cover ${videoEnabled ? 'block' : 'hidden'}`}
-                />
+        <div className="relative overflow-hidden bg-[#111] border border-white/20 aspect-video">
+            {/* Video element */}
+            <video
+                ref={isLocal && setVideoRef ? setVideoRef : setRemoteRef}
+                autoPlay
+                playsInline
+                muted={isLocal}
+                className={`w-full h-full object-cover ${videoEnabled ? 'block' : 'hidden'}`}
+            />
 
-                {/* Avatar/placeholder shown when video is disabled */}
-                {!videoEnabled && (
-                    <div className="absolute inset-0 w-full h-full bg-black flex items-center justify-center">
-                        <div className="text-center">
-                            <div className="w-16 h-16 bg-white flex items-center justify-center mb-2 mx-auto">
-                                <Users className="w-8 h-8 text-black" />
-                            </div>
-                            <p className="text-white text-sm font-mono uppercase">{userName}</p>
-                        </div>
+            {/* Avatar placeholder when video is off */}
+            {!videoEnabled && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#111]">
+                    <div className={`w-10 h-10 rounded-full ${getAvatarColor(userName)} flex items-center justify-center`}>
+                        <span className="text-white text-sm font-bold font-mono">
+                            {getInitials(userName)}
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {/* Name label */}
+            <div className="absolute bottom-1 left-1">
+                <span className="text-[10px] font-mono text-white bg-black/70 px-1.5 py-0.5">
+                    {isLocal ? 'YOU' : userName.toUpperCase()}
+                </span>
+            </div>
+
+            {/* Status indicators */}
+            <div className="absolute top-1 right-1 flex items-center gap-0.5">
+                {!audioEnabled && (
+                    <div className="w-4 h-4 bg-red-600/90 rounded-full flex items-center justify-center">
+                        <MicOff className="w-2.5 h-2.5 text-white" />
                     </div>
                 )}
-
-                {/* User info overlay - moved to top to avoid covering controls */}
-                <div className="absolute top-2 left-2 flex items-center space-x-1">
-                    <Badge
-                        variant={isHost ? "default" : "secondary"}
-                        className={`text-xs font-mono ${isHost ? "bg-white text-black" : "bg-black text-white border border-white"}`}
-                    >
-                        {userName.toUpperCase()} {isHost && "HOST"}
-                    </Badge>
-                </div>
-
-                {/* Video/Audio status overlay - smaller and positioned better */}
-                <div className="absolute top-2 right-2 flex items-center space-x-1">
-                    {!videoEnabled && (
-                        <div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center">
-                            <VideoOff className="w-2.5 h-2.5 text-white" />
-                        </div>
-                    )}
-                    {!audioEnabled && (
-                        <div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center">
-                            <MicOff className="w-2.5 h-2.5 text-white" />
-                        </div>
-                    )}
-                </div>
+                {!videoEnabled && (
+                    <div className="w-4 h-4 bg-red-600/90 rounded-full flex items-center justify-center">
+                        <VideoOff className="w-2.5 h-2.5 text-white" />
+                    </div>
+                )}
             </div>
-        </Card>
+        </div>
     );
 };
 
@@ -96,97 +123,114 @@ export const VideoChat: React.FC<VideoChatProps> = ({
         setVideoRef,
         videoEnabled,
         audioEnabled,
+        isActive,
         isInitializing,
         connections,
         toggleVideo,
-        toggleAudio
+        toggleAudio,
+        startVideoChat,
+        stopVideoChat
     } = useWebRTC({
         socket,
         currentUserId,
         users
     });
 
-    // Create local ref for video element
-    const localVideoRef = useRef<HTMLVideoElement>(null);
-
     const currentUser = users.find(u => u.id === currentUserId);
     const otherUsers = users.filter(u => u.id !== currentUserId);
 
+    // Inactive state: show a compact start button
+    if (!isActive) {
+        return (
+            <div className="flex flex-col items-center gap-2 py-2">
+                <Button
+                    onClick={startVideoChat}
+                    disabled={isInitializing}
+                    className="w-full border-2 border-white bg-black text-white hover:bg-white hover:text-black font-mono uppercase text-xs"
+                >
+                    <Video className="w-3.5 h-3.5 mr-2" />
+                    {isInitializing ? 'STARTING...' : 'START VIDEO CHAT'}
+                </Button>
+                <p className="text-[10px] text-gray-500 font-mono">
+                    Camera and mic will be requested
+                </p>
+            </div>
+        );
+    }
+
+    // Active state: show video grid and controls
     return (
-        <div className="h-full flex flex-col space-y-3">
-            {/* Video Controls - Made more compact */}
-            <div className="flex items-center justify-center space-x-1 px-2">
+        <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+            {/* Video grid */}
+            <div className="grid grid-cols-2 gap-1">
+                {/* Local tile */}
+                <VideoTile
+                    userName={currentUser?.name || 'You'}
+                    isLocal={true}
+                    setVideoRef={setVideoRef}
+                    videoEnabled={videoEnabled}
+                    audioEnabled={audioEnabled}
+                />
+
+                {/* Remote tiles */}
+                {otherUsers.map(user => {
+                    const connection = connections.get(user.id);
+                    return (
+                        <VideoTile
+                            key={user.id}
+                            userName={user.name}
+                            videoStream={connection?.remoteStream}
+                            videoEnabled={user.video_enabled}
+                            audioEnabled={user.audio_enabled}
+                        />
+                    );
+                })}
+            </div>
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-1 pt-1">
                 <Button
                     onClick={toggleVideo}
-                    variant="outline"
                     size="sm"
-                    className="border-2 border-white bg-black text-white hover:bg-white hover:text-black flex items-center space-x-1 text-xs px-2 py-1"
-                    disabled={isInitializing}
+                    className={`h-7 w-7 p-0 border border-white ${
+                        videoEnabled
+                            ? 'bg-black text-white hover:bg-white hover:text-black'
+                            : 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+                    }`}
+                    title={videoEnabled ? 'Turn off camera' : 'Turn on camera'}
                 >
-                    {videoEnabled ? <Video className="w-3 h-3" /> : <VideoOff className="w-3 h-3" />}
-                    <span className="hidden sm:inline uppercase text-xs">{videoEnabled ? "Video Off" : "Video On"}</span>
+                    {videoEnabled ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
                 </Button>
 
                 <Button
                     onClick={toggleAudio}
-                    variant="outline"
                     size="sm"
-                    className="border-2 border-white bg-black text-white hover:bg-white hover:text-black flex items-center space-x-1 text-xs px-2 py-1"
-                    disabled={isInitializing}
+                    className={`h-7 w-7 p-0 border border-white ${
+                        audioEnabled
+                            ? 'bg-black text-white hover:bg-white hover:text-black'
+                            : 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+                    }`}
+                    title={audioEnabled ? 'Mute microphone' : 'Unmute microphone'}
                 >
-                    {audioEnabled ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
-                    <span className="hidden sm:inline uppercase text-xs">{audioEnabled ? "Mute" : "Unmute"}</span>
+                    {audioEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+                </Button>
+
+                <Button
+                    onClick={stopVideoChat}
+                    size="sm"
+                    className="h-7 w-7 p-0 bg-red-600 text-white border border-red-600 hover:bg-red-700"
+                    title="End video chat"
+                >
+                    <PhoneOff className="w-3.5 h-3.5" />
                 </Button>
             </div>
 
-            {/* Video Grid - More compact */}
-            <div className="flex-1 space-y-2">
-                {/* Local user video */}
-                <div>
-                    <h3 className="text-xs font-bold text-white mb-1 px-1 uppercase font-mono">You</h3>
-                    <VideoTile
-                        userName={currentUser?.name || 'You'}
-                        isLocal={true}
-                        videoRef={localVideoRef}
-                        setVideoRef={setVideoRef}
-                        videoEnabled={videoEnabled}
-                        audioEnabled={audioEnabled}
-                        isHost={currentUser?.is_host}
-                    />
-                </div>
-
-                {/* Other users' videos */}
-                {otherUsers.length > 0 && (
-                    <div>
-                        <h3 className="text-xs font-bold text-white mb-1 px-1 uppercase font-mono">
-                            Others ({otherUsers.length})
-                        </h3>
-                        <div className="space-y-2">
-                            {otherUsers.map(user => {
-                                const connection = connections.get(user.id);
-                                return (
-                                    <VideoTile
-                                        key={user.id}
-                                        userName={user.name}
-                                        videoStream={connection?.remoteStream}
-                                        videoEnabled={user.video_enabled}
-                                        audioEnabled={user.audio_enabled}
-                                        isHost={user.is_host}
-                                    />
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Connection Status */}
-            {socket === null && (
-                <div className="text-center py-2">
-                    <p className="text-xs text-gray-400 uppercase font-mono">Connecting to room...</p>
-                </div>
+            {/* Connection info */}
+            {otherUsers.length === 0 && (
+                <p className="text-[10px] text-gray-500 font-mono text-center">
+                    No other users in room
+                </p>
             )}
-
         </div>
     );
-}; 
+};

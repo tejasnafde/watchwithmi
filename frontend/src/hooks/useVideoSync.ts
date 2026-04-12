@@ -30,6 +30,12 @@ export const useVideoSync = ({
     const socketFlagTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
     const lastSyncTime = useRef<number>(0);
 
+    // Track buffering state to ignore pause/play events caused by buffering
+    const isBufferingRef = useRef(false);
+
+    // Track last known valid currentTime to detect buffer reset glitches
+    const lastKnownTimeRef = useRef<number>(0);
+
     // Constants for sync behavior
     const SYNC_THRESHOLD = 1.0; // seconds - only sync if diff > this
     const SYNC_DEBOUNCE = 100; // ms - debounce time for sync operations
@@ -119,13 +125,46 @@ export const useVideoSync = ({
     }, [currentMedia.timestamp, currentMedia.url, videoRef]);
 
     /**
+     * Handle video entering buffering state
+     */
+    const handleWaiting = useCallback(() => {
+        isBufferingRef.current = true;
+        logger.debug('Video buffering (sync hook)');
+    }, []);
+
+    /**
+     * Handle video exiting buffering state
+     */
+    const handleCanPlay = useCallback(() => {
+        isBufferingRef.current = false;
+        logger.debug('Video can play (sync hook)');
+    }, []);
+
+    /**
      * Handle video play event (host only)
      */
     const handleVideoPlay = useCallback(() => {
         if (!videoRef.current || !canControl || isUpdatingFromSocket.current) return;
 
+        // Ignore play events triggered by buffering recovery
+        if (isBufferingRef.current) {
+            logger.debug('Ignoring play event during buffering');
+            return;
+        }
+
+        const currentTime = videoRef.current.currentTime;
+
+        // Validate timestamp: if currentTime is 0 but we were previously at a later position, skip
+        if (currentTime === 0 && lastKnownTimeRef.current > 5) {
+            logger.warn('Ignoring play event with reset timestamp', {
+                currentTime,
+                lastKnownTime: lastKnownTimeRef.current
+            });
+            return;
+        }
+
         logger.debug('Video play event (controller)');
-        onPlayPause('play', videoRef.current.currentTime);
+        onPlayPause('play', currentTime);
     }, [canControl, onPlayPause, videoRef]);
 
     /**
@@ -134,8 +173,35 @@ export const useVideoSync = ({
     const handleVideoPause = useCallback(() => {
         if (!videoRef.current || !canControl || isUpdatingFromSocket.current) return;
 
+        // Ignore pause events triggered by buffering
+        if (isBufferingRef.current) {
+            logger.debug('Ignoring pause event during buffering');
+            return;
+        }
+
+        const currentTime = videoRef.current.currentTime;
+
+        // Validate timestamp: if currentTime is 0 but we were previously at a later position, skip
+        if (currentTime === 0 && lastKnownTimeRef.current > 5) {
+            logger.warn('Ignoring pause event with reset timestamp', {
+                currentTime,
+                lastKnownTime: lastKnownTimeRef.current
+            });
+            return;
+        }
+
+        // If the timestamp jumped backwards by more than 30 seconds, it's likely a buffer glitch
+        if (lastKnownTimeRef.current - currentTime > 30) {
+            logger.warn('Ignoring pause event with stale timestamp', {
+                currentTime,
+                lastKnownTime: lastKnownTimeRef.current,
+                diff: lastKnownTimeRef.current - currentTime
+            });
+            return;
+        }
+
         logger.debug('Video pause event (controller)');
-        onPlayPause('pause', videoRef.current.currentTime);
+        onPlayPause('pause', currentTime);
     }, [canControl, onPlayPause, videoRef]);
 
     /**
@@ -143,6 +209,12 @@ export const useVideoSync = ({
      */
     const handleVideoSeeked = useCallback(() => {
         if (!videoRef.current || !canControl || isUpdatingFromSocket.current) return;
+
+        // Ignore seek events triggered by buffering
+        if (isBufferingRef.current) {
+            logger.debug('Ignoring seek event during buffering');
+            return;
+        }
 
         logger.debug('Video seeked event (controller)', { time: videoRef.current.currentTime });
         onSeek(videoRef.current.currentTime);
@@ -152,7 +224,15 @@ export const useVideoSync = ({
      * Handle video time update for drift detection
      */
     const handleTimeUpdate = useCallback(() => {
-        if (!videoRef.current || !currentMedia.url || currentMedia.state !== 'playing') return;
+        if (!videoRef.current || !currentMedia.url) return;
+
+        // Always update lastKnownTimeRef for timestamp validation
+        const currentTime = videoRef.current.currentTime;
+        if (currentTime > 0) {
+            lastKnownTimeRef.current = currentTime;
+        }
+
+        if (currentMedia.state !== 'playing') return;
         if (canControl || isUpdatingFromSocket.current) return;
 
         const video = videoRef.current;
@@ -210,6 +290,8 @@ export const useVideoSync = ({
         handleVideoPause,
         handleVideoSeeked,
         handleTimeUpdate,
+        handleWaiting,
+        handleCanPlay,
         isUpdatingFromSocket: isUpdatingFromSocket.current
     };
 };

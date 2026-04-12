@@ -12,14 +12,16 @@ import { Socket } from 'socket.io-client';
 import { logger } from '@/lib/logger';
 import { useVideoSync } from '@/hooks/useVideoSync';
 import { useYouTubePlayer } from '@/hooks/useYouTubePlayer';
-import type { MediaState } from '@/types';
+import type { MediaState, MediaStatus } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { Play, Maximize, Loader2, SkipBack, SkipForward } from 'lucide-react';
 
 interface MediaPlayerProps {
     currentMedia: MediaState;
     canControl: boolean;
     socket: Socket | null;
+    mediaStatus?: MediaStatus | null;
     onPlayPause: (action: 'play' | 'pause', timestamp: number) => void;
     onSeek: (timestamp: number) => void;
     onPlaylistNext?: () => void;
@@ -30,6 +32,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     currentMedia,
     canControl,
     socket,
+    mediaStatus,
     onPlayPause,
     onSeek,
     onPlaylistNext,
@@ -46,7 +49,9 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         handleVideoPlay,
         handleVideoPause,
         handleVideoSeeked,
-        handleTimeUpdate
+        handleTimeUpdate,
+        handleWaiting: syncHandleWaiting,
+        handleCanPlay: syncHandleCanPlay
     } = useVideoSync({
         videoRef,
         currentMedia,
@@ -94,17 +99,19 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         }
     }, []);
 
-    // Handle buffering states
+    // Handle buffering states (combines local UI state + sync hook buffering ref)
     const handleWaiting = useCallback(() => {
         logger.debug('Video buffering...');
         setIsBuffering(true);
-    }, []);
+        syncHandleWaiting();
+    }, [syncHandleWaiting]);
 
     const handleCanPlay = useCallback(() => {
         logger.debug('Video can play');
         setIsBuffering(false);
         setVideoError(null);
-    }, []);
+        syncHandleCanPlay();
+    }, [syncHandleCanPlay]);
 
     // Reset error state when media changes
     useEffect(() => {
@@ -284,11 +291,40 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
             {/* Loading overlay */}
             {(currentMedia.loading || isBuffering) && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <div className="text-center text-white">
-                        <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
-                        <p>{currentMedia.loading ? 'Loading media...' : 'Buffering...'}</p>
-                        {currentMedia.title && (
-                            <p className="text-sm mt-2 opacity-75">{currentMedia.title}</p>
+                    <div className="text-center text-white w-80 max-w-[90%]">
+                        {currentMedia.loading && mediaStatus ? (
+                            <>
+                                {currentMedia.title && (
+                                    <p className="text-sm font-medium mb-3 opacity-90 truncate">{currentMedia.title}</p>
+                                )}
+                                <div className="mb-3">
+                                    <div className="flex justify-between text-xs font-mono mb-1 opacity-75">
+                                        <span>{(mediaStatus.progress * 100).toFixed(1)}%</span>
+                                        {mediaStatus.download_rate > 0 && (
+                                            <span>{(mediaStatus.download_rate / 1024 / 1024).toFixed(1)} MB/s</span>
+                                        )}
+                                    </div>
+                                    <Progress value={mediaStatus.progress * 100} className="h-2 bg-white/20" />
+                                </div>
+                                {mediaStatus.file_progress !== undefined && mediaStatus.file_progress !== mediaStatus.progress && (
+                                    <div className="mb-3">
+                                        <div className="flex justify-between text-xs font-mono mb-1 opacity-75">
+                                            <span>File: {(mediaStatus.file_progress * 100).toFixed(1)}%</span>
+                                            <span>{mediaStatus.streaming_ready ? 'READY' : 'BUFFERING'}</span>
+                                        </div>
+                                        <Progress value={mediaStatus.file_progress * 100} className="h-2 bg-white/20" />
+                                    </div>
+                                )}
+                                <p className="text-xs opacity-50 font-mono">{mediaStatus.num_peers} peers connected</p>
+                            </>
+                        ) : (
+                            <>
+                                <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+                                <p>{currentMedia.loading ? 'Loading media...' : 'Buffering...'}</p>
+                                {currentMedia.title && (
+                                    <p className="text-sm mt-2 opacity-75">{currentMedia.title}</p>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
