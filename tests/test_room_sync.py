@@ -5,11 +5,9 @@ Run with: pytest tests/test_room_sync.py -v
 """
 
 import time
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
 
 import sys
 import os
@@ -17,7 +15,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.services.room_manager import RoomManager
-from app.models.room import Room, User, MediaState, generate_room_code
+from app.models.room import generate_room_code
 from app.handlers.socket_events import SocketEventHandler
 
 

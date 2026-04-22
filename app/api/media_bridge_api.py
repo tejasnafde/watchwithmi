@@ -2,12 +2,11 @@
 API endpoints for media bridge functionality (P2P content streaming)
 """
 
-import asyncio
 import os
 import uuid
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, validator
 import aiofiles
@@ -49,21 +48,21 @@ async def add_media(request: AddMediaRequest):
     try:
         # Generate unique ID for this media
         media_id = str(uuid.uuid4())
-        
+
         logger.info(f" Adding media via bridge: {media_id}")
-        
+
         # Add media to bridge
         result = await media_bridge.add_media(request.magnet_url, media_id)
-        
+
         if 'error' in result:
             raise HTTPException(status_code=400, detail=result['error'])
-        
+
         return {
             "success": True,
             "media_id": media_id,
             "status": result
         }
-        
+
     except Exception as e:
         logger.error(f" Error adding media: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -73,12 +72,12 @@ async def get_media_status(media_id: str):
     """Get status of a media download"""
     try:
         status = media_bridge.get_media_status(media_id)
-        
+
         if 'error' in status:
             raise HTTPException(status_code=404, detail=status['error'])
-        
+
         return status
-        
+
     except Exception as e:
         logger.error(f" Error getting media status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -90,11 +89,11 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
     try:
         # 1. Get media status first to check if it exists and has metadata
         status = media_bridge.get_media_status(media_id)
-        
+
         if 'error' in status:
             logger.error(f"❌ Media {media_id} not found: {status['error']}")
             raise HTTPException(status_code=404, detail=status['error'])
-            
+
         if not status.get('has_metadata'):
             logger.warning(f"⏳ Media {media_id} still waiting for metadata...")
             raise HTTPException(status_code=425, detail="Torrent metadata not yet available")
@@ -104,22 +103,22 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
         if not file_path:
             logger.error(f"❌ File index {file_index} not found in media {media_id}")
             raise HTTPException(status_code=404, detail="File not found")
-        
+
         # 3. Check physical file existence
         if not os.path.exists(file_path):
             logger.warning(f"📩 File {file_path} does not exist on disk yet")
             raise HTTPException(status_code=404, detail="File not yet downloaded")
-        
+
         # 4. Check streaming readiness (data threshold)
         if not media_bridge.is_streaming_ready(media_id, file_index):
             progress = status.get('file_progress', 0) * 100
             threshold = status.get('streaming_threshold', 0.10) * 100
             logger.warning(f"📉 Media {media_id} not ready: {progress:.1f}% / {threshold:.1f}%")
             raise HTTPException(
-                status_code=425, 
+                status_code=425,
                 detail=f"Not enough data for streaming ({progress:.1f}%)"
             )
-        
+
         # 5. File is ready to stream!
         file_size = os.path.getsize(file_path)
         file_ext = os.path.splitext(file_path)[1].lower()
@@ -134,11 +133,11 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
             '.m4v': 'video/x-m4v'
         }
         content_type = content_type_map.get(file_ext, 'video/mp4')
-        
+
         # Use largest file size as expected size for the stream if it's the main file
         largest_file = status.get('largest_file')
         expected_size = largest_file['size'] if largest_file and file_index == largest_file['index'] else file_size
-        
+
         logger.info(f"🚀 Streaming {media_id} ({content_type}): {file_size}/{expected_size} bytes")
 
         range_header = request.headers.get('range')
@@ -165,9 +164,9 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
 
             if start >= file_size:
                 raise HTTPException(status_code=416, detail="Requested range not yet downloaded")
-            
+
             content_length = available_end - start + 1
-            
+
             async def stream_file_range():
                 async with aiofiles.open(file_path, 'rb') as file:
                     await file.seek(start)
@@ -179,7 +178,7 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
                             break
                         remaining -= len(chunk)
                         yield chunk
-            
+
             headers = {
                 'Content-Range': f'bytes {start}-{available_end}/{expected_size}',
                 'Accept-Ranges': 'bytes',
@@ -187,9 +186,9 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
                 'Content-Type': content_type,
                 'Cross-Origin-Resource-Policy': 'cross-origin'
             }
-            
+
             return StreamingResponse(stream_file_range(), status_code=206, headers=headers)
-        
+
         else:
             # Stream from beginning up to current download point
             async def stream_file_full():
@@ -199,7 +198,7 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
                         if not chunk:
                             break
                         yield chunk
-            
+
             headers = {
                 'Content-Length': str(file_size),
                 'Content-Type': content_type,
@@ -207,7 +206,7 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
                 'Cross-Origin-Resource-Policy': 'cross-origin'
             }
             return StreamingResponse(stream_file_full(), headers=headers)
-            
+
     except HTTPException:
         # Re-raise HTTP exceptions so FastAPI handles them properly
         raise
@@ -220,12 +219,12 @@ async def remove_media(media_id: str, delete_files: bool = True):
     """Remove a media source"""
     try:
         success = media_bridge.remove_media(media_id, delete_files)
-        
+
         if not success:
             raise HTTPException(status_code=404, detail="Media source not found")
-        
+
         return {"success": True, "message": "Media source removed"}
-        
+
     except Exception as e:
         logger.error(f" Error removing media source: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -239,9 +238,9 @@ async def list_media_items():
             status = media_bridge.get_media_status(media_id)
             if 'error' not in status:
                 media_items.append(status)
-        
+
         return {"media_items": media_items}
-        
+
     except Exception as e:
         logger.error(f" Error listing media_items: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -252,7 +251,7 @@ async def cleanup_old_media_items(max_age_hours: int = 24):
     try:
         media_bridge.cleanup_old_media_items(max_age_hours)
         return {"success": True, "message": f"Cleaned up media_items older than {max_age_hours} hours"}
-        
+
     except Exception as e:
         logger.error(f" Error cleaning up media_items: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -263,7 +262,7 @@ async def clear_all_media_items():
     try:
         media_bridge.clear_all_media_items()
         return {"success": True, "message": "All media_items cleared from session"}
-        
+
     except Exception as e:
         logger.error(f" Error clearing media_items: {e}")
         raise HTTPException(status_code=500, detail=str(e))

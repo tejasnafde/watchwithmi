@@ -24,6 +24,7 @@ Frontend tests, E2E, load tests, CI. Backend has 198 passing pytests; the fronte
 - [ ] **No CI/CD**
   - Regressions ship unnoticed until someone runs tests locally.
   - Fix: `.github/workflows/test.yml` on PR: pytest, TypeScript `--noEmit`, ESLint. Add build step to catch import errors.
+  - Local pre-commit hook (`.pre-commit-config.yaml`) already runs ruff + pytest + ESLint + tsc + vitest on every `git commit` — treat CI as the server-side mirror so hooks can't be bypassed with `--no-verify`.
 
 ## Medium
 

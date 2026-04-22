@@ -7,10 +7,9 @@ Run with: pytest tests/test_media_control.py -v
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio
 
 import sys
 import os
@@ -18,7 +17,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.services.room_manager import RoomManager
-from app.models.room import Room, User, MediaState, generate_room_code
 from app.handlers.socket_events import SocketEventHandler
 
 
@@ -623,8 +621,9 @@ class TestConcurrentMediaEvents:
         """Two users emit media_control simultaneously -- only authorized ones succeed."""
         mock_sio.emit.reset_mock()
 
-        # Alice (host, authorized) and Bob (no control) both send play
-        results = await asyncio.gather(
+        # Alice (host, authorized) and Bob (no control) both send play.
+        # We don't inspect the return values — the assertion is on mock_sio emits.
+        await asyncio.gather(
             handler.handle_media_control("sid_alice", {"action": "play", "timestamp": 10.0}),
             handler.handle_media_control("sid_bob", {"action": "play", "timestamp": 10.0}),
         )

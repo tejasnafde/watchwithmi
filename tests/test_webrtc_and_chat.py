@@ -6,11 +6,9 @@ Run with: pytest tests/test_webrtc_and_chat.py -v
 """
 
 import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
 
 import sys
 import os
@@ -18,7 +16,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.services.room_manager import RoomManager
-from app.models.room import Room, User, MediaState, generate_room_code
 from app.handlers.socket_events import SocketEventHandler
 
 

@@ -7,15 +7,11 @@ API request models, and rate-limit retry logic.
 Run with: pytest tests/test_search_and_api.py -v
 """
 
-import asyncio
-import hashlib
 import time
-import urllib.parse
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
 
 import sys
 import os
@@ -28,8 +24,6 @@ from app.services.p2p_search import (
     ProviderHealth,
     ProviderStats,
     RateLimitError,
-    COMMON_TRACKERS,
-    _build_magnet,
 )
 
 # ---------------------------------------------------------------------------

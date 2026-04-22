@@ -32,6 +32,10 @@ Deprecations, dead code, type-safety gaps. Low urgency per item; quality-of-life
 
 ## Low
 
+- [ ] **`ruff format` not enforced** — baseline would reformat ~20 files
+  - Pre-commit currently runs `ruff check` but not `ruff format --check` because turning it on produces a noisy 20-file reformat diff.
+  - Fix: land one auto-format commit (`ruff format app tests`), then re-enable the `ruff-format-check` hook in `.pre-commit-config.yaml`.
+
 - [ ] **Inconsistent chat ID scheme** — some IDs client-generated, some server-generated
   - Related to `01-critical-bugs.md` first item.
   - Fix: standardize on server-generated; clients use returned IDs for subsequent ops.

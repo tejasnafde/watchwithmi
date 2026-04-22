@@ -4,7 +4,6 @@ Room models and data structures for WatchWithMi.
 
 import logging
 import time
-import uuid
 from datetime import datetime
 from typing import Dict, Optional, List
 from dataclasses import dataclass, asdict, field
@@ -27,7 +26,7 @@ class MediaState:
     playlist_title: str = ""
     playlist_items: List[dict] = field(default_factory=list)
     current_index: int = 0
-    
+
     def to_dict(self) -> dict:
         return asdict(self)
 
@@ -88,13 +87,13 @@ class User:
     video_enabled: bool = False
     audio_enabled: bool = False
     joined_at_ts: float = field(default_factory=time.time)
-    
+
     def to_dict(self) -> dict:
         return asdict(self)
 
 class Room:
     """Represents a room with all its data and operations."""
-    
+
     def __init__(self, room_code: str):
         self.room_code = room_code
         self.host_id: Optional[str] = None
@@ -105,7 +104,7 @@ class Room:
         self.created_at = datetime.now().isoformat()
 
         logger.info(f"Room {room_code} created")
-    
+
     def add_user(self, user_id: str, user_name: str, is_host: bool = False) -> bool:
         """Add a user to the room."""
         try:
@@ -115,31 +114,31 @@ class Room:
                 is_host=is_host,
                 can_control=is_host  # Hosts ALWAYS have control
             )
-            
+
             self.users[user_id] = user
-            
+
             if is_host or self.host_id is None:
                 self.host_id = user_id
                 self.users[user_id].is_host = True
                 self.users[user_id].can_control = True
-            
+
             logger.info(f"User {user_name} ({user_id}) joined room {self.room_code} (host: {self.users[user_id].is_host})")
             return True
         except Exception as e:
             logger.error(f"Failed to add user {user_name} to room {self.room_code}: {e}")
             return False
-    
+
     def remove_user(self, user_id: str) -> Optional[str]:
         """Remove a user from the room. Returns new host ID if host changed."""
         if user_id not in self.users:
             return None
-        
+
         user_name = self.users[user_id].name
         was_host = self.users[user_id].is_host
         del self.users[user_id]
-        
+
         logger.info(f"User {user_name} ({user_id}) left room {self.room_code}")
-        
+
         # Handle host change
         if was_host and self.users:
             # Transfer host status to the user who joined earliest
@@ -152,14 +151,14 @@ class Room:
         elif not self.users:
             logger.info(f"Room {self.room_code} is now empty")
             self.host_id = None  # Clear host when empty
-            
+
         return None
-    
+
     def add_message(self, user_id: str, message: str) -> Optional[ChatMessage]:
         """Add a chat message to the room."""
         if user_id not in self.users:
             return None
-        
+
         chat_message = ChatMessage(
             user_id=user_id,
             user_name=self.users[user_id].name,
@@ -167,7 +166,7 @@ class Room:
             timestamp=datetime.now().isoformat(),
             message_id=f"{user_id}_{int(time.time() * 1000)}"
         )
-        
+
         self.chat.append(chat_message)
         logger.debug(f"Message in room {self.room_code}: {self.users[user_id].name}: {message}")
         return chat_message
@@ -192,15 +191,15 @@ class Room:
         """Grant or revoke control (DJ) permissions."""
         if user_id not in self.users:
             return False
-            
+
         # Optional: Prevent revoking from host
         if self.users[user_id].is_host and not enabled:
             return False
-            
+
         self.users[user_id].can_control = enabled
         logger.info(f"Control {'granted to' if enabled else 'revoked from'} {self.users[user_id].name} in {self.room_code}")
         return True
-    
+
     def add_to_queue(self, item: QueueItem) -> bool:
         """Append an item to the queue. Max 50 items."""
         if len(self.queue) >= 50:
@@ -262,14 +261,14 @@ class Room:
         if url is not None:
             self.media.url = url
             logger.info(f"Media changed in room {self.room_code}: {url}")
-        
+
         if media_type is not None:
             self.media.type = media_type
-            
+
         if state is not None:
             self.media.state = state
             logger.debug(f"Media state in room {self.room_code}: {state}")
-            
+
         if timestamp is not None:
             self.media.timestamp = timestamp
 
@@ -290,9 +289,9 @@ class Room:
 
         if current_index is not None:
             self.media.current_index = current_index
-            
+
         self.media.last_update = datetime.now().isoformat()
-    
+
     def to_dict(self) -> dict:
         """Convert room to dictionary for JSON serialization."""
         return {
@@ -304,12 +303,12 @@ class Room:
             'queue': [item.to_dict() for item in self.queue],
             'created_at': self.created_at
         }
-    
+
     @property
     def user_count(self) -> int:
         """Get the number of users in the room."""
         return len(self.users)
-    
+
     @property
     def is_empty(self) -> bool:
         """Check if the room is empty."""
@@ -317,4 +316,4 @@ class Room:
 
 def generate_room_code(length: int = 6) -> str:
     """Generate a unique room code."""
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length)) 
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))

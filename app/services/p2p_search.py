@@ -15,8 +15,8 @@ import logging
 import random
 import re
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import List, Dict, Optional, Callable, Tuple, Any
 import httpx
@@ -86,13 +86,13 @@ class ProviderStats:
     last_failure: Optional[datetime] = None
     circuit_state: ProviderHealth = ProviderHealth.HEALTHY
     total_response_time: float = 0.0
-    
+
     @property
     def success_rate(self) -> float:
         """Calculate success rate (0.0 to 1.0)."""
         total = self.success_count + self.failure_count
         return self.success_count / total if total > 0 else 0.0
-    
+
     @property
     def avg_response_time(self) -> float:
         """Calculate average response time in seconds."""
@@ -101,8 +101,8 @@ class ProviderStats:
 
 class ContentSearchResult:
     """Represents a P2P content search result."""
-    
-    def __init__(self, title: str, magnet: str, size: str = "", seeders: int = 0, 
+
+    def __init__(self, title: str, magnet: str, size: str = "", seeders: int = 0,
                  leechers: int = 0, quality: str = ""):
         self.title = title
         self.magnet = magnet
@@ -111,7 +111,7 @@ class ContentSearchResult:
         self.leechers = leechers
         self.quality = self._extract_quality(title) or quality
         self.is_placeholder = False
-    
+
     def _extract_quality(self, title: str) -> Optional[str]:
         """Extract quality information from title."""
         quality_patterns = [
@@ -124,13 +124,13 @@ class ContentSearchResult:
             r'DVDRip|DVD',
             r'CAMRip|CAM|TS|TC'
         ]
-        
+
         for pattern in quality_patterns:
             match = re.search(pattern, title, re.IGNORECASE)
             if match:
                 return match.group()
         return None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API response."""
         return {
@@ -156,7 +156,7 @@ class ContentSearchService:
     - Health monitoring
     - Graceful degradation
     """
-    
+
     def __init__(self):
         self.timeout = 15.0  # Per-provider timeout
         self.max_retries = 5  # Maximum retry attempts
@@ -190,7 +190,7 @@ class ContentSearchService:
         logger.info(f"   Tier 1 providers: {len(self.tier1_providers)}")
         logger.info(f"   Tier 2 providers: {len(self.tier2_providers)}")
         logger.info(f"   Tier 3 providers: {len(self.tier3_providers)}")
-    
+
     async def search(self, query: str, max_results: int = 10) -> List[ContentSearchResult]:
         """
         Search for P2P content with ultra-robust fallback strategy.
@@ -203,47 +203,47 @@ class ContentSearchService:
             List of search results (always returns something, even if empty with helpful message)
         """
         logger.info(f"🔍 Searching P2P content for: {query}")
-        
+
         # 1. Check cache first
         cache_key = f"{query}:{max_results}"
         cached = self._get_from_cache(cache_key)
         if cached:
             logger.info(f"✅ Cache hit for: {query}")
             return cached
-        
+
         # Clean query
         clean_query = self._clean_query(query)
-        
+
         # 2. Try tier 1 providers (most reliable)
         results = await self._search_tier(self.tier1_providers, clean_query, required_results=5)
-        
+
         # 3. If insufficient results, try tier 2
         if len(results) < max_results:
             logger.info(f"📊 Tier 1 gave {len(results)} results, trying tier 2...")
             tier2_results = await self._search_tier(self.tier2_providers, clean_query, required_results=5)
             results.extend(tier2_results)
-        
+
         # 4. If still insufficient, try tier 3
         if len(results) < max_results:
             logger.info(f"📊 Tier 2 gave {len(results)} total results, trying tier 3...")
             tier3_results = await self._search_tier(self.tier3_providers, clean_query, required_results=3)
             results.extend(tier3_results)
-        
+
         # 5. Deduplicate and sort
         unique_results = self._deduplicate_results(results)
         sorted_results = sorted(unique_results, key=lambda x: x.seeders, reverse=True)
-        
+
         # 6. Cache results (even if empty)
         self._save_to_cache(cache_key, sorted_results)
-        
+
         # 7. Always return something - even if it's a helpful message
         if len(sorted_results) == 0:
             logger.warning(f"⚠️ No results found for '{query}' after all tiers")
             return self._create_fallback_results(query)
-        
+
         logger.info(f"✅ Returning {len(sorted_results)} results for: {query}")
         return sorted_results[:max_results]
-    
+
     async def _search_tier(self, providers: List[Tuple[str, Callable]],
                           query: str, required_results: int) -> List[ContentSearchResult]:
         """Search a tier of providers concurrently with circuit breaker protection."""
@@ -286,7 +286,7 @@ class ContentSearchService:
             all_results.extend(results)
 
         return all_results
-    
+
     async def _search_with_adaptive_retry(self, provider_name: str,
                                          search_func: Callable, query: str) -> List[ContentSearchResult]:
         """Retry search with exponential backoff, jitter, and rate-limit awareness."""
@@ -320,13 +320,13 @@ class ContentSearchService:
                 await asyncio.sleep(wait_time)
 
         raise last_exception or Exception("Unknown error")
-    
+
     def _is_provider_available(self, provider_name: str) -> bool:
         """Check if provider circuit breaker allows requests."""
         stats = self.provider_stats.get(provider_name)
         if not stats:
             return True
-        
+
         # If circuit is open, check if enough time has passed to retry
         if stats.circuit_state == ProviderHealth.CIRCUIT_OPEN:
             if stats.last_failure:
@@ -336,40 +336,40 @@ class ContentSearchService:
                     stats.circuit_state = ProviderHealth.DEGRADED
                     return True
             return False
-        
+
         return True
-    
+
     def _record_success(self, provider_name: str, response_time: float):
         """Record successful provider call."""
         if provider_name not in self.provider_stats:
             self.provider_stats[provider_name] = ProviderStats()
-        
+
         stats = self.provider_stats[provider_name]
         stats.success_count += 1
         stats.last_success = datetime.now()
         stats.total_response_time += response_time
-        
+
         # Reset circuit if it was degraded
         if stats.circuit_state == ProviderHealth.DEGRADED:
             if stats.success_rate > 0.5:  # 50% success rate
                 stats.circuit_state = ProviderHealth.HEALTHY
                 logger.info(f"✅ {provider_name} circuit restored to healthy (success rate: {stats.success_rate:.1%})")
-    
+
     def _record_failure(self, provider_name: str):
         """Record failed provider call and update circuit breaker."""
         if provider_name not in self.provider_stats:
             self.provider_stats[provider_name] = ProviderStats()
-        
+
         stats = self.provider_stats[provider_name]
         stats.failure_count += 1
         stats.last_failure = datetime.now()
-        
+
         # Open circuit if too many failures
         if stats.failure_count >= self.circuit_failure_threshold:
             if stats.success_rate < 0.2:  # Less than 20% success
                 stats.circuit_state = ProviderHealth.CIRCUIT_OPEN
                 logger.warning(f"⚡ Circuit opened for {provider_name} (success rate: {stats.success_rate:.1%})")
-    
+
     def _get_from_cache(self, cache_key: str) -> Optional[List[ContentSearchResult]]:
         """Get results from cache if not expired."""
         if cache_key in self.memory_cache:
@@ -380,7 +380,7 @@ class ContentSearchService:
                 # Remove expired cache entry
                 del self.memory_cache[cache_key]
         return None
-    
+
     def _save_to_cache(self, cache_key: str, results: List[ContentSearchResult]):
         """Save results to cache."""
         self.memory_cache[cache_key] = (time.time(), results)
@@ -398,7 +398,7 @@ class ContentSearchService:
                                key=lambda k: self.memory_cache[k][0])
             for key in sorted_keys[:20]:
                 del self.memory_cache[key]
-    
+
     def _create_fallback_results(self, query: str) -> List[ContentSearchResult]:
         """Create helpful fallback when no results found."""
         result = ContentSearchResult(
@@ -411,7 +411,7 @@ class ContentSearchService:
         )
         result.is_placeholder = True
         return [result]
-    
+
     def _clean_query(self, query: str) -> str:
         """Clean and normalize search query."""
         # Remove extra whitespace
@@ -419,28 +419,28 @@ class ContentSearchService:
         # Remove special characters that might break searches
         query = re.sub(r'[<>:"/\\|?*]', ' ', query)
         return query.strip()
-    
+
     def _deduplicate_results(self, results: List[ContentSearchResult]) -> List[ContentSearchResult]:
         """Remove duplicate results based on magnet link hash."""
         seen_hashes = set()
         unique_results = []
-        
+
         for result in results:
             # Skip placeholders
             if result.is_placeholder:
                 continue
-                
+
             # Create hash from magnet link
             if result.magnet:
                 result_hash = hashlib.md5(result.magnet.encode()).hexdigest()
                 if result_hash not in seen_hashes:
                     seen_hashes.add(result_hash)
                     unique_results.append(result)
-        
+
         return unique_results
-    
+
     # Provider implementations
-    
+
     async def _search_bitsearch(self, query: str) -> List[ContentSearchResult]:
         """Search BitSearch - most reliable provider."""
         results = []
@@ -455,25 +455,25 @@ class ContentSearchService:
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
                     items = soup.find_all('li', class_='search-result')
-                    
+
                     for item in items[:20]:  # Limit to 20 results
                         try:
                             title_elem = item.find('h5', class_='title')
                             if not title_elem:
                                 continue
-                            
+
                             title = title_elem.get_text(strip=True)
                             magnet_elem = item.find('a', href=lambda x: x and x.startswith('magnet:'))
-                            
+
                             if magnet_elem:
                                 magnet = magnet_elem['href']
-                                
+
                                 # Extract stats
                                 stats = item.find_all('div', class_='stats')
                                 size = ""
                                 seeders = 0
                                 leechers = 0
-                                
+
                                 for stat in stats:
                                     text = stat.get_text(strip=True)
                                     if 'Size' in text:
@@ -488,7 +488,7 @@ class ContentSearchService:
                                             leechers = int(text.replace('Leechers', '').strip())
                                         except (ValueError, AttributeError, TypeError):
                                             pass
-                                
+
                                 results.append(ContentSearchResult(
                                     title=title,
                                     magnet=magnet,
@@ -502,9 +502,9 @@ class ContentSearchService:
         except Exception as e:
             logger.debug(f"BitSearch search failed: {e}")
             raise
-        
+
         return results
-    
+
     async def _search_nyaa_api(self, query: str) -> List[ContentSearchResult]:
         """Search Nyaa.si API - good for anime content."""
         results = []
@@ -519,24 +519,24 @@ class ContentSearchService:
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
                     rows = soup.find_all('tr', class_='default')
-                    
+
                     for row in rows[:15]:  # Limit to 15 results
                         try:
                             cols = row.find_all('td')
                             if len(cols) < 6:
                                 continue
-                            
+
                             title_elem = cols[1].find('a', class_=lambda x: x != 'comments')
                             if not title_elem:
                                 continue
-                            
+
                             title = title_elem.get_text(strip=True)
                             magnet_elem = cols[2].find('a', href=lambda x: x and x.startswith('magnet:'))
-                            
+
                             if magnet_elem:
                                 magnet = magnet_elem['href']
                                 size = cols[3].get_text(strip=True)
-                                
+
                                 try:
                                     seeders = int(cols[5].get_text(strip=True))
                                 except (ValueError, AttributeError, TypeError):
@@ -546,7 +546,7 @@ class ContentSearchService:
                                     leechers = int(cols[6].get_text(strip=True))
                                 except (ValueError, AttributeError, TypeError):
                                     leechers = 0
-                                
+
                                 results.append(ContentSearchResult(
                                     title=title,
                                     magnet=magnet,
@@ -560,9 +560,9 @@ class ContentSearchService:
         except Exception as e:
             logger.debug(f"Nyaa search failed: {e}")
             raise
-        
+
         return results
-    
+
     async def _search_btdig_api(self, query: str) -> List[ContentSearchResult]:
         """Search BTDigg API - may be rate limited."""
         results = []
@@ -577,23 +577,23 @@ class ContentSearchService:
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
                     items = soup.find_all('div', class_='one_result')
-                    
+
                     for item in items[:10]:  # Limit to 10 results
                         try:
                             title_elem = item.find('div', class_='content_name')
                             if not title_elem:
                                 continue
-                            
+
                             title = title_elem.get_text(strip=True)
                             info_hash_elem = item.find('div', class_='content_infohash')
-                            
+
                             if info_hash_elem:
                                 info_hash = info_hash_elem.get_text(strip=True)
                                 magnet = _build_magnet(info_hash, title)
-                                
+
                                 size_elem = item.find('span', class_='content_size')
                                 size = size_elem.get_text(strip=True) if size_elem else ""
-                                
+
                                 results.append(ContentSearchResult(
                                     title=title,
                                     magnet=magnet,
@@ -607,9 +607,9 @@ class ContentSearchService:
         except Exception as e:
             logger.debug(f"BTDigg search failed: {e}")
             raise
-        
+
         return results
-    
+
     async def _search_piratebay(self, query: str) -> List[ContentSearchResult]:
         """Search The Pirate Bay via apibay.org JSON API."""
         results = []

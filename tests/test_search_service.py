@@ -20,29 +20,29 @@ async def test_basic_search():
     try:
         # Import here to avoid module issues
         from app.services.torrent_search import TorrentSearchService
-        
+
         service = TorrentSearchService()
-        
+
         # Test with a simple query
         query = "Matrix 1999"
         print(f"🔍 Testing search for: '{query}'")
-        
+
         results = await service.search(query, max_results=5)
-        
+
         print(f" Found {len(results)} results")
-        
+
         for i, result in enumerate(results):
             print(f"\n{i+1}. {result.title}")
             print(f"   Seeds: {result.seeders}, Size: {result.size}")
-            
+
             # Check if it's a placeholder
             if hasattr(result, 'is_placeholder') and result.is_placeholder:
                 print("     This is a placeholder result")
             else:
                 print(f"   Magnet: {result.magnet[:50]}...")
-        
+
         return len(results)
-        
+
     except ImportError as e:
         print(f" Import error: {e}")
         print("This might be due to relative import issues")
@@ -56,9 +56,9 @@ async def test_basic_search():
 if __name__ == "__main__":
     # Change the working directory to the app directory
     os.chdir('/Users/tejas/Desktop/watchwithmi')
-    
-    # Set PYTHONPATH 
+
+    # Set PYTHONPATH
     sys.path.insert(0, '/Users/tejas/Desktop/watchwithmi')
-    
+
     result_count = asyncio.run(test_basic_search())
-    print(f"\n Final result: {result_count} torrents found") 
+    print(f"\n Final result: {result_count} torrents found")
