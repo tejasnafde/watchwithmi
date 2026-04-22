@@ -131,15 +131,9 @@ uploads/
 # Docker
 .dockerignore 
 
-README.md
 watchwithmi-venv/
-*.md
-test*.py
 debug*
 logs/
-test*/
-tests/
-readmes/
 .cursor/
 templates/
 scripts/
