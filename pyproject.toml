@@ -1,0 +1,35 @@
+[tool.ruff]
+# Python sources live under app/ and tests/; scripts/ is excluded from versioning.
+target-version = "py312"
+line-length = 120
+extend-exclude = [
+    "watchwithmi-venv",
+    "logs",
+    "uploads",
+    "app/main_old.py",
+]
+
+[tool.ruff.lint]
+# Default Ruff rules (pycodestyle E/W + Pyflakes F) cover the real bugs
+# without being noisy. Add more (I, UP, B, SIM, ...) later once the codebase
+# is consistent.
+select = ["E", "F", "W"]
+ignore = [
+    "E501",   # line-too-long: enforcement is noisy on legacy strings/log lines.
+    "E402",   # module-level import after code: intentional load_dotenv() pattern in app/main.py
+              # and sys.path munging in tests/*.py.
+    "W293",   # blank-line-with-whitespace: only appears inside docstrings; cosmetic.
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Legacy main scaffold, kept for reference.
+"app/main_old.py" = ["F"]
+
+[tool.pytest.ini_options]
+# pytest-asyncio's default "strict" mode requires every async test to be
+# marked. The existing tests use the legacy "auto" behavior.
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# Skip tests that need real external services until they're gated with
+# markers (tracked in docs/polishing/08-tech-debt.md).
+addopts = "--ignore=tests/test_search_service.py --ignore=tests/test_services.py --ignore=tests/debug_torrents.py"

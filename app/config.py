@@ -31,17 +31,17 @@ def setup_logging():
     """Configure application logging."""
     # Create formatters
     formatter = logging.Formatter(LOG_FORMAT)
-    
+
     # File handler
     file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
     file_handler.setLevel(LOG_LEVEL)
     file_handler.setFormatter(formatter)
-    
+
     # Console handler - use utf-8 encoding on Windows
     console_handler = logging.StreamHandler()
     console_handler.setLevel(LOG_LEVEL)
     console_handler.setFormatter(formatter)
-    
+
     # Set encoding for Windows console compatibility
     if platform.system() == "Windows":
         try:
@@ -52,46 +52,46 @@ def setup_logging():
                 sys.stderr.reconfigure(encoding='utf-8')
         except (OSError, AttributeError, LookupError):
             pass  # Fallback to default encoding
-    
+
     # Configure root logger
     logging.basicConfig(
         level=LOG_LEVEL,
         handlers=[file_handler, console_handler],
         format=LOG_FORMAT
     )
-    
+
     # Smart filtering: Only filter noisy loggers when not in full debug mode
     # Check if user explicitly wants to see file change logs for debugging
     watchfiles_level = os.getenv("WATCHFILES_LOG_LEVEL", "WARNING" if not DEBUG else "INFO").upper()
     uvicorn_level = os.getenv("UVICORN_LOG_LEVEL", "INFO" if not DEBUG else "DEBUG").upper()
-    
+
     # Configure noisy loggers with environment-specific levels
     logger_configs = {
         'watchfiles.main': watchfiles_level,        # File change detection
-        'watchfiles.watcher': watchfiles_level,     # File watching details  
+        'watchfiles.watcher': watchfiles_level,     # File watching details
         'uvicorn.protocols.http': uvicorn_level,    # HTTP request logs
         'engineio.socket': 'WARNING',               # Socket.IO connection spam (always filtered)
         'socketio.client': 'WARNING',               # Client connection details (always filtered)
     }
-    
+
     for logger_name, level_name in logger_configs.items():
         logger = logging.getLogger(logger_name)
         level = getattr(logging, level_name, logging.WARNING)
         logger.setLevel(level)
         logger.propagate = True  # Still allow messages to bubble up
-    
+
     # Create app logger
     logger = logging.getLogger("watchwithmi")
     logger.info(f"{APP_NAME} v{VERSION} - Logging initialized")
     logger.info(f"Log file: {LOG_FILE}")
-    
+
     # Show current logging configuration
     if DEBUG:
-        logger.info(f"Debug mode enabled - Detailed logging active")
+        logger.info("Debug mode enabled - Detailed logging active")
         logger.info(f"Watchfiles level: {watchfiles_level}, Uvicorn level: {uvicorn_level}")
     else:
         logger.info("Production mode - Filtered logging for clean output")
-    
+
     return logger
 
 # Redis configuration (for future scaling)
@@ -106,4 +106,4 @@ ROOM_CLEANUP_INTERVAL = 300  # 5 minutes
 SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "*")
 
 # Security settings
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production") 
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production")

@@ -1,0 +1,54 @@
+# Pre-commit hooks for WatchWithMi.
+#
+# Install once per clone:
+#   watchwithmi-venv/bin/pre-commit install
+#
+# Hooks run the full lint + type-check + test suite on every `git commit`.
+# Current wall-time budget: ~5 seconds on a warm machine. If this grows, move
+# the slower stages (vitest, pytest) behind a `--hook-stage pre-push` split.
+repos:
+  - repo: local
+    hooks:
+      # --------------------------------------------------------------------
+      # Python
+      # --------------------------------------------------------------------
+      - id: ruff-check
+        name: ruff check (python lint)
+        entry: watchwithmi-venv/bin/ruff check app tests
+        language: system
+        pass_filenames: false
+        types_or: [python, toml]
+
+      # ruff format is not enforced yet — doing so would create a 20-file
+      # reformat noise diff. Tracked as tech debt in docs/polishing/08-tech-debt.md.
+
+      - id: pytest
+        name: pytest (backend tests)
+        entry: watchwithmi-venv/bin/python -m pytest tests/ -q
+        language: system
+        pass_filenames: false
+        types_or: [python]
+
+      # --------------------------------------------------------------------
+      # Frontend (TypeScript / React)
+      # --------------------------------------------------------------------
+      - id: eslint
+        name: eslint (frontend lint)
+        entry: bash -c 'cd frontend && npm run lint --silent'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js|jsx|mjs)$
+
+      - id: tsc
+        name: tsc --noEmit (frontend typecheck)
+        entry: bash -c 'cd frontend && npm run type-check --silent'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$
+
+      - id: vitest
+        name: vitest (frontend tests)
+        entry: bash -c 'cd frontend && npm test --silent'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$

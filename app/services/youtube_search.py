@@ -24,23 +24,23 @@ except ImportError:
 
 class YouTubeSearchService:
     """Service for searching YouTube videos using YouTube Data API v3."""
-    
+
     def __init__(self):
         """Initialize YouTube search service with API key from environment."""
         self.api_key = os.getenv("YOUTUBE_API_KEY")
         self.enabled = False
-        
+
         if not GOOGLE_API_AVAILABLE:
             logger.warning("🚫 Google API client not installed - YouTube search disabled")
             logger.info("💡 Install with: pip install google-api-python-client")
             return
-        
+
         if not self.api_key:
             logger.warning("🚫 YouTube API key not found - search disabled")
             logger.info("💡 Set YOUTUBE_API_KEY in .env file")
             logger.info("💡 Get API key from: https://console.cloud.google.com/apis/credentials")
             return
-        
+
         try:
             self.youtube = build('youtube', 'v3', developerKey=self.api_key)
             self.enabled = True
@@ -48,7 +48,7 @@ class YouTubeSearchService:
         except Exception as e:
             logger.error(f"❌ Failed to initialize YouTube API client: {e}")
             self.enabled = False
-    
+
     async def search(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         """
         Search for YouTube videos.
@@ -63,17 +63,17 @@ class YouTubeSearchService:
         if not self.enabled:
             logger.warning("YouTube search called but service is disabled")
             return []
-        
+
         if not query or not query.strip():
             logger.warning("Empty search query provided")
             return []
-        
+
         # Limit max_results to API maximum
         max_results = min(max_results, 50)
-        
+
         try:
             logger.info(f"🔍 Searching YouTube for: {query} (max: {max_results})")
-            
+
             # Execute search request
             request = self.youtube.search().list(
                 q=query.strip(),
@@ -85,13 +85,13 @@ class YouTubeSearchService:
                 relevanceLanguage='en'   # Prefer English results
             )
             response = request.execute()
-            
+
             results = []
             for item in response.get('items', []):
                 try:
                     video_id = item['id']['videoId']
                     snippet = item['snippet']
-                    
+
                     results.append({
                         'id': video_id,
                         'title': snippet.get('title', 'Untitled'),
@@ -106,13 +106,13 @@ class YouTubeSearchService:
                 except Exception as e:
                     logger.warning(f"Failed to parse video item: {e}")
                     continue
-            
+
             logger.info(f"✅ Found {len(results)} YouTube videos for: {query}")
             return results
-            
+
         except HttpError as e:
             error_reason = e.error_details[0].get('reason', 'unknown') if e.error_details else 'unknown'
-            
+
             if e.resp.status == 403:
                 if 'quotaExceeded' in error_reason:
                     logger.error("❌ YouTube API quota exceeded - try again tomorrow")
@@ -122,9 +122,9 @@ class YouTubeSearchService:
                     logger.error(f"❌ YouTube API permission denied: {error_reason}")
             else:
                 logger.error(f"❌ YouTube API error ({e.resp.status}): {error_reason}")
-            
+
             return []
-            
+
         except Exception as e:
             logger.error(f"❌ Unexpected error during YouTube search: {e}")
             return []
@@ -244,11 +244,11 @@ class YouTubeSearchService:
                 "playlist_title": "",
                 "items": []
             }
-    
+
     def is_enabled(self) -> bool:
         """Check if YouTube search is enabled and ready to use."""
         return self.enabled
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get service status information."""
         return {

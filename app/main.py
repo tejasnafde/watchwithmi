@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import socketio
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,7 +17,7 @@ import os
 import re
 
 # Import our modules
-from .config import setup_logging, APP_NAME, VERSION, STATIC_DIR, SOCKETIO_CORS_ALLOWED_ORIGINS
+from .config import setup_logging, APP_NAME, VERSION, SOCKETIO_CORS_ALLOWED_ORIGINS
 from .services.room_manager import RoomManager
 from .handlers.socket_events import SocketEventHandler
 from .services.p2p_search import ContentSearchService  # New robust P2P search
@@ -43,14 +42,14 @@ async def lifespan(app: FastAPI):
     socket_handler = SocketEventHandler(sio, room_manager)
     content_search = ContentSearchService()
     youtube_search = YouTubeSearchService()
-    
+
     logger.info(f"{APP_NAME} startup completed")
-    logger.info(f" Room manager initialized")
-    logger.info(f"Socket.IO handlers registered")
+    logger.info(" Room manager initialized")
+    logger.info("Socket.IO handlers registered")
     logger.info(f" YouTube search: {'enabled' if youtube_search.is_enabled() else 'disabled'}")
-    
+
     yield
-    
+
     # Shutdown
     logger.info(f"{APP_NAME} shutting down")
     if room_manager:
@@ -66,7 +65,7 @@ async def lifespan(app: FastAPI):
 cors_origins = SOCKETIO_CORS_ALLOWED_ORIGINS
 if isinstance(cors_origins, str) and cors_origins != "*":
     cors_origins = [o.strip() for o in cors_origins.split(",")]
-    
+
     # Render provides host without protocol, so we need to add https://
     # If it's just a hostname (no dots), append .onrender.com
     processed_origins = []
@@ -130,7 +129,7 @@ from pydantic import Field, validator
 class ContentSearchRequest(BaseModel):
     """Request model for P2P content search."""
     query: str = Field(..., min_length=2, max_length=200, description="Search query")
-    
+
     @validator('query')
     def validate_query(cls, v):
         if not v or not v.strip():
@@ -144,7 +143,7 @@ class ContentSearchRequest(BaseModel):
 class YouTubeSearchRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=200, description="YouTube search query")
     max_results: int = Field(10, ge=1, le=50, description="Maximum results to return")
-    
+
     @validator('query')
     def validate_query(cls, v):
         if not v or not v.strip():
@@ -181,18 +180,18 @@ async def get_room_info(room_code: str):
     if not re.match(r'^[A-Z0-9]{1,20}$', room_code):
         raise HTTPException(status_code=400, detail="Invalid room code format")
     room = room_manager.get_room(room_code)
-    
+
     if not room:
         logger.warning(f" API request for non-existent room: {room_code}")
         raise HTTPException(status_code=404, detail="Room not found")
-    
+
     room_info = {
         "room_code": room_code,
         "user_count": room.user_count,
         "has_media": bool(room.media.url),
         "created_at": room.created_at
     }
-    
+
     logger.debug(f" Room info requested: {room_code}")
     return room_info
 
@@ -209,7 +208,7 @@ async def search_content(request: ContentSearchRequest):
     try:
         logger.info(f" P2P content search requested: {request.query}")
         results = await content_search.search(request.query)
-        
+
         return {
             "query": request.query,
             "results": [result.to_dict() for result in results],
@@ -231,10 +230,10 @@ async def search_youtube(request: YouTubeSearchRequest):
                 status_code=503,
                 detail="YouTube search not available - API key not configured"
             )
-        
+
         logger.info(f" YouTube search requested: {request.query}")
         results = await youtube_search.search(request.query, request.max_results)
-        
+
         return {
             "query": request.query,
             "results": results,
@@ -287,13 +286,13 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     from .config import HOST, PORT, DEBUG
-    
+
     logger.info(f"Starting {APP_NAME} server...")
     logger.info(f"Server will be available at: http://{HOST}:{PORT}")
-    
+
     # Respect environment variable for uvicorn log level
     uvicorn_log_level = os.getenv("UVICORN_LOG_LEVEL", "info" if not DEBUG else "debug").lower()
-    
+
     uvicorn.run(
         "app.main:socket_app",
         host=HOST,
@@ -301,4 +300,4 @@ if __name__ == "__main__":
         reload=DEBUG,
         log_level=uvicorn_log_level,
         access_log=DEBUG  # Only show access logs in debug mode
-    ) 
+    )
