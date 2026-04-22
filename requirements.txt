@@ -2,11 +2,14 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-socketio==5.12.0
 python-multipart==0.0.6
-redis==5.0.1
+# redis: removed — never imported; socket.io single-worker on Render free
+# tier doesn't need the pub/sub adapter. Re-add as
+# `redis==5.x + python-socketio[asyncio_redis]` when we scale to >1 worker.
+# Tracked in readmes/DEPLOYMENT.md under the "Scaling" note.
 jinja2==3.1.2
 aiofiles==23.2.1
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+# passlib / python-jose removed — no auth code exists. Re-add when
+# implementing user accounts or signed-link features.
 httpx==0.25.2
 pydantic>=2.5.0
 beautifulsoup4==4.12.2

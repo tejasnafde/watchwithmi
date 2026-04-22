@@ -13,13 +13,13 @@ Work items are checkboxes — tick them off as you go. Keep the per-area "done/t
 | 03 | Chat, reactions, queue | [03-chat-reactions-queue.md](03-chat-reactions-queue.md) | 8/8 |
 | 04 | WebRTC video chat | [04-webrtc-video-chat.md](04-webrtc-video-chat.md) | 4/5 |
 | 05 | Security | [05-security.md](05-security.md) | 8/8 |
-| 06 | Deployment & scaling | [06-deployment-scaling.md](06-deployment-scaling.md) | 0/9 |
+| 06 | Deployment & scaling | [06-deployment-scaling.md](06-deployment-scaling.md) | 9/9 |
 | 07 | Accessibility & mobile | [07-accessibility-mobile.md](07-accessibility-mobile.md) | 0/6 |
 | 08 | Tech debt | [08-tech-debt.md](08-tech-debt.md) | 0/8 |
 | 09 | Observability | [09-observability.md](09-observability.md) | 0/5 |
 | 10 | Testing | [10-testing.md](10-testing.md) | 0/6 |
 
-**Total: 33/68**
+**Total: 42/68**
 
 ## How to use
 

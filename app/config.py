@@ -94,9 +94,6 @@ def setup_logging():
 
     return logger
 
-# Redis configuration (for future scaling)
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-
 # Room settings
 MAX_USERS_PER_ROOM = int(os.getenv("MAX_USERS_PER_ROOM", 50))
 ROOM_CODE_LENGTH = 6

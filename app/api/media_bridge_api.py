@@ -19,6 +19,34 @@ router = APIRouter(prefix="/api/media", tags=["media_bridge"])
 
 
 # ---------------------------------------------------------------------------
+# Content-Type mapping for streamed media
+# ---------------------------------------------------------------------------
+
+# Browsers understand `video/x-matroska` directly for MKV; the previous
+# alias to `video/webm` caused some players to fail container parsing
+# because the codec assumptions for webm are stricter. See bug
+# #06 "Content-Type for MKV" in docs/polishing/06-deployment-scaling.md.
+CONTENT_TYPE_BY_EXT: dict = {
+    ".mp4": "video/mp4",
+    ".mkv": "video/x-matroska",
+    ".avi": "video/x-msvideo",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".wmv": "video/x-ms-wmv",
+    ".flv": "video/x-flv",
+    ".m4v": "video/x-m4v",
+}
+DEFAULT_CONTENT_TYPE = "video/mp4"
+
+
+def content_type_for(filename: str) -> str:
+    """Look up a Content-Type for a streamed media file by extension.
+    Falls back to ``video/mp4`` when the extension is unknown."""
+    ext = os.path.splitext(filename)[1].lower()
+    return CONTENT_TYPE_BY_EXT.get(ext, DEFAULT_CONTENT_TYPE)
+
+
+# ---------------------------------------------------------------------------
 # HTTP Range header parsing
 # ---------------------------------------------------------------------------
 
@@ -182,18 +210,7 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
 
         # 5. File is ready to stream!
         file_size = os.path.getsize(file_path)
-        file_ext = os.path.splitext(file_path)[1].lower()
-        content_type_map = {
-            '.mp4': 'video/mp4',
-            '.mkv': 'video/webm', # Use video/webm for MKV as it's more standard for browsers and uses similar container structure
-            '.avi': 'video/x-msvideo',
-            '.webm': 'video/webm',
-            '.mov': 'video/quicktime',
-            '.wmv': 'video/x-ms-wmv',
-            '.flv': 'video/x-flv',
-            '.m4v': 'video/x-m4v'
-        }
-        content_type = content_type_map.get(file_ext, 'video/mp4')
+        content_type = content_type_for(file_path)
 
         # Use largest file size as expected size for the stream if it's the main file
         largest_file = status.get('largest_file')
