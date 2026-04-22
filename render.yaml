@@ -9,7 +9,12 @@ services:
     region: singapore
     envVars:
       - key: DEBUG
-        value: "true"
+        value: "false"
+      # ENV=production turns on the fail-fast checks in
+      # app/config.py::validate_production_config. See
+      # docs/polishing/05-security.md for what it enforces.
+      - key: ENV
+        value: "production"
       - key: PORT
         value: 8000
       - key: CORS_ALLOWED_ORIGINS
@@ -19,6 +24,19 @@ services:
           property: host
       - key: YOUTUBE_API_KEY
         sync: false
+      # sync: false means "this var exists but its value must be set
+      # manually in the Render dashboard" — never checked into git.
+      # Generate a long random string with:
+      #   python -c "import secrets; print(secrets.token_urlsafe(64))"
+      - key: SECRET_KEY
+        sync: false
+      # Optional tuning knobs for the per-sid socket rate limiter.
+      # Defaults (20 events / 1s) are set in code; override here only
+      # if you see legitimate bursts getting throttled.
+      # - key: SOCKET_RATE_LIMIT_MAX
+      #   value: "20"
+      # - key: SOCKET_RATE_LIMIT_WINDOW_SECONDS
+      #   value: "1.0"
 
   # React Frontend (Next.js Node.js Service)
   - type: web
