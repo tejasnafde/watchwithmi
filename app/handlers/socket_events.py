@@ -6,6 +6,8 @@ import logging
 from typing import Dict, Any
 import socketio
 
+from ..config import MAX_USER_NAME_LENGTH
+
 logger = logging.getLogger("watchwithmi.handlers.socket_events")
 
 class SocketEventHandler:
@@ -106,6 +108,14 @@ class SocketEventHandler:
             await self.sio.emit('error', {'message': 'Name is required'}, room=sid)
             return
 
+        if len(user_name) > MAX_USER_NAME_LENGTH:
+            await self.sio.emit(
+                'error',
+                {'message': f'Name must be {MAX_USER_NAME_LENGTH} characters or fewer'},
+                room=sid,
+            )
+            return
+
         try:
             # Create room
             room_code = self.room_manager.create_room(user_name, requested_code if requested_code else None)
@@ -154,6 +164,14 @@ class SocketEventHandler:
 
         if not room_code or not user_name:
             await self.sio.emit('error', {'message': 'Room code and name are required'}, room=sid)
+            return
+
+        if len(user_name) > MAX_USER_NAME_LENGTH:
+            await self.sio.emit(
+                'error',
+                {'message': f'Name must be {MAX_USER_NAME_LENGTH} characters or fewer'},
+                room=sid,
+            )
             return
 
         try:
@@ -813,6 +831,12 @@ class SocketEventHandler:
             await self.sio.emit('error', {'message': 'Invalid media URL'}, room=sid)
             return
 
+        # Validate title -- empty or whitespace-only titles aren't useful and
+        # cause blank rows in the queue UI (bug #4 in 01-critical-bugs.md).
+        if not title:
+            await self.sio.emit('error', {'message': 'Title is required'}, room=sid)
+            return
+
         # Validate media_type
         allowed_media_types = ('youtube', 'video', 'audio', 'media')
         if media_type not in allowed_media_types:
@@ -859,6 +883,26 @@ class SocketEventHandler:
         if not item_id or not isinstance(new_index, int):
             await self.sio.emit('error', {'message': 'item_id and new_index (int) are required'}, room=sid)
             return
+
+        # Validate bounds explicitly at the handler layer -- the model
+        # clamps silently, which hides client bugs (bug #5 in
+        # docs/polishing/01-critical-bugs.md).
+        session = self.room_manager.get_user_session(sid)
+        room = self.room_manager.get_room(session.get('room_code')) if session else None
+        if room is not None:
+            queue_len = len(room.queue)
+            if new_index < 0 or new_index >= queue_len:
+                await self.sio.emit(
+                    'error',
+                    {
+                        'message': (
+                            f'new_index {new_index} is out of range '
+                            f'(queue length {queue_len})'
+                        )
+                    },
+                    room=sid,
+                )
+                return
 
         try:
             room_code = self.room_manager.reorder_queue(sid, item_id, new_index)
@@ -932,14 +976,30 @@ class SocketEventHandler:
             await self.sio.emit('error', {'message': 'Failed to clear queue'}, room=sid)
 
     async def handle_video_reaction(self, sid: str, data: Dict[str, Any]):
-        """Handle ephemeral video reactions. Fire and forget — no storage."""
+        """Handle ephemeral video reactions. Fire and forget — no storage.
+
+        Validation failures emit a structured ``error`` event to the sender,
+        matching the pattern used by other handlers (bug #7 in
+        docs/polishing/01-critical-bugs.md). Silent returns made these
+        failures undiagnosable from the client.
+        """
         try:
             emoji = data.get('emoji', '')
             if not isinstance(emoji, str) or len(emoji) == 0 or len(emoji) > 2:
+                await self.sio.emit(
+                    'error',
+                    {'message': 'Invalid emoji (must be a 1-2 character string)'},
+                    room=sid,
+                )
                 return
 
             session = self.room_manager.get_user_session(sid)
             if not session or not session.get('room_code'):
+                await self.sio.emit(
+                    'error',
+                    {'message': 'You must be in a room to send reactions'},
+                    room=sid,
+                )
                 return
 
             room_code = session['room_code']
@@ -952,3 +1012,4 @@ class SocketEventHandler:
             }, room=room_code)
         except Exception as e:
             logger.error(f"Error handling video_reaction: {e}")
+            await self.sio.emit('error', {'message': 'Failed to send reaction'}, room=sid)

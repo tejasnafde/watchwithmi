@@ -106,23 +106,37 @@ class Room:
         logger.info(f"Room {room_code} created")
 
     def add_user(self, user_id: str, user_name: str, is_host: bool = False) -> bool:
-        """Add a user to the room."""
+        """Add a user to the room.
+
+        Host promotion is decided here atomically: a user becomes host if
+        and only if the room currently has no host (``self.host_id is None``).
+        Callers may pass ``is_host=True`` as a hint, but the model overrides
+        it — this prevents two concurrent joiners from both being marked
+        host when each saw an empty room before either committed (bug #3 in
+        docs/polishing/01-critical-bugs.md).
+        """
         try:
+            # Atomic host check BEFORE any mutation: whoever gets here while
+            # host_id is None wins the host role. Subsequent joiners stay
+            # non-host regardless of the caller-supplied flag.
+            becomes_host = self.host_id is None
+
             user = User(
                 name=user_name,
                 joined_at=datetime.now().isoformat(),
-                is_host=is_host,
-                can_control=is_host  # Hosts ALWAYS have control
+                is_host=becomes_host,
+                can_control=becomes_host,  # Hosts ALWAYS have control
             )
 
             self.users[user_id] = user
 
-            if is_host or self.host_id is None:
+            if becomes_host:
                 self.host_id = user_id
-                self.users[user_id].is_host = True
-                self.users[user_id].can_control = True
 
-            logger.info(f"User {user_name} ({user_id}) joined room {self.room_code} (host: {self.users[user_id].is_host})")
+            logger.info(
+                f"User {user_name} ({user_id}) joined room {self.room_code} "
+                f"(host: {self.users[user_id].is_host}, requested_host={is_host})"
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to add user {user_name} to room {self.room_code}: {e}")
