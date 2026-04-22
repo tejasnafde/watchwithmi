@@ -52,6 +52,53 @@ export const useYouTubePlayer = ({
     const isSeekingRef = useRef(false);
     const lastSyncTimeRef = useRef(0);
 
+    // Auto-clear timers for isSyncingRef / isSeekingRef. Each auto-clear
+    // site cancels its previous pending clear so rapid sync bursts don't
+    // accumulate timers racing to flip the flag (bug #2 in
+    // docs/polishing/02-sync-playback.md).
+    const syncingClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const seekingClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const scheduleSyncingClear = useCallback((ms: number) => {
+        if (syncingClearTimerRef.current) clearTimeout(syncingClearTimerRef.current);
+        syncingClearTimerRef.current = setTimeout(() => {
+            isSyncingRef.current = false;
+            syncingClearTimerRef.current = null;
+        }, ms);
+    }, []);
+
+    const scheduleSeekingClear = useCallback((ms: number) => {
+        if (seekingClearTimerRef.current) clearTimeout(seekingClearTimerRef.current);
+        seekingClearTimerRef.current = setTimeout(() => {
+            isSeekingRef.current = false;
+            seekingClearTimerRef.current = null;
+        }, ms);
+    }, []);
+
+    // Fallback timer for the UNSTARTED state — if the iframe never leaves
+    // UNSTARTED (autoplay blocked, private video, etc.) we still want the
+    // buffering UI to clear instead of hanging forever. See bug #3 in
+    // docs/polishing/02-sync-playback.md.
+    const unstartedBufferingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const UNSTARTED_BUFFERING_TIMEOUT_MS = 5000;
+
+    const cancelUnstartedBufferingFallback = useCallback(() => {
+        if (unstartedBufferingTimerRef.current) {
+            clearTimeout(unstartedBufferingTimerRef.current);
+            unstartedBufferingTimerRef.current = null;
+        }
+    }, []);
+
+    // Cancel any pending auto-clears on unmount so they don't fire after
+    // the host has already destroyed the player.
+    useEffect(() => {
+        return () => {
+            if (syncingClearTimerRef.current) clearTimeout(syncingClearTimerRef.current);
+            if (seekingClearTimerRef.current) clearTimeout(seekingClearTimerRef.current);
+            cancelUnstartedBufferingFallback();
+        };
+    }, [cancelUnstartedBufferingFallback]);
+
     // Extract video ID
     const videoId = extractYouTubeVideoId(videoUrl);
     const playlistId = extractYouTubePlaylistId(videoUrl);
@@ -73,6 +120,12 @@ export const useYouTubePlayer = ({
     const handleStateChange = useCallback((event: YT.OnStateChangeEvent) => {
         const state = event.data;
         logger.debug('YouTube player state changed', { state, isSyncing: isSyncingRef.current, isSeeking: isSeekingRef.current });
+
+        // Any transition out of UNSTARTED means the player is responding,
+        // so cancel the stuck-in-UNSTARTED fallback.
+        if (state !== YT.PlayerState.UNSTARTED) {
+            cancelUnstartedBufferingFallback();
+        }
 
         switch (state) {
             case YT.PlayerState.PLAYING:
@@ -122,9 +175,16 @@ export const useYouTubePlayer = ({
 
             case YT.PlayerState.UNSTARTED:
                 setBuffering(true); // Treat unstarted as buffering/loading
+                // Schedule a fallback so the indicator clears if the player
+                // never transitions (e.g. autoplay blocked, video unavailable).
+                cancelUnstartedBufferingFallback();
+                unstartedBufferingTimerRef.current = setTimeout(() => {
+                    setBuffering(false);
+                    unstartedBufferingTimerRef.current = null;
+                }, UNSTARTED_BUFFERING_TIMEOUT_MS);
                 break;
         }
-    }, [isHost, socket, callPlayerMethod]);
+    }, [isHost, socket, callPlayerMethod, cancelUnstartedBufferingFallback]);
 
     // Handle player errors
     const handleError = useCallback((event: YT.OnErrorEvent) => {
@@ -170,11 +230,9 @@ export const useYouTubePlayer = ({
                 player.pauseVideo();
             }
 
-            setTimeout(() => {
-                isSyncingRef.current = false;
-            }, 1000);
+            scheduleSyncingClear(1000);
         }
-    }, [shouldPlay, targetTimestamp]);
+    }, [shouldPlay, targetTimestamp, scheduleSyncingClear]);
 
     // Initialize YouTube player
     useEffect(() => {
@@ -269,12 +327,12 @@ export const useYouTubePlayer = ({
                 logger.debug('Forcing YouTube play (sync)');
                 isSyncingRef.current = true;
                 callPlayerMethod('playVideo');
-                setTimeout(() => { isSyncingRef.current = false; }, 500);
+                scheduleSyncingClear(500);
             } else if (!shouldPlay && isCurrentlyPlaying) {
                 logger.debug('Forcing YouTube pause (sync)');
                 isSyncingRef.current = true;
                 callPlayerMethod('pauseVideo');
-                setTimeout(() => { isSyncingRef.current = false; }, 500);
+                scheduleSyncingClear(500);
             }
 
             // Only seek if drift is significant — and skip seeking entirely when paused
@@ -297,16 +355,23 @@ export const useYouTubePlayer = ({
                     isSyncingRef.current = true;
                     isSeekingRef.current = true;
                     callPlayerMethod('seekTo', targetTimestamp, true);
-                    setTimeout(() => {
-                        isSyncingRef.current = false;
-                        isSeekingRef.current = false;
-                    }, 1000);
+                    scheduleSyncingClear(1000);
+                    scheduleSeekingClear(1000);
                 }
             }
         }, 100);
 
         return () => clearTimeout(syncTimer);
-    }, [isHost, isReady, shouldPlay, targetTimestamp, isPlaying, callPlayerMethod]);
+    }, [
+        isHost,
+        isReady,
+        shouldPlay,
+        targetTimestamp,
+        isPlaying,
+        callPlayerMethod,
+        scheduleSyncingClear,
+        scheduleSeekingClear,
+    ]);
 
     // Update current time periodically
     useEffect(() => {
@@ -369,15 +434,22 @@ export const useYouTubePlayer = ({
                 isSyncingRef.current = true;
                 isSeekingRef.current = true;
                 callPlayerMethod('seekTo', expectedTime, true);
-                setTimeout(() => {
-                    isSyncingRef.current = false;
-                    isSeekingRef.current = false;
-                }, 1000);
+                scheduleSyncingClear(1000);
+                scheduleSeekingClear(1000);
             }
         }, SYNC_CHECK_INTERVAL);
 
         return () => clearInterval(interval);
-    }, [isHost, isReady, isPlaying, shouldPlay, targetTimestamp, callPlayerMethod]);
+    }, [
+        isHost,
+        isReady,
+        isPlaying,
+        shouldPlay,
+        targetTimestamp,
+        callPlayerMethod,
+        scheduleSyncingClear,
+        scheduleSeekingClear,
+    ]);
 
     // Update last sync time when target changes
     useEffect(() => {

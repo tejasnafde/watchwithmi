@@ -419,23 +419,26 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 </div>
             )}
 
-            {/* Error overlay */}
+            {/* Error overlay — the videoError state is only set after the
+                auto-retry budget is exhausted (handleVideoError increments
+                `videoErrorRetryCount` up to 3 before surfacing this). The
+                overlay therefore represents the "max retries reached" state
+                and does not offer another Retry button (which used to reset
+                the counter and let the user loop forever — bug #4). */}
             {videoError && (
                 <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
                     <div className="text-center text-white p-6">
-                        <p className="text-red-400 mb-4">{videoError}</p>
+                        <p className="text-red-400 mb-2">{videoError}</p>
+                        <p className="text-xs text-gray-400 mb-4">
+                            Max retries reached. Reload the page to try again.
+                        </p>
                         <Button
-                            onClick={() => {
-                                setVideoError(null);
-                                videoErrorRetryCount.current = 0;
-                                if (videoRef.current) {
-                                    videoRef.current.load();
-                                }
-                            }}
+                            onClick={() => window.location.reload()}
                             variant="outline"
-                            className="border-white/20 text-white hover:bg-white/10"
+                            className="border-red-400/30 text-red-300 hover:bg-red-400/10"
+                            title="This will disconnect you from the room"
                         >
-                            Retry
+                            Reload Page
                         </Button>
                     </div>
                 </div>

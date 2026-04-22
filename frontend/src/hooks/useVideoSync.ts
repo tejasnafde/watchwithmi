@@ -154,11 +154,17 @@ export const useVideoSync = ({
 
         const currentTime = videoRef.current.currentTime;
 
-        // Validate timestamp: if currentTime is 0 but we were previously at a later position, skip
-        if (currentTime === 0 && lastKnownTimeRef.current > 5) {
+        // Reject buffer-glitch resets: the video element occasionally snaps
+        // to a near-zero time mid-playback. Using a small threshold (< 0.1)
+        // catches floating-point near-zero cases, and a delta-based check
+        // (> 3) makes this symmetric with the threshold we trust elsewhere.
+        // See bug #5 in docs/polishing/02-sync-playback.md.
+        const delta = lastKnownTimeRef.current - currentTime;
+        if (currentTime < 0.1 && delta > 3) {
             logger.warn('Ignoring play event with reset timestamp', {
                 currentTime,
-                lastKnownTime: lastKnownTimeRef.current
+                lastKnownTime: lastKnownTimeRef.current,
+                delta,
             });
             return;
         }
@@ -181,11 +187,13 @@ export const useVideoSync = ({
 
         const currentTime = videoRef.current.currentTime;
 
-        // Validate timestamp: if currentTime is 0 but we were previously at a later position, skip
-        if (currentTime === 0 && lastKnownTimeRef.current > 5) {
+        // Reject buffer-glitch resets (see handleVideoPlay for rationale).
+        const delta = lastKnownTimeRef.current - currentTime;
+        if (currentTime < 0.1 && delta > 3) {
             logger.warn('Ignoring pause event with reset timestamp', {
                 currentTime,
-                lastKnownTime: lastKnownTimeRef.current
+                lastKnownTime: lastKnownTimeRef.current,
+                delta,
             });
             return;
         }
