@@ -19,6 +19,46 @@ except ImportError:
 
 logger = logging.getLogger("watchwithmi.services.media_bridge")
 
+
+# ---------------------------------------------------------------------------
+# Path traversal protection
+# ---------------------------------------------------------------------------
+
+
+def safe_media_path(base_dir: str, rel_path: str) -> Optional[str]:
+    """Resolve ``rel_path`` against ``base_dir`` and confirm the result
+    stays under ``base_dir`` even after symlink resolution.
+
+    Returns the fully-resolved absolute path on success, or ``None`` when
+    the path would escape the base directory (via ``..`` or via a symlink
+    that points outside). ``None`` is the caller's signal to skip the
+    file; a symlink-based escape caught here would not have been caught
+    by ``os.path.normpath`` alone, which is the weakness behind bug #5.4
+    in docs/polishing/05-security.md.
+
+    The helper handles paths that don't exist on disk yet (common with
+    libtorrent, which describes files before they finish downloading) by
+    resolving the parent directory and appending the final component.
+    """
+    base_real = os.path.realpath(base_dir)
+    candidate = os.path.join(base_dir, rel_path)
+
+    # For nonexistent leaves, realpath still resolves the existing prefix
+    # and leaves the rest lexically; combined with commonpath this gives
+    # the right containment result whether or not the file is on disk.
+    resolved = os.path.realpath(candidate)
+
+    try:
+        common = os.path.commonpath([resolved, base_real])
+    except ValueError:
+        # Paths on different drives on Windows, etc. — treat as unsafe.
+        return None
+
+    if common != base_real:
+        return None
+
+    return resolved
+
 class MediaBridgeDisabled:
     """Disabled media bridge when libmedia is not available"""
 
@@ -167,9 +207,10 @@ class MediaBridge:
                     file_path = file_info.path
                     file_size = file_info.size
 
-                    # Path traversal protection: sanitize and verify path is within temp dir
-                    safe_path = os.path.normpath(os.path.join(self.temp_dir, file_path))
-                    if not safe_path.startswith(os.path.normpath(self.temp_dir) + os.sep):
+                    # Path traversal protection: resolve symlinks AND `..`
+                    # segments and confirm containment in temp_dir. See bug
+                    # #5.4 in docs/polishing/05-security.md.
+                    if safe_media_path(self.temp_dir, file_path) is None:
                         logger.warning(f"Skipping file with path traversal attempt: {file_path}")
                         continue
 

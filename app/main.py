@@ -17,7 +17,18 @@ import os
 import re
 
 # Import our modules
-from .config import setup_logging, APP_NAME, VERSION, SOCKETIO_CORS_ALLOWED_ORIGINS
+from .config import (
+    APP_NAME,
+    SOCKETIO_CORS_ALLOWED_ORIGINS,
+    VERSION,
+    setup_logging,
+    validate_production_config,
+)
+
+# Fail fast on an unsafe production config before any sockets come up.
+# Raises RuntimeError if ENV=production and SECRET_KEY / CORS_ALLOWED_ORIGINS
+# are unset or at their insecure defaults. See 05-security.md #5.5 / #5.6.
+validate_production_config()
 from .services.room_manager import RoomManager
 from .handlers.socket_events import SocketEventHandler
 from .services.p2p_search import ContentSearchService  # New robust P2P search

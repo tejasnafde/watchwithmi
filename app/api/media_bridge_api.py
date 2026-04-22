@@ -17,6 +17,67 @@ logger = logging.getLogger("watchwithmi.api.media_bridge")
 
 router = APIRouter(prefix="/api/media", tags=["media_bridge"])
 
+
+# ---------------------------------------------------------------------------
+# HTTP Range header parsing
+# ---------------------------------------------------------------------------
+
+def parse_range_header(header: str, file_size: int) -> Optional[tuple]:
+    """Parse an HTTP ``Range`` header and return ``(start, end)`` inclusive,
+    or ``None`` when the header is malformed or out of range.
+
+    Callers should emit 416 Range Not Satisfiable on ``None``. Only a
+    single ``bytes=<start>-<end>`` range is supported; multi-range
+    requests and suffix ranges (``bytes=-N``) are rejected. ``end`` is
+    clamped to ``file_size - 1``.
+
+    This is the hardened version of the ad-hoc string parsing that lived
+    inline; see bug #5.3 in docs/polishing/05-security.md.
+    """
+    if not isinstance(header, str) or not header:
+        return None
+    if not header.startswith("bytes="):
+        return None
+
+    payload = header[len("bytes="):]
+    # Reject multi-range requests (RFC 7233 allows a comma-separated list
+    # but we don't support serving multi-part responses).
+    if "," in payload:
+        return None
+
+    parts = payload.split("-")
+    if len(parts) != 2:
+        return None
+
+    start_s, end_s = parts
+    if not start_s:
+        # Suffix range (e.g. "bytes=-500") not supported.
+        return None
+
+    try:
+        start = int(start_s)
+    except ValueError:
+        return None
+    if start < 0:
+        return None
+
+    if end_s:
+        try:
+            end = int(end_s)
+        except ValueError:
+            return None
+    else:
+        end = file_size - 1
+
+    if start >= file_size:
+        return None
+
+    end = min(end, file_size - 1)
+    if start > end:
+        return None
+
+    return (start, end)
+
 class AddMediaRequest(BaseModel):
     magnet_url: str
     title: Optional[str] = None
@@ -142,24 +203,17 @@ async def stream_media_file(media_id: str, file_index: int, request: Request):
 
         range_header = request.headers.get('range')
         if range_header:
-            # Parse range header
-            range_match = range_header.replace('bytes=', '').split('-')
-            start = int(range_match[0]) if range_match[0] else 0
-            end = int(range_match[1]) if range_match[1] else expected_size - 1
-
-            # Validate range bounds
-            if start < 0:
-                raise HTTPException(status_code=416, detail="Range start must be non-negative")
-            # Clamp end to valid maximum
-            end = min(end, expected_size - 1)
-            if start > end:
+            parsed = parse_range_header(range_header, expected_size)
+            if parsed is None:
                 raise HTTPException(
                     status_code=416,
-                    detail="Range not satisfiable: start exceeds end",
-                    headers={"Content-Range": f"bytes */{expected_size}"}
+                    detail="Range not satisfiable",
+                    headers={"Content-Range": f"bytes */{expected_size}"},
                 )
+            start, end = parsed
 
-            # Limit end to what's actually available on disk
+            # Limit end to what's actually available on disk (may be less
+            # than the requested range while still downloading).
             available_end = min(end, file_size - 1)
 
             if start >= file_size:

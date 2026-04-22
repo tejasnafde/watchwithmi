@@ -419,7 +419,8 @@ class TestInputValidation:
             "sid_alice",
             {
                 "action": "change",
-                "url": "magnet:?xt=urn:btih:abc123",
+                # Full SHA-1 info hash — lax form rejected by bug #5.2 fix.
+                "url": "magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a",
                 "type": "video",
                 "title": "Torrent",
             },

@@ -226,10 +226,18 @@ class TestMediaURLValidation:
 
     @pytest.mark.asyncio
     async def test_valid_url_magnet(self, handler, rm, mock_sio, populated_room):
+        # Full SHA-1 info hash (40 hex chars) is what a real magnet would
+        # carry. The prior lax check accepted the truncated form — tightened
+        # by bug #5.2 in docs/polishing/05-security.md.
         mock_sio.emit.reset_mock()
         await handler.handle_media_control(
             "sid_alice",
-            {"action": "change", "url": "magnet:?xt=urn:btih:abc123", "type": "video", "title": "T"},
+            {
+                "action": "change",
+                "url": "magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a",
+                "type": "video",
+                "title": "T",
+            },
         )
         assert len(_error_calls(mock_sio)) == 0
 

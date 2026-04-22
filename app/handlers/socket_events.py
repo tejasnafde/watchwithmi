@@ -2,12 +2,19 @@
 Socket.IO event handlers for WatchWithMi.
 """
 
+import html
 import logging
+import os
 import re
 from typing import Any, Dict, List
 import socketio
 
 from ..config import MAX_USER_NAME_LENGTH
+from .rate_limit import (
+    DEFAULT_MAX_EVENTS_PER_WINDOW,
+    DEFAULT_WINDOW_SECONDS,
+    SlidingWindowLimiter,
+)
 
 logger = logging.getLogger("watchwithmi.handlers.socket_events")
 
@@ -59,6 +66,40 @@ def _is_allowed_thumbnail(s: Any) -> bool:
     return s.startswith(("http://", "https://"))
 
 
+# Matches a well-formed BitTorrent magnet URI: a `xt=urn:btih:<hash>` param
+# where the hash is either 40 hex chars (SHA-1 info hash) or 32 base32 chars.
+# The prefix-only check that existed before accepted arbitrary junk after
+# `magnet:?`. See bug #5.2 in docs/polishing/05-security.md.
+_MAGNET_BTIH_RE = re.compile(
+    r'^magnet:\?'               # scheme
+    r'(?:[^#]*&)?'              # optional leading params
+    r'xt=urn:btih:'             # info-hash param
+    r'(?:[A-F0-9]{40}|[A-Z2-7]{32})'  # hex(40) or base32(32), case-insensitive handled by flag
+    r'(?:&[^#]*)?$',            # optional trailing params
+    re.IGNORECASE,
+)
+
+
+def _is_valid_magnet_url(s: Any) -> bool:
+    """Return True iff ``s`` is a magnet URI with a well-formed btih hash."""
+    if not isinstance(s, str):
+        return False
+    return bool(_MAGNET_BTIH_RE.match(s))
+
+
+def _is_allowed_media_url(s: Any) -> bool:
+    """Permitted media URL schemes: http(s), magnet (with valid btih), or
+    a local server path (leading '/'). Magnet strings are structurally
+    validated here rather than accepted on prefix alone."""
+    if not isinstance(s, str):
+        return False
+    if s.startswith(("http://", "https://", "/")):
+        return True
+    if s.startswith("magnet:"):
+        return _is_valid_magnet_url(s)
+    return False
+
+
 def _validate_playlist_items(items: List[Any]) -> str:
     """Return an empty string if ``items`` is a valid playlist, else an
     error message describing the first problem found. Used by the
@@ -77,16 +118,78 @@ def _validate_playlist_items(items: List[Any]) -> str:
     return ""
 
 class SocketEventHandler:
-    """Handles all Socket.IO events."""
+    """Handles all Socket.IO events.
 
-    # TODO: Add rate limiting to prevent abuse. Each event handler should enforce
-    # per-client rate limits (e.g., max messages per second, max room joins per minute).
+    Per-sid sliding-window rate limiting is applied to every event handler
+    except `connect` / `disconnect` (which are bookkeeping; connect is
+    rate-limited at the transport layer by Socket.IO, and disconnect needs
+    to run to clean up limiter state). See bug #5.7 in
+    docs/polishing/05-security.md.
+    """
 
     def __init__(self, sio: socketio.AsyncServer, room_manager):
         self.sio = sio
         self.room_manager = room_manager
+
+        # Pull configuration from env (with sensible defaults). Tests can
+        # overwrite `_rate_limiter` directly with a tighter cap.
+        max_events = int(
+            os.getenv("SOCKET_RATE_LIMIT_MAX", DEFAULT_MAX_EVENTS_PER_WINDOW)
+        )
+        window_seconds = float(
+            os.getenv("SOCKET_RATE_LIMIT_WINDOW_SECONDS", DEFAULT_WINDOW_SECONDS)
+        )
+        self._rate_limiter = SlidingWindowLimiter(
+            max_events=max_events,
+            window_seconds=window_seconds,
+        )
+
+        # Wrap before registering so the Socket.IO dispatcher picks up
+        # the rate-limited versions. Must also be safe to call again if
+        # a test swaps `_rate_limiter`; see `_rewrap_rate_limited_handlers`.
+        self._wrap_rate_limited_handlers()
         self._register_events()
         logger.info("Socket event handlers registered")
+
+    # Every handler listed here is wrapped with a rate-limit gate in
+    # `_wrap_rate_limited_handlers`. `connect`/`disconnect` are excluded:
+    # Socket.IO caps connections at the transport layer, and disconnect
+    # must always run so limiter state can be cleaned up.
+    _RATE_LIMITED_HANDLERS = (
+        'create_room', 'join_room', 'send_message', 'media_control',
+        'toggle_video', 'toggle_audio',
+        'webrtc_offer', 'webrtc_answer', 'webrtc_ice_candidate',
+        'grant_control', 'toggle_reaction',
+        'queue_add', 'queue_remove', 'queue_reorder',
+        'queue_play_next', 'queue_clear', 'video_reaction',
+    )
+
+    def _wrap_rate_limited_handlers(self):
+        """Replace each rate-limited `handle_X` instance attribute with a
+        wrapped version that consults `_rate_limiter` first. Late-binds
+        `self._rate_limiter` / `self.sio` so tests that swap the limiter
+        after construction still take effect.
+        """
+        outer_self = self
+
+        def _make_wrapper(raw, name):
+            async def _wrapped(sid, *args, **kwargs):
+                if not outer_self._rate_limiter.allow(sid):
+                    logger.warning(f"Rate limit hit for sid={sid} on {name}")
+                    await outer_self.sio.emit(
+                        'error',
+                        {'message': 'Rate limit exceeded. Please slow down.'},
+                        room=sid,
+                    )
+                    return None
+                return await raw(sid, *args, **kwargs)
+            _wrapped.__name__ = f"_rl_{name}"
+            return _wrapped
+
+        for short in self._RATE_LIMITED_HANDLERS:
+            attr = f'handle_{short}'
+            raw = getattr(self, attr)
+            setattr(self, attr, _make_wrapper(raw, short))
 
     def _register_events(self):
         """Register all Socket.IO event handlers."""
@@ -118,6 +221,10 @@ class SocketEventHandler:
     async def handle_disconnect(self, sid: str):
         """Handle client disconnection."""
         logger.info(f" Client {sid} disconnected")
+
+        # Drop any rate-limit state for this sid so reconnecting with the
+        # same id doesn't start with a full bucket from before.
+        self._rate_limiter.forget(sid)
 
         try:
             session = self.room_manager.get_user_session(sid)
@@ -182,6 +289,11 @@ class SocketEventHandler:
             )
             return
 
+        # Defense-in-depth: HTML-escape at ingress so non-browser clients
+        # and any future `dangerouslySetInnerHTML` regression can't see raw
+        # tags (bug #5.1 in docs/polishing/05-security.md).
+        user_name = html.escape(user_name)
+
         try:
             # Create room
             room_code = self.room_manager.create_room(user_name, requested_code if requested_code else None)
@@ -239,6 +351,9 @@ class SocketEventHandler:
                 room=sid,
             )
             return
+
+        # Defense-in-depth HTML escape (bug #5.1).
+        user_name = html.escape(user_name)
 
         try:
             # Check if room exists
@@ -338,6 +453,11 @@ class SocketEventHandler:
         if not message:
             await self.sio.emit('error', {'message': 'Message cannot be empty'}, room=sid)
             return
+
+        # Defense-in-depth HTML escape so the stored + broadcast payload is
+        # safe for any consumer (not just React's auto-escaped text nodes).
+        # See bug #5.1 in docs/polishing/05-security.md.
+        message = html.escape(message)
 
         try:
             # Debug session and room info
@@ -457,8 +577,8 @@ class SocketEventHandler:
                 media_type = data.get('type', 'youtube')
                 media_title = data.get('title', '')
 
-                # Validate media_url is a string with an allowed scheme
-                if not isinstance(media_url, str) or not media_url.startswith(('http://', 'https://', 'magnet:', '/')):
+                # Validate media_url scheme + (for magnet) structural btih check.
+                if not _is_allowed_media_url(media_url):
                     await self.sio.emit('error', {'message': 'Invalid media URL'}, room=sid)
                     return
 
@@ -899,8 +1019,8 @@ class SocketEventHandler:
         media_type = data.get('media_type', 'youtube')
         thumbnail = (data.get('thumbnail') or '').strip()
 
-        # Validate URL
-        if not isinstance(url, str) or not url.startswith(('http://', 'https://', 'magnet:', '/')):
+        # Validate URL scheme + (for magnet) btih structure.
+        if not _is_allowed_media_url(url):
             await self.sio.emit('error', {'message': 'Invalid media URL'}, room=sid)
             return
 

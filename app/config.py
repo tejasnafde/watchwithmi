@@ -110,4 +110,50 @@ MAX_USER_NAME_LENGTH = 50
 SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "*")
 
 # Security settings
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production")
+# `ENV` gates production-only checks. Set to "production" on Render /
+# deployed environments; defaults to "development" so local work is
+# unaffected.
+ENV = os.getenv("ENV", "development")
+
+DEFAULT_SECRET_KEY = "your-secret-key-here-change-in-production"
+SECRET_KEY = os.getenv("SECRET_KEY", DEFAULT_SECRET_KEY)
+
+
+def validate_production_config() -> None:
+    """Fail fast at startup if any security-critical env var is unsafe.
+
+    Called from app/main.py during app startup. In ``ENV=development``
+    this is a no-op so local iteration keeps working. In
+    ``ENV=production`` we refuse to boot with:
+
+      - the in-repo ``SECRET_KEY`` default, or an unset key
+      - ``CORS_ALLOWED_ORIGINS`` set to ``*`` (or unset, which resolves
+        to ``*`` via the getenv default)
+
+    See docs/polishing/05-security.md items #5.5 and #5.6.
+    """
+    env = os.getenv("ENV", "development").lower()
+    if env != "production":
+        return
+
+    problems: list[str] = []
+
+    secret = os.getenv("SECRET_KEY")
+    if not secret or secret == DEFAULT_SECRET_KEY:
+        problems.append(
+            "SECRET_KEY must be set to a unique value in production "
+            "(currently unset or using the repo default)."
+        )
+
+    cors = os.getenv("CORS_ALLOWED_ORIGINS")
+    if not cors or cors.strip() == "*":
+        problems.append(
+            "CORS_ALLOWED_ORIGINS must be an explicit origin list in "
+            "production (currently unset or set to '*')."
+        )
+
+    if problems:
+        raise RuntimeError(
+            "Refusing to start: production config failed validation.\n  - "
+            + "\n  - ".join(problems)
+        )
