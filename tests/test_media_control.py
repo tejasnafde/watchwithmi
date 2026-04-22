@@ -380,8 +380,17 @@ class TestPlaylistValidation:
             "sid_alice",
             {"action": "load_playlist", "items": items, "playlist_id": "PL1"},
         )
-        mock_sio.emit.assert_any_call(
-            "error", {"message": "Invalid playlist item URL"}, room="sid_alice"
+        # The handler now reports the specific item index via
+        # _validate_playlist_items (bug #3.4 in 03-chat-reactions-queue.md);
+        # we check the shape of the error rather than a fixed string.
+        error_calls = [
+            c for c in mock_sio.emit.call_args_list
+            if c.args and c.args[0] == "error"
+        ]
+        assert error_calls, "expected an 'error' emit for missing URL"
+        messages = [c.args[1].get("message", "") for c in error_calls]
+        assert any("url" in m.lower() for m in messages), (
+            f"error message should mention the missing URL; got {messages}"
         )
 
     @pytest.mark.asyncio

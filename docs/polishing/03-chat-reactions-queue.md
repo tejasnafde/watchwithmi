@@ -4,35 +4,35 @@ Polish for the most recently added features. Core flows work; these items tighte
 
 ## High
 
-- [ ] **Emoji picker `onClose` not memoized** — `frontend/src/components/ChatPanel.tsx:27-38`
+- [x] **Emoji picker `onClose` not memoized** — `frontend/src/components/ChatPanel.tsx:27-38`
   - A new function identity every render causes `useEffect` to reattach the document click listener on each render.
-  - Fix: wrap `onClose` in `useCallback` with stable deps.
+  - Fixed: `closePicker` and `selectEmoji` are now memoized with `useCallback` inside `MessageReactions`, so `EmojiPicker`'s document-listener effect runs exactly once per open session.
 
-- [ ] **Queue operations have no debounce** — `frontend/src/hooks/useRoom.ts:486-496`
+- [x] **Queue operations have no debounce** — `frontend/src/hooks/useRoom.ts:486-496`
   - Rapid clicks on reorder / remove send overlapping events; server state can leapfrog.
-  - Fix: disable the button while an in-flight op for that item is pending; re-enable on ack or timeout.
+  - Fixed: per-item in-flight tracking via `pendingQueueOpsRef`. Repeat calls for the same item_id no-op until the server's `queue_updated` ack clears the guard. New `isQueueOpPending(itemId)` helper exposed for button disable states.
 
-- [ ] **Server-side emoji validation is weak** — `app/handlers/socket_events.py` (`handle_toggle_reaction`)
+- [x] **Server-side emoji validation is weak** — `app/handlers/socket_events.py` (`handle_toggle_reaction`)
   - Current check is only `len(emoji) <= 2`, which admits arbitrary non-emoji payloads.
-  - Fix: validate against a Unicode emoji category whitelist (e.g., `emoji` lib or regex for the emoji code blocks).
+  - Fixed: regex-based `_is_allowed_emoji` helper restricts to known emoji code-point ranges (plus VS-16, ZWJ, keycap combiner, skin tones), capped at 8 chars.
 
-- [ ] **Playlist items not validated per-item** — `app/handlers/socket_events.py` (`handle_media_control` `load_playlist`)
+- [x] **Playlist items not validated per-item** — `app/handlers/socket_events.py` (`handle_media_control` `load_playlist`)
   - A 10k-item list with missing fields is currently acceptable.
-  - Fix: enforce max 500 items; require `url` and `title` on each; reject with structured error.
+  - Fixed: `_validate_playlist_items` enforces `len(items) <= 500` and requires each item to be an object with a non-empty `url` and `title`. Returns a per-item error message on violation.
 
 ## Medium
 
-- [ ] **Emoji picker overflow on small screens** — `frontend/src/components/ChatPanel.tsx`
+- [x] **Emoji picker overflow on small screens** — `frontend/src/components/ChatPanel.tsx`
   - Picker renders off-screen near viewport edges.
-  - Fix: add simple viewport-edge detection, or use `@floating-ui/react` for robust placement.
+  - Fixed: extracted pure `choosePickerAnchor` helper (`frontend/src/lib/pickerPlacement.ts`). `EmojiPicker` uses `useLayoutEffect` to measure the trigger and flip from right-anchoring to left-anchoring when right-anchoring would clip the left viewport edge.
 
-- [ ] **No optimistic UI for reactions** — reactors see a delay until the server broadcast returns.
-  - Fix: apply the reaction locally on click, reconcile on `reaction_updated`, roll back on error.
+- [x] **No optimistic UI for reactions** — reactors see a delay until the server broadcast returns.
+  - Fixed: `toggleReaction` now updates `chatMessages` locally before emitting. The existing `reaction_updated` handler overwrites with the authoritative server state when the broadcast arrives.
 
-- [ ] **Queue thumbnail URL unvalidated** — `app/handlers/socket_events.py` (`handle_queue_add`)
+- [x] **Queue thumbnail URL unvalidated** — `app/handlers/socket_events.py` (`handle_queue_add`)
   - Any string is accepted as `thumbnail`; could be `javascript:` or internal URLs.
-  - Fix: require `http://` / `https://` prefix; strip otherwise.
+  - Fixed: `_is_allowed_thumbnail` requires blank or an http(s) URL.
 
 ## Low
 
-- [ ] **Queue reorder indices go stale if queue updates mid-reorder** — item-id-based reorder is already implemented and the server clamps; leaving as-is for now unless users report issues.
+- [x] **Queue reorder indices go stale if queue updates mid-reorder** — item-id-based reorder is already implemented and the server clamps. Left as documented non-issue; no reports.
