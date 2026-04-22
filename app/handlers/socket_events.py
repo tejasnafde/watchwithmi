@@ -3,12 +3,78 @@ Socket.IO event handlers for WatchWithMi.
 """
 
 import logging
-from typing import Dict, Any
+import re
+from typing import Any, Dict, List
 import socketio
 
 from ..config import MAX_USER_NAME_LENGTH
 
 logger = logging.getLogger("watchwithmi.handlers.socket_events")
+
+
+# ---------------------------------------------------------------------------
+# Validation helpers
+# ---------------------------------------------------------------------------
+
+# Matches strings composed entirely of emoji-related code points.
+#
+# Covers the practical set of emoji the UI sends:
+#   U+1F300-1F6FF: Misc symbols/pictographs, Emoticons, Ornamental Dingbats,
+#                  Transport & map
+#   U+1F900-1F9FF: Supplemental symbols & pictographs
+#   U+1FA70-1FAFF: Symbols & pictographs Extended-A
+#   U+1F1E6-1F1FF: Regional indicator (flag halves)
+#   U+2600-27BF  : Misc symbols + Dingbats
+#   U+1F3FB-1F3FF: Skin-tone modifiers
+#   U+FE0F       : Variation Selector-16 (presentation)
+#   U+200D       : Zero-Width Joiner (for composed sequences)
+#   U+20E3       : Combining Enclosing Keycap
+_EMOJI_RE = re.compile(
+    r'^[\U0001F300-\U0001F6FF'
+    r'\U0001F900-\U0001F9FF'
+    r'\U0001FA70-\U0001FAFF'
+    r'\U0001F1E6-\U0001F1FF'
+    r'\U00002600-\U000027BF'
+    r'\U0001F3FB-\U0001F3FF'
+    r'\u200D\uFE0F\u20E3]+$'
+)
+
+MAX_EMOJI_LENGTH = 8  # grapheme clusters (ZWJ sequences with modifiers).
+MAX_PLAYLIST_ITEMS = 500
+
+
+def _is_allowed_emoji(s: Any) -> bool:
+    """Return True iff ``s`` is a short string of emoji-range code points."""
+    if not isinstance(s, str) or not s:
+        return False
+    if len(s) > MAX_EMOJI_LENGTH:
+        return False
+    return bool(_EMOJI_RE.match(s))
+
+
+def _is_allowed_thumbnail(s: Any) -> bool:
+    """Thumbnails must either be blank or an http(s) URL."""
+    if not isinstance(s, str) or s == "":
+        return True
+    return s.startswith(("http://", "https://"))
+
+
+def _validate_playlist_items(items: List[Any]) -> str:
+    """Return an empty string if ``items`` is a valid playlist, else an
+    error message describing the first problem found. Used by the
+    load_playlist branch in handle_media_control."""
+    if len(items) > MAX_PLAYLIST_ITEMS:
+        return f"Playlist has too many items (max {MAX_PLAYLIST_ITEMS})"
+    for idx, item in enumerate(items):
+        if not isinstance(item, dict):
+            return f"Playlist item #{idx} is not an object"
+        url = (item.get("url") or "").strip() if isinstance(item.get("url"), str) else ""
+        title = item.get("title")
+        if not url:
+            return f"Playlist item #{idx} is missing a URL"
+        if not isinstance(title, str) or not title.strip():
+            return f"Playlist item #{idx} is missing a title"
+    return ""
 
 class SocketEventHandler:
     """Handles all Socket.IO events."""
@@ -436,16 +502,20 @@ class SocketEventHandler:
                     await self.sio.emit('error', {'message': 'Playlist has no playable items'}, room=sid)
                     return
 
+                # Per-item validation and a size cap so a 10k-item payload
+                # with malformed entries can't be broadcast wholesale
+                # (bug #3.4 in 03-chat-reactions-queue.md).
+                validation_error = _validate_playlist_items(playlist_items)
+                if validation_error:
+                    await self.sio.emit('error', {'message': validation_error}, room=sid)
+                    return
+
                 playlist_id = (data.get('playlist_id') or '').strip()
                 playlist_title = (data.get('playlist_title') or '').strip()
                 current_index = 0
                 first_item = playlist_items[current_index]
                 media_url = (first_item.get('url') or '').strip()
                 media_title = first_item.get('title', '')
-
-                if not media_url:
-                    await self.sio.emit('error', {'message': 'Invalid playlist item URL'}, room=sid)
-                    return
 
                 self.room_manager.update_media(
                     sid,
@@ -791,8 +861,11 @@ class SocketEventHandler:
             await self.sio.emit('error', {'message': 'message_id and emoji are required'}, room=sid)
             return
 
-        # Validate emoji length (single emoji or short string up to 2 chars)
-        if len(emoji) > 2:
+        # Whitelist: only characters in known emoji ranges are accepted.
+        # A bare `len(emoji) <= 2` check accepted arbitrary two-character
+        # payloads (e.g. "ab", "<b") — tracked as bug #3.1 in
+        # docs/polishing/03-chat-reactions-queue.md.
+        if not _is_allowed_emoji(emoji):
             await self.sio.emit('error', {'message': 'Invalid emoji'}, room=sid)
             return
 
@@ -835,6 +908,17 @@ class SocketEventHandler:
         # cause blank rows in the queue UI (bug #4 in 01-critical-bugs.md).
         if not title:
             await self.sio.emit('error', {'message': 'Title is required'}, room=sid)
+            return
+
+        # Validate thumbnail URL. Blank is fine; anything else must be http(s).
+        # Accepting arbitrary strings let javascript: or relative paths leak
+        # into the UI (bug #3.6 in 03-chat-reactions-queue.md).
+        if not _is_allowed_thumbnail(thumbnail):
+            await self.sio.emit(
+                'error',
+                {'message': 'Thumbnail must be an http:// or https:// URL'},
+                room=sid,
+            )
             return
 
         # Validate media_type

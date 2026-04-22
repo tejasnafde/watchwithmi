@@ -49,6 +49,16 @@ export const useRoom = (roomCode: string, userName: string) => {
   // a detached hook (bug #2 in docs/polishing/01-critical-bugs.md).
   const reactionTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
+  // Queue ops (remove / reorder) that are awaiting a server queue_updated
+  // acknowledgement. Tracked per item_id so rapid clicks on a single
+  // button don't produce overlapping emits (bug #3.5 in
+  // docs/polishing/03-chat-reactions-queue.md). A mutable ref keeps the
+  // check synchronous across multiple calls in the same event loop tick;
+  // bumpPending forces a re-render so consumers can disable buttons.
+  const pendingQueueOpsRef = useRef<Set<string>>(new Set());
+  const [, setPendingQueueOpsVersion] = useState(0);
+  const bumpPending = () => setPendingQueueOpsVersion((v) => v + 1);
+
   useEffect(() => {
     if (!roomCode || !userName) return;
 
@@ -352,6 +362,14 @@ export const useRoom = (roomCode: string, userName: string) => {
       if (data.queue && Array.isArray(data.queue)) {
         setQueue(data.queue);
       }
+      // Any queue_updated ack clears all in-flight op guards. The server
+      // always broadcasts the full queue, so we can't distinguish whose
+      // op this acks — clearing all is safe because the UI is about to
+      // re-render with the authoritative state anyway.
+      if (pendingQueueOpsRef.current.size > 0) {
+        pendingQueueOpsRef.current.clear();
+        bumpPending();
+      }
     });
 
     // Handle ephemeral video reactions. Each reaction auto-clears after 3s;
@@ -408,9 +426,26 @@ export const useRoom = (roomCode: string, userName: string) => {
   };
 
   const toggleReaction = (messageId: string, emoji: string) => {
-    if (socket && connected) {
-      socket.emit('toggle_reaction', { message_id: messageId, emoji });
+    if (!socket || !connected) return;
+
+    // Optimistic update: toggle the current user's presence in the emoji
+    // bucket immediately. The server's reaction_updated broadcast will
+    // later overwrite with the authoritative state (bug #3.6 in
+    // docs/polishing/03-chat-reactions-queue.md).
+    const myId = socket.id || '';
+    if (myId) {
+      setChatMessages(prev => prev.map(msg => {
+        if (msg.message_id !== messageId) return msg;
+        const reactions = { ...(msg.reactions || {}) };
+        const existing = reactions[emoji] || [];
+        reactions[emoji] = existing.includes(myId)
+          ? existing.filter(u => u !== myId)
+          : [...existing, myId];
+        return { ...msg, reactions };
+      }));
     }
+
+    socket.emit('toggle_reaction', { message_id: messageId, emoji });
   };
 
   const loadMedia = async (url: string, type: 'youtube' | 'media' | 'direct' | 'youtube_playlist') => {
@@ -502,16 +537,23 @@ export const useRoom = (roomCode: string, userName: string) => {
   };
 
   const removeFromQueue = (itemId: string) => {
-    if (socket && connected) {
-      socket.emit('queue_remove', { item_id: itemId });
-    }
+    if (!socket || !connected) return;
+    if (pendingQueueOpsRef.current.has(itemId)) return;
+    pendingQueueOpsRef.current.add(itemId);
+    bumpPending();
+    socket.emit('queue_remove', { item_id: itemId });
   };
 
   const reorderQueue = (itemId: string, newIndex: number) => {
-    if (socket && connected) {
-      socket.emit('queue_reorder', { item_id: itemId, new_index: newIndex });
-    }
+    if (!socket || !connected) return;
+    if (pendingQueueOpsRef.current.has(itemId)) return;
+    pendingQueueOpsRef.current.add(itemId);
+    bumpPending();
+    socket.emit('queue_reorder', { item_id: itemId, new_index: newIndex });
   };
+
+  const isQueueOpPending = (itemId: string) =>
+    pendingQueueOpsRef.current.has(itemId);
 
   const playNextFromQueue = () => {
     if (socket && connected) {
@@ -604,6 +646,7 @@ export const useRoom = (roomCode: string, userName: string) => {
     addToQueue,
     removeFromQueue,
     reorderQueue,
+    isQueueOpPending,
     playNextFromQueue,
     clearQueue,
     searchMediaFiles,

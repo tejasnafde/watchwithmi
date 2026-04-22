@@ -6,13 +6,14 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { logger } from '@/lib/logger';
 import type { ChatMessage } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Plus } from 'lucide-react';
+import { choosePickerAnchor, type PickerAnchor } from '@/lib/pickerPlacement';
 
 const REACTION_EMOJIS = ['😂', '❤️', '👍', '👎', '🔥', '😮', '😢', '🎉'];
 
@@ -24,8 +25,42 @@ interface ChatPanelProps {
     onToggleReaction?: (messageId: string, emoji: string) => void;
 }
 
-function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) {
+// Approximate picker width: 8 columns × 32px + gaps + padding. Kept in
+// sync with the grid below. Precise measurement is done at runtime via
+// the ref after mount.
+const PICKER_ESTIMATED_WIDTH = 280;
+const PICKER_EDGE_MARGIN = 8;
+
+function EmojiPicker({
+    onSelect,
+    onClose,
+    triggerRef,
+}: {
+    onSelect: (emoji: string) => void;
+    onClose: () => void;
+    triggerRef: React.RefObject<HTMLElement | null>;
+}) {
     const ref = useRef<HTMLDivElement>(null);
+    // Start right-anchored to preserve desktop look; useLayoutEffect flips
+    // to left-anchor if that would clip the viewport edge on narrow screens
+    // (bug #3.7 in docs/polishing/03-chat-reactions-queue.md).
+    const [anchor, setAnchor] = useState<PickerAnchor>('right');
+
+    useLayoutEffect(() => {
+        const trigger = triggerRef.current;
+        if (!trigger || typeof window === 'undefined') return;
+
+        const rect = trigger.getBoundingClientRect();
+        const measured = ref.current?.getBoundingClientRect().width;
+        setAnchor(
+            choosePickerAnchor({
+                triggerRight: rect.right,
+                viewportWidth: window.innerWidth,
+                pickerWidth: measured || PICKER_ESTIMATED_WIDTH,
+                margin: PICKER_EDGE_MARGIN,
+            }),
+        );
+    }, [triggerRef]);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -40,7 +75,7 @@ function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void;
     return (
         <div
             ref={ref}
-            className="absolute bottom-full mb-1 right-0 z-50 bg-black border-2 border-white p-1.5 grid grid-cols-8 gap-1"
+            className={`absolute bottom-full mb-1 ${anchor === 'right' ? 'right-0' : 'left-0'} z-50 bg-black border-2 border-white p-1.5 grid grid-cols-8 gap-1`}
         >
             {REACTION_EMOJIS.map((emoji) => (
                 <button
@@ -68,6 +103,17 @@ function MessageReactions({
     onToggle: (emoji: string) => void;
 }) {
     const [showPicker, setShowPicker] = useState(false);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+
+    // Memoize the picker callbacks so their identity is stable across
+    // parent re-renders; otherwise EmojiPicker's document-listener effect
+    // detaches and reattaches on every re-render (bug #3.2 in
+    // docs/polishing/03-chat-reactions-queue.md).
+    const closePicker = useCallback(() => setShowPicker(false), []);
+    const selectEmoji = useCallback(
+        (emoji: string) => onToggle(emoji),
+        [onToggle],
+    );
 
     const entries = Object.entries(reactions).filter(([, users]) => users.length > 0);
 
@@ -92,6 +138,7 @@ function MessageReactions({
             })}
             <div className="relative">
                 <button
+                    ref={triggerRef}
                     onClick={() => setShowPicker(!showPicker)}
                     className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-mono border border-white/20 text-white/50 hover:border-white/40 hover:text-white transition-colors"
                 >
@@ -99,8 +146,9 @@ function MessageReactions({
                 </button>
                 {showPicker && (
                     <EmojiPicker
-                        onSelect={(emoji) => onToggle(emoji)}
-                        onClose={() => setShowPicker(false)}
+                        triggerRef={triggerRef}
+                        onSelect={selectEmoji}
+                        onClose={closePicker}
                     />
                 )}
             </div>

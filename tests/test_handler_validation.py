@@ -326,3 +326,242 @@ class TestVideoReactionErrorEmits:
         reactions = _event_payloads(mock_sio, "video_reaction")
         assert len(reactions) == 1
         assert reactions[0]["emoji"] == "🎉"
+
+
+# ---------------------------------------------------------------------------
+# Bug #3.1 — Server-side emoji whitelist for toggle_reaction
+# ---------------------------------------------------------------------------
+
+
+class TestToggleReactionEmojiWhitelist:
+    """
+    docs/polishing/03-chat-reactions-queue.md: "Server-side emoji validation
+    is weak — len(emoji) <= 2 lets arbitrary 1-2 char payloads through."
+    The fix restricts the check to actual emoji code-point ranges.
+    """
+
+    @pytest.fixture
+    def populated_room_with_msg(self, handler, rm, mock_sio):
+        """A room with a host and a chat message whose message_id we know."""
+        import asyncio
+
+        code = rm.create_room("Alice")
+        rm.join_room(code, "sid_alice", "Alice", is_host=True)
+        rm.join_room(code, "sid_bob", "Bob")
+
+        async def _seed():
+            await handler.handle_send_message(
+                "sid_alice", {"message": "hello"}
+            )
+
+        asyncio.get_event_loop().run_until_complete(_seed())
+        mock_sio.emit.reset_mock()
+        # Pull the message_id that the model generated.
+        room = rm.get_room(code)
+        message_id = room.chat[-1].message_id
+        return code, message_id
+
+    @pytest.mark.asyncio
+    async def test_rejects_ascii_letters(
+        self, handler, mock_sio, populated_room_with_msg
+    ):
+        _, message_id = populated_room_with_msg
+        await handler.handle_toggle_reaction(
+            "sid_bob", {"message_id": message_id, "emoji": "ab"}
+        )
+        errors = _error_payloads(mock_sio)
+        assert errors, "expected an 'error' emit for non-emoji payload 'ab'"
+
+    @pytest.mark.asyncio
+    async def test_rejects_html_injection(
+        self, handler, mock_sio, populated_room_with_msg
+    ):
+        _, message_id = populated_room_with_msg
+        # Two-char HTML fragment that slips past `len(emoji) <= 2`.
+        await handler.handle_toggle_reaction(
+            "sid_bob", {"message_id": message_id, "emoji": "<b"}
+        )
+        errors = _error_payloads(mock_sio)
+        assert errors, "expected an 'error' emit for HTML-like payload"
+
+    @pytest.mark.asyncio
+    async def test_accepts_common_emoji(
+        self, handler, mock_sio, populated_room_with_msg
+    ):
+        _, message_id = populated_room_with_msg
+        # Use the exact set surfaced by the frontend reaction picker.
+        for emoji in ["👍", "❤️", "😂", "🎉", "🔥", "😮", "😢"]:
+            mock_sio.emit.reset_mock()
+            await handler.handle_toggle_reaction(
+                "sid_bob", {"message_id": message_id, "emoji": emoji}
+            )
+            errors = _error_payloads(mock_sio)
+            assert not errors, (
+                f"emoji {emoji!r} was rejected as invalid: {errors}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Bug #3.6 — Queue thumbnail URL must be http:// or https://
+# ---------------------------------------------------------------------------
+
+
+class TestQueueAddThumbnailValidation:
+    @pytest.mark.asyncio
+    async def test_rejects_javascript_url_thumbnail(
+        self, handler, mock_sio, populated_room, rm
+    ):
+        mock_sio.emit.reset_mock()
+        await handler.handle_queue_add(
+            "sid_bob",
+            {
+                "url": "https://example.com/v",
+                "title": "ok",
+                "media_type": "youtube",
+                "thumbnail": "javascript:alert(1)",
+            },
+        )
+        errors = _error_payloads(mock_sio)
+        assert errors, "expected an 'error' emit for javascript: thumbnail"
+        room = rm.get_room(populated_room)
+        assert room.queue == []
+
+    @pytest.mark.asyncio
+    async def test_rejects_relative_thumbnail(
+        self, handler, mock_sio, populated_room, rm
+    ):
+        mock_sio.emit.reset_mock()
+        await handler.handle_queue_add(
+            "sid_bob",
+            {
+                "url": "https://example.com/v",
+                "title": "ok",
+                "media_type": "youtube",
+                "thumbnail": "../admin",
+            },
+        )
+        errors = _error_payloads(mock_sio)
+        assert errors
+
+    @pytest.mark.asyncio
+    async def test_accepts_blank_thumbnail(
+        self, handler, mock_sio, populated_room, rm
+    ):
+        """Blank thumbnail (nothing supplied) is the existing common path."""
+        mock_sio.emit.reset_mock()
+        await handler.handle_queue_add(
+            "sid_bob",
+            {
+                "url": "https://example.com/v",
+                "title": "ok",
+                "media_type": "youtube",
+                "thumbnail": "",
+            },
+        )
+        errors = _error_payloads(mock_sio)
+        assert not errors
+        room = rm.get_room(populated_room)
+        assert len(room.queue) == 1
+
+    @pytest.mark.asyncio
+    async def test_accepts_https_thumbnail(
+        self, handler, mock_sio, populated_room, rm
+    ):
+        mock_sio.emit.reset_mock()
+        await handler.handle_queue_add(
+            "sid_bob",
+            {
+                "url": "https://example.com/v",
+                "title": "ok",
+                "media_type": "youtube",
+                "thumbnail": "https://img.example.com/thumb.jpg",
+            },
+        )
+        errors = _error_payloads(mock_sio)
+        assert not errors
+
+
+# ---------------------------------------------------------------------------
+# Bug #3.4 — Playlist items per-item validation in load_playlist
+# ---------------------------------------------------------------------------
+
+
+class TestLoadPlaylistValidation:
+    MAX_PLAYLIST_ITEMS = 500
+
+    @pytest.mark.asyncio
+    async def test_rejects_playlist_exceeding_max(
+        self, handler, mock_sio, populated_room
+    ):
+        items = [
+            {"url": f"https://youtu.be/{i:04d}", "title": f"item {i}"}
+            for i in range(self.MAX_PLAYLIST_ITEMS + 1)
+        ]
+        mock_sio.emit.reset_mock()
+        await handler.handle_media_control(
+            "sid_alice",
+            {
+                "action": "load_playlist",
+                "items": items,
+                "playlist_id": "PL1",
+                "playlist_title": "Big",
+            },
+        )
+        errors = _error_payloads(mock_sio)
+        assert errors
+        assert any(
+            "500" in str(e.get("message", "")) or "too" in str(e.get("message", "")).lower()
+            for e in errors
+        ), f"error message should reference the size cap; got {errors}"
+
+    @pytest.mark.asyncio
+    async def test_rejects_item_missing_url(self, handler, mock_sio, populated_room):
+        mock_sio.emit.reset_mock()
+        await handler.handle_media_control(
+            "sid_alice",
+            {
+                "action": "load_playlist",
+                "items": [
+                    {"url": "https://youtu.be/a", "title": "a"},
+                    {"title": "no-url"},
+                ],
+            },
+        )
+        errors = _error_payloads(mock_sio)
+        assert errors
+
+    @pytest.mark.asyncio
+    async def test_rejects_item_missing_title(self, handler, mock_sio, populated_room):
+        mock_sio.emit.reset_mock()
+        await handler.handle_media_control(
+            "sid_alice",
+            {
+                "action": "load_playlist",
+                "items": [
+                    {"url": "https://youtu.be/a"},
+                ],
+            },
+        )
+        errors = _error_payloads(mock_sio)
+        assert errors
+
+    @pytest.mark.asyncio
+    async def test_accepts_well_formed_playlist(
+        self, handler, mock_sio, populated_room
+    ):
+        items = [
+            {"url": "https://youtu.be/a", "title": "a"},
+            {"url": "https://youtu.be/b", "title": "b"},
+        ]
+        mock_sio.emit.reset_mock()
+        await handler.handle_media_control(
+            "sid_alice",
+            {
+                "action": "load_playlist",
+                "items": items,
+                "playlist_id": "PL1",
+                "playlist_title": "Good",
+            },
+        )
+        errors = _error_payloads(mock_sio)
+        assert not errors
