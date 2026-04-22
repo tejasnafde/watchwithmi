@@ -44,6 +44,11 @@ export const useRoom = (roomCode: string, userName: string) => {
   // Track whether this is the initial connection or a reconnection
   const hasConnectedRef = useRef(false);
 
+  // Pending setTimeouts that clear ephemeral video reactions. Tracking them
+  // lets us clearTimeout() on unmount so late callbacks don't setState on
+  // a detached hook (bug #2 in docs/polishing/01-critical-bugs.md).
+  const reactionTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
   useEffect(() => {
     if (!roomCode || !userName) return;
 
@@ -163,15 +168,20 @@ export const useRoom = (roomCode: string, userName: string) => {
       console.log('👥 Setting users array after join/create:', usersArray);
       setUsers(usersArray);
 
-      // Set chat messages (backend might send 'chat' or 'chat_history')
+      // Set chat messages (backend might send 'chat' or 'chat_history').
+      // Preserve msg.message_id so reaction_updated events can match historical
+      // messages — without this, reactions on messages loaded via room_joined
+      // silently fail (bug #1 in docs/polishing/01-critical-bugs.md).
       const rawChat = data.chat || data.chat_history || [];
       if (Array.isArray(rawChat)) {
         setChatMessages(rawChat.map((msg: any) => ({
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: msg.message_id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          message_id: msg.message_id,
           user_name: msg.user_name,
           message: msg.message,
           timestamp: msg.timestamp,
           isServer: msg.is_server || false,
+          reactions: msg.reactions || {},
         })));
       }
 
@@ -344,13 +354,16 @@ export const useRoom = (roomCode: string, userName: string) => {
       }
     });
 
-    // Handle ephemeral video reactions
+    // Handle ephemeral video reactions. Each reaction auto-clears after 3s;
+    // timeouts are tracked in reactionTimeoutsRef so unmount can cancel them.
     newSocket.on('video_reaction', (data: { emoji: string; user_name: string; user_id: string }) => {
       const reactionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       setVideoReactions(prev => [...prev, { id: reactionId, emoji: data.emoji, user_name: data.user_name }]);
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         setVideoReactions(prev => prev.filter(r => r.id !== reactionId));
+        reactionTimeoutsRef.current.delete(timeoutId);
       }, 3000);
+      reactionTimeoutsRef.current.add(timeoutId);
     });
 
     return () => {
@@ -380,6 +393,11 @@ export const useRoom = (roomCode: string, userName: string) => {
       newSocket.off('room_error');
       newSocket.io.off('reconnect');
       newSocket.disconnect();
+
+      // Cancel any outstanding video-reaction timeouts so their callbacks
+      // don't fire against an unmounted hook.
+      reactionTimeoutsRef.current.forEach(clearTimeout);
+      reactionTimeoutsRef.current.clear();
     };
   }, [roomCode, userName]);
 

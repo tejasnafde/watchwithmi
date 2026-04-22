@@ -102,6 +102,10 @@ MAX_USERS_PER_ROOM = int(os.getenv("MAX_USERS_PER_ROOM", 50))
 ROOM_CODE_LENGTH = 6
 ROOM_CLEANUP_INTERVAL = 300  # 5 minutes
 
+# Upper bound for user-supplied display names. Caps a DoS / UX vector where
+# a megabyte-sized name would be broadcast to every peer on join.
+MAX_USER_NAME_LENGTH = 50
+
 # Socket.IO settings
 SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "*")
 
