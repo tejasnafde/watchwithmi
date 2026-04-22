@@ -1,13 +1,16 @@
 "use client"
 
-import { useState, use } from "react"
+import { useCallback, useState, use } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Copy, LogOut, Users, MessageCircle, Video, Crown, Music } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { CollapsiblePanel } from "@/components/CollapsiblePanel"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { useRoom } from "@/hooks/useRoom"
+import { useMediaQuery } from "@/hooks/useMediaQuery"
+import { useSidebarPanels } from "@/hooks/useSidebarPanels"
 import { VideoChat } from "@/components/VideoChat"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { MediaPlayer } from "@/components/MediaPlayer"
@@ -84,6 +87,36 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
   const [toasts, setToasts] = useState<
     Array<{ id: number; message: string; type: "info" | "success" | "error" | "warning" }>
   >([])
+
+  // Responsive breakpoints for the room layout.
+  // - sm (<768px): sidebar stacks below the player, only one panel expanded at a time.
+  // - md (768-1023px): sidebar is a narrower right column.
+  // - lg (>=1024px): full 400px right column.
+  const isDesktop = useMediaQuery("(min-width: 1024px)")
+  const isTablet = useMediaQuery("(min-width: 768px) and (max-width: 1023.98px)")
+  const isMobile = !isDesktop && !isTablet
+
+  // Collapsible sidebar panels. Smart defaults:
+  //   USERS: collapsed on mobile (it's a secondary glance), expanded on desktop.
+  //   CHAT: expanded by default everywhere — primary interaction surface.
+  //   VIDEO: collapsed by default; auto-expands when a call becomes active
+  //          (wired via VideoChat's onActiveChange below).
+  const sidebar = useSidebarPanels(
+    {
+      users: { defaultExpanded: !isMobile },
+      chat: { defaultExpanded: true },
+      video: { defaultExpanded: false },
+    },
+    { singleExpandMode: isMobile },
+  )
+
+  // Auto-expand/collapse video panel as the call state changes.
+  const handleVideoActiveChange = useCallback(
+    (active: boolean) => {
+      sidebar.setExpanded("video", active)
+    },
+    [sidebar],
+  )
 
   const showToast = (message: string, type: "info" | "success" | "error" | "warning" = "info") => {
     const id = Date.now()
@@ -306,10 +339,13 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
           </div>
         </div>
 
-        {/* Main Content - Full Width Layout */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left: Media Player + Controls (70%) */}
-          <div className="flex-1 flex flex-col border-r-4 border-white overflow-y-auto min-h-0">
+        {/* Main Content: side-by-side on md+, stacked on mobile so the
+            sidebar sections drop BELOW the player instead of squeezing
+            beside it. */}
+        <div className={`flex-1 flex overflow-hidden ${isMobile ? "flex-col" : "flex-row"}`}>
+          {/* Left: Media Player + Controls. On mobile the right-border
+              becomes the sidebar's top-border handled by the aside below. */}
+          <div className={`flex-1 flex flex-col overflow-y-auto min-h-0 ${isMobile ? "" : ""}`}>
             {/* Media Player */}
             <div className="flex-1 bg-[#0a0a0a]">
               <MediaPlayer
@@ -377,15 +413,29 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
             </div>
           </div>
 
-          {/* Right Sidebar: Users + Chat (30%) */}
-          <div className="w-[400px] flex flex-col bg-black min-h-0 overflow-hidden">
-            {/* Users Section */}
-            <div className="shrink-0 max-h-[30%] overflow-y-auto border-b-4 border-white bg-black p-4">
-              <h3 className="text-white font-bold uppercase mb-3 flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                USERS ({users.length})
-              </h3>
-              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+          {/* Right Sidebar: three collapsible panels (USERS / CHAT / VIDEO CHAT).
+              Desktop: fixed-width right column. Tablet: narrower right column.
+              Mobile: stacks BELOW the player via flex-col on the outer row,
+              see the `isMobile` branch on that row's className above. */}
+          <aside
+            className={`flex flex-col bg-black min-h-0 overflow-hidden ${
+              isMobile
+                ? "w-full border-t-4 border-white"
+                : isTablet
+                  ? "w-[320px] border-l-4 border-white"
+                  : "w-[400px] border-l-4 border-white"
+            }`}
+          >
+            <CollapsiblePanel
+              title="USERS"
+              icon={Users}
+              count={users.length}
+              expanded={sidebar.expanded.users}
+              onToggle={() => sidebar.toggle("users")}
+              onSolo={() => sidebar.solo("users")}
+              className="border-b-2 border-white"
+            >
+              <div className="p-3 space-y-2 h-full overflow-y-auto">
                 {users.map((user) => (
                   <div
                     key={user.id}
@@ -428,42 +478,45 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
                   </div>
                 ))}
               </div>
-            </div>
+            </CollapsiblePanel>
 
-            {/* Chat Section - Takes remaining space, always visible */}
-            <div className="flex-1 min-h-[200px] flex flex-col border-b-4 border-white overflow-hidden">
-              <div className="p-4 border-b-2 border-white bg-black shrink-0">
-                <h3 className="text-white font-bold uppercase flex items-center gap-2">
-                  <MessageCircle className="h-4 w-4" />
-                  CHAT
-                </h3>
-              </div>
-              <div className="flex-1 overflow-hidden min-h-0">
-                <ChatPanel
-                  messages={chatMessages}
-                  onSendMessage={sendMessage}
-                  currentUserName={userName}
-                  currentUserId={currentUserId}
-                  onToggleReaction={toggleReaction}
-                />
-              </div>
-            </div>
+            <CollapsiblePanel
+              title="CHAT"
+              icon={MessageCircle}
+              count={chatMessages.filter((m) => !m.isServer).length}
+              expanded={sidebar.expanded.chat}
+              onToggle={() => sidebar.toggle("chat")}
+              onSolo={() => sidebar.solo("chat")}
+              className="border-b-2 border-white"
+            >
+              <ChatPanel
+                messages={chatMessages}
+                onSendMessage={sendMessage}
+                currentUserName={userName}
+                currentUserId={currentUserId}
+                onToggleReaction={toggleReaction}
+              />
+            </CollapsiblePanel>
 
-            {/* Video Chat Section */}
-            <div className="shrink-0 max-h-[40%] overflow-y-auto bg-black p-4">
-              <h3 className="text-white font-bold uppercase mb-3 flex items-center gap-2">
-                <Video className="h-4 w-4" />
-                VIDEO CHAT
-              </h3>
-              {socket && (
-                <VideoChat
-                  socket={socket}
-                  currentUserId={currentUserId}
-                  users={users}
-                />
-              )}
-            </div>
-          </div>
+            <CollapsiblePanel
+              title="VIDEO CHAT"
+              icon={Video}
+              expanded={sidebar.expanded.video}
+              onToggle={() => sidebar.toggle("video")}
+              onSolo={() => sidebar.solo("video")}
+            >
+              <div className="p-3 h-full overflow-y-auto">
+                {socket && (
+                  <VideoChat
+                    socket={socket}
+                    currentUserId={currentUserId}
+                    users={users}
+                    onActiveChange={handleVideoActiveChange}
+                  />
+                )}
+              </div>
+            </CollapsiblePanel>
+          </aside>
         </div>
       </div>
     </ErrorBoundary>
