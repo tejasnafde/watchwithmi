@@ -39,11 +39,53 @@ from .services.media_bridge import media_bridge
 # Initialize logging
 logger = setup_logging()
 
+# Startup wall-clock used by GET /health for uptime reporting. Sampled at
+# module import so it includes app boot + lifespan work, not just post-yield.
+import time as _time  # local alias to keep the module-level name available
+_app_start_time = _time.monotonic()
+
 # Initialize services (will be initialized in lifespan)
 room_manager = None
 socket_handler = None
 content_search = None  # P2P content search service
 youtube_search = None
+
+ORPHANED_SESSION_SWEEP_INTERVAL_SECONDS = int(
+    os.getenv("ORPHANED_SESSION_SWEEP_INTERVAL_SECONDS", "300")
+)
+
+
+async def _orphaned_session_sweep_loop():
+    """Periodic sweep that reconciles RoomManager's users with the live
+    Socket.IO session set. Sockets that vanish without a clean disconnect
+    (network drops, mobile backgrounding, tab close mid-handshake) leave
+    ghost users in the room's users map; this loop walks them out.
+
+    Runs every ``ORPHANED_SESSION_SWEEP_INTERVAL_SECONDS`` (default 5min).
+    See bug "No cleanup job for orphaned sessions" in
+    docs/polishing/06-deployment-scaling.md.
+    """
+    import asyncio
+    while True:
+        try:
+            await asyncio.sleep(ORPHANED_SESSION_SWEEP_INTERVAL_SECONDS)
+            if room_manager is None:
+                continue
+            # Socket.IO exposes connected sids through the default namespace's
+            # manager.rooms[namespace][sid] mapping. We read the keys at
+            # the root room ("/") which is the "all connected sids" set.
+            try:
+                sids = set((sio.manager.rooms.get("/", {}) or {}).keys())
+            except Exception:
+                sids = set()
+            removed = room_manager.cleanup_stale_sessions(sids)
+            if removed:
+                logger.info(f"Orphaned-session sweep removed {removed} stale user entries")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:  # never let the loop die silently
+            logger.error(f"Orphaned-session sweep crashed: {e}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -59,18 +101,33 @@ async def lifespan(app: FastAPI):
     logger.info("Socket.IO handlers registered")
     logger.info(f" YouTube search: {'enabled' if youtube_search.is_enabled() else 'disabled'}")
 
-    yield
+    import asyncio
+    sweep_task = asyncio.create_task(_orphaned_session_sweep_loop())
 
-    # Shutdown
-    logger.info(f"{APP_NAME} shutting down")
-    if room_manager:
-        cleaned = room_manager.cleanup_empty_rooms()
-        if cleaned > 0:
-            logger.info(f" Cleaned up {cleaned} empty rooms")
-    # Clean up media bridge
-    if media_bridge and hasattr(media_bridge, 'active_media') and media_bridge.active_media:
-        logger.info(f" Cleaning up {len(media_bridge.active_media)} active media items")
-        media_bridge.clear_all_medias()
+    try:
+        yield
+    finally:
+        # Shutdown
+        logger.info(f"{APP_NAME} shutting down")
+
+        sweep_task.cancel()
+        try:
+            await sweep_task
+        except (asyncio.CancelledError, Exception):
+            pass
+
+        if room_manager:
+            cleaned = room_manager.cleanup_empty_rooms()
+            if cleaned > 0:
+                logger.info(f" Cleaned up {cleaned} empty rooms")
+        # Clean up media bridge. `clear_all_medias` stops every active
+        # libtorrent handle and removes the session; confirmed to run on
+        # SIGTERM via uvicorn's lifespan → asynccontextmanager → finally
+        # path. See bug "Graceful shutdown for libtorrent" in
+        # docs/polishing/06-deployment-scaling.md.
+        if media_bridge and hasattr(media_bridge, 'active_media') and media_bridge.active_media:
+            logger.info(f" Cleaning up {len(media_bridge.active_media)} active media items")
+            media_bridge.clear_all_medias()
 
 # Handle CORS origins - convert string to list if necessary
 cors_origins = SOCKETIO_CORS_ALLOWED_ORIGINS
@@ -285,11 +342,27 @@ async def get_youtube_playlist(request: YouTubePlaylistRequest):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint used by Render / Docker healthchecks.
+
+    Returns JSON (never HTML) so a partially-initialized app gets caught
+    by a strict JSON parse instead of the index page reporting 200 for
+    every request. The fields are:
+
+      - ``status``: literal ``"ok"`` once the lifespan has finished wiring
+        up services, ``"starting"`` before then.
+      - ``room_count``: current number of rooms (sanity signal for the
+        singleton RoomManager).
+      - ``uptime_s``: seconds since module import.
+
+    See bug #06 in docs/polishing/06-deployment-scaling.md.
+    """
+    status = "ok" if room_manager is not None else "starting"
     return {
-        "status": "healthy",
+        "status": status,
+        "room_count": room_manager.get_room_stats()["total_rooms"] if room_manager else 0,
+        "uptime_s": round(_time.monotonic() - _app_start_time, 2),
         "app": APP_NAME,
-        "version": VERSION
+        "version": VERSION,
     }
 
 # Note: Startup and shutdown events are now handled by the lifespan function above

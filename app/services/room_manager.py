@@ -307,3 +307,34 @@ class RoomManager:
             logger.info(f" Cleaned up empty room {room_code}")
 
         return len(empty_rooms)
+
+    def cleanup_stale_sessions(self, active_sids) -> int:
+        """Remove users whose ``sid`` isn't in the live Socket.IO session
+        set. Returns the number of user entries dropped.
+
+        Sockets that vanish without a clean disconnect (network drops,
+        mobile backgrounding, tab close mid-handshake) can leave ghost
+        entries in the room's users map. A periodic sweep that consults
+        ``AsyncServer.manager.get_participants(...)`` and invokes this
+        method keeps the view honest.
+
+        Orphaned rooms (empty after cleanup) are deleted in the same
+        pass, so the caller doesn't need to follow up with
+        ``cleanup_empty_rooms``.
+
+        See docs/polishing/06-deployment-scaling.md bug "No cleanup job
+        for orphaned sessions".
+        """
+        active = set(active_sids) if not isinstance(active_sids, set) else active_sids
+        removed = 0
+
+        for room_code in list(self._rooms.keys()):
+            room = self._rooms[room_code]
+            stale = [sid for sid in list(room.users.keys()) if sid not in active]
+            for sid in stale:
+                # Use the existing leave_room path so host-transfer and
+                # session-dict cleanup stay in one place.
+                self.leave_room(room_code, sid)
+                removed += 1
+
+        return removed

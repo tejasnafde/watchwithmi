@@ -26,9 +26,11 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Health check — hits the JSON /health endpoint so a partially-initialized
+# app that still serves the HTML index (via GET /) gets caught. See bug
+# #06 in docs/polishing/06-deployment-scaling.md.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/ || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the application using Gunicorn for production
 # Using 1 worker because Socket.IO state is currently in-memory (per-process)

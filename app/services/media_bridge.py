@@ -107,14 +107,21 @@ class MediaBridge:
             raise ImportError("libmedia not available")
 
         self.session = lt.session()
-        self.session.listen_on(6881, 6891)
         self.active_media: Dict[str, Dict[str, Any]] = {}
         self.temp_dir = tempfile.mkdtemp(prefix="watchwithmi_medias_")
 
-        # Configure session settings for better performance
+        # Configure session settings for better performance.
+        # `listen_on(6881, 6891)` was the pre-libtorrent-2.0 API and now
+        # emits a DeprecationWarning; the settings-based `listen_interfaces`
+        # below is the supported replacement (bug #06 in
+        # docs/polishing/06-deployment-scaling.md). We try a port range via
+        # comma-separated interfaces so the session falls through to the
+        # next port on collision.
         settings = self.session.get_settings()
         settings['user_agent'] = 'WatchWithMi/1.0'
-        settings['listen_interfaces'] = '0.0.0.0:6881'
+        settings['listen_interfaces'] = ','.join(
+            f'0.0.0.0:{port}' for port in range(6881, 6892)
+        )
         settings['enable_dht'] = True
         settings['enable_lsd'] = True
         settings['enable_upnp'] = True

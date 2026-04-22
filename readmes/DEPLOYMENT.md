@@ -104,6 +104,78 @@ railway logs --service backend
 cd frontend && npm run build
 ```
 
+## Scaling
+
+### Single-worker constraint
+
+The backend currently runs **one Gunicorn/Uvicorn worker** (see the `CMD`
+in `Dockerfile`). This is deliberate — Socket.IO, `RoomManager`, chat
+history, the queue, and the per-sid rate-limit bucket all live in
+**in-process memory**. Starting a second worker breaks the app because
+room state diverges between workers and socket emits don't cross the
+process boundary.
+
+What this buys you: simpler deployment, no external dependencies.
+What it costs you: the service can't take advantage of multi-core or
+run more than one instance. On Render, scale vertically (larger
+instance) rather than horizontally for now.
+
+### When you're ready to horizontally scale
+
+Flip to a Redis-backed Socket.IO manager so emits propagate across
+workers:
+
+```python
+# app/main.py
+import socketio
+manager = socketio.AsyncRedisManager(os.environ["REDIS_URL"])
+sio = socketio.AsyncServer(client_manager=manager, async_mode='asgi', ...)
+```
+
+Then:
+1. Add `redis>=5.0.0` back to `requirements.txt` (was dropped in the
+   06-deployment-scaling pass because nothing imported it).
+2. Provision a Render **Key Value** service, or point `REDIS_URL` at
+   Upstash / Redis Cloud.
+3. Bump Gunicorn `--workers` in the `Dockerfile` `CMD` to 2+.
+4. Enable sticky sessions on the Render service so a given socket stays
+   pinned to one worker — room state still lives per-worker; Redis only
+   carries the pub/sub channel.
+
+Full room-state-in-Redis is a separate project and not necessary for
+this step.
+
+### Graceful shutdown
+
+The FastAPI `lifespan` context in `app/main.py` calls
+`media_bridge.clear_all_medias()` and cancels the orphaned-session
+sweep in its `finally` block. Uvicorn translates `SIGTERM` from the
+container orchestrator into lifespan shutdown, so Render / Docker-stop
+should let the app close cleanly. Verify with:
+
+```bash
+docker run --rm -it -p 8000:8000 watchwithmi
+# in another terminal:
+docker kill --signal=SIGTERM <container>
+# logs should show "WatchWithMi shutting down" + "Cleaning up N active
+# media items" before the process exits.
+```
+
+## Health check
+
+`GET /health` returns JSON with `{status, room_count, uptime_s, app,
+version}`. Render and the Dockerfile are configured to use it.
+`status` is `"starting"` during boot and `"ok"` once the lifespan has
+initialized services — a partially-initialized app won't pass the check.
+
+## Required environment variables on Render
+
+Covered end-to-end in [`docs/polishing/05-security.md`](../docs/polishing/05-security.md).
+Short version: `ENV=production`, `SECRET_KEY`, and
+`CORS_ALLOWED_ORIGINS` are **required** in prod or the app refuses to
+start. See that doc for the full table including optional rate-limit
+knobs.
+
 ## 🎉 Ready to Share!
 Once deployed, share your live URL with friends:
 `https://your-app-name.railway.app` 
