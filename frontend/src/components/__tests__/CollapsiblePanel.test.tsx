@@ -36,7 +36,11 @@ describe("CollapsiblePanel", () => {
         expect(screen.getByText("hello")).toBeInTheDocument();
     });
 
-    it("aria-expanded is 'false' and children are NOT in the DOM when collapsed", () => {
+    it("keeps children mounted but visually hidden when collapsed", () => {
+        // Children stay mounted so expensive sub-components (VideoChat,
+        // ChatPanel) preserve their state across collapse/expand. The
+        // body is CSS-hidden via `display: none` so it's out of tab
+        // order and accessibility trees.
         render(
             <CollapsiblePanel
                 title="VIDEO CHAT"
@@ -44,12 +48,16 @@ describe("CollapsiblePanel", () => {
                 expanded={false}
                 onToggle={vi.fn()}
             >
-                <p data-testid="hidden-body">should not render</p>
+                <p data-testid="hidden-body">still mounted</p>
             </CollapsiblePanel>,
         );
         const header = screen.getByRole("button", { name: /video chat/i });
         expect(header).toHaveAttribute("aria-expanded", "false");
-        expect(screen.queryByTestId("hidden-body")).not.toBeInTheDocument();
+
+        const body = screen.getByTestId("hidden-body");
+        expect(body).toBeInTheDocument();
+        // Its containing wrapper carries the Tailwind `hidden` utility.
+        expect(body.closest('[data-panel-body="true"]')).toHaveClass("hidden");
     });
 
     it("plain click fires onToggle, not onSolo", () => {

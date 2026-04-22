@@ -80,3 +80,47 @@ describe("VideoTile — stream prop changes rebind srcObject (bug #4.1)", () => 
         expect(setVideoRef).toHaveBeenCalled();
     });
 });
+
+
+// ---------------------------------------------------------------------------
+// Bug: onActiveChange must fire only on transitions, not on initial mount.
+// Otherwise the parent collapses the panel immediately after the user
+// expands it (because VideoChat's mount-time useEffect reports
+// isActive=false).
+// ---------------------------------------------------------------------------
+
+import { VideoChat } from "@/components/VideoChat";
+
+vi.mock("@/hooks/useWebRTC", () => ({
+    useWebRTC: vi.fn(() => ({
+        localStream: null,
+        connections: new Map(),
+        videoEnabled: false,
+        audioEnabled: false,
+        isActive: false,
+        isInitializing: false,
+        toggleVideo: vi.fn(),
+        toggleAudio: vi.fn(),
+        startVideoChat: vi.fn(),
+        stopVideoChat: vi.fn(),
+        setVideoRef: vi.fn(),
+    })),
+}));
+
+describe("VideoChat — onActiveChange is transition-only", () => {
+    it("does not fire onActiveChange on initial mount with isActive=false", () => {
+        const onActiveChange = vi.fn();
+        render(
+            <VideoChat
+                socket={null}
+                currentUserId="me"
+                users={[]}
+                onActiveChange={onActiveChange}
+            />,
+        );
+        // We deliberately don't fire a spurious `false` on mount so the
+        // enclosing collapsible panel doesn't auto-collapse itself
+        // immediately after the user opens it.
+        expect(onActiveChange).not.toHaveBeenCalled();
+    });
+});
