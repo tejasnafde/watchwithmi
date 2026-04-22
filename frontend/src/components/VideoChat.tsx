@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Video, VideoOff, Mic, MicOff, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWebRTC } from '@/hooks/useWebRTC';
@@ -35,7 +35,7 @@ function getAvatarColor(name: string): string {
     return colors[Math.abs(hash) % colors.length];
 }
 
-const VideoTile: React.FC<{
+export const VideoTile: React.FC<{
     userName: string;
     isLocal?: boolean;
     videoStream?: MediaStream;
@@ -43,36 +43,31 @@ const VideoTile: React.FC<{
     videoEnabled?: boolean;
     audioEnabled?: boolean;
 }> = ({ userName, isLocal = false, videoStream, setVideoRef, videoEnabled = false, audioEnabled = false }) => {
-    const videoStreamRef = useRef<MediaStream | undefined>(videoStream);
-    videoStreamRef.current = videoStream;
-
-    const remoteVideoRef = useCallback((element: HTMLVideoElement | null) => {
-        if (element && videoStreamRef.current) {
-            element.srcObject = videoStreamRef.current;
-            element.play().catch(() => {});
-        }
-    }, []);
-
-    // Also handle stream changes after mount via a separate callback ref wrapper
     const remoteVideoElementRef = useRef<HTMLVideoElement | null>(null);
-    const setRemoteRef = useCallback((element: HTMLVideoElement | null) => {
-        remoteVideoElementRef.current = element;
-        remoteVideoRef(element);
-    }, [remoteVideoRef]);
 
-    // When videoStream changes, update the existing element
-    const prevStreamRef = useRef<MediaStream | undefined>(undefined);
-    if (videoStream !== prevStreamRef.current && remoteVideoElementRef.current && videoStream) {
-        remoteVideoElementRef.current.srcObject = videoStream;
-        remoteVideoElementRef.current.play().catch(() => {});
-    }
-    prevStreamRef.current = videoStream;
+    // Bind / rebind the remote stream via useEffect keyed on videoStream.
+    // The previous implementation did render-time DOM mutation (bug #4.1
+    // in docs/polishing/04-webrtc-video-chat.md), which bypassed React's
+    // render model and left stale bindings on rapid prop changes.
+    useEffect(() => {
+        if (isLocal) return;
+        const el = remoteVideoElementRef.current;
+        if (!el || !videoStream) return;
+        el.srcObject = videoStream;
+        // el.play() is a real Promise in browsers and may reject when the
+        // element isn't user-activated. In jsdom it's unimplemented (returns
+        // undefined), so guard before calling .catch.
+        const maybePromise = el.play() as unknown;
+        if (maybePromise && typeof (maybePromise as Promise<void>).catch === 'function') {
+            (maybePromise as Promise<void>).catch(() => {});
+        }
+    }, [videoStream, isLocal]);
 
     return (
         <div className="relative overflow-hidden bg-[#111] border border-white/20 aspect-video">
             {/* Video element */}
             <video
-                ref={isLocal && setVideoRef ? setVideoRef : setRemoteRef}
+                ref={isLocal && setVideoRef ? setVideoRef : remoteVideoElementRef}
                 autoPlay
                 playsInline
                 muted={isLocal}
