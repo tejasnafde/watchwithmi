@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Socket } from 'socket.io-client';
+import type { WebRTCConnection } from '@/hooks/useWebRTC.types';
+import { resolveGlareAction, shouldCleanupOnIceState, stopVideoChatInOrder } from '@/lib/webrtcHelpers';
 
-interface WebRTCConnection {
-  userId: string;
-  userName: string;
-  peerConnection: RTCPeerConnection;
-  remoteStream?: MediaStream;
-}
+// Re-export so existing importers see the same symbol via useWebRTC.
+export type { WebRTCConnection };
 
 interface WebRTCHookOptions {
   socket: Socket | null;
@@ -126,14 +124,28 @@ export const useWebRTC = ({ socket, currentUserId, users }: WebRTCHookOptions) =
       }
     };
 
+    const dropConnection = () => {
+      setConnections(prev => {
+        const newConnections = new Map(prev);
+        newConnections.delete(userId);
+        return newConnections;
+      });
+      connectionsRef.current.delete(userId);
+    };
+
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        setConnections(prev => {
-          const newConnections = new Map(prev);
-          newConnections.delete(userId);
-          return newConnections;
-        });
-        connectionsRef.current.delete(userId);
+        dropConnection();
+      }
+    };
+
+    // Also drop on ICE-layer failures. Browsers don't always bubble
+    // `disconnected` up to `connectionState=failed` fast enough, so the
+    // tile can linger showing a frozen frame. See bug #4.4 in
+    // docs/polishing/04-webrtc-video-chat.md.
+    pc.oniceconnectionstatechange = () => {
+      if (shouldCleanupOnIceState(pc.iceConnectionState)) {
+        dropConnection();
       }
     };
 
@@ -195,17 +207,21 @@ export const useWebRTC = ({ socket, currentUserId, users }: WebRTCHookOptions) =
       if (connection) {
         const pc = connection.peerConnection;
 
-        if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
-          // For glare resolution: if we both sent offers, lower ID yields
-          if (pc.signalingState === 'have-local-offer') {
-            if (currentUserId < fromUserId) {
-              // We have lower ID, ignore their offer (they'll accept our answer)
-              return;
-            }
-            // We have higher ID, rollback and accept their offer
+        // Explicit decision for every signaling state (bug #4.3).
+        const action = resolveGlareAction({
+          signalingState: pc.signalingState,
+          currentUserId,
+          fromUserId,
+        });
+
+        if (action === 'ignore') {
+          return;
+        }
+
+        if (action === 'accept' || action === 'rollback-accept') {
+          if (action === 'rollback-accept') {
             await pc.setLocalDescription({ type: 'rollback' });
           }
-
           await pc.setRemoteDescription(new RTCSessionDescription(offer));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
@@ -216,6 +232,8 @@ export const useWebRTC = ({ socket, currentUserId, users }: WebRTCHookOptions) =
           });
           return;
         }
+
+        // action === 'create-new' falls through to the fresh-PC path below.
       }
 
       // Create new connection
@@ -296,33 +314,24 @@ export const useWebRTC = ({ socket, currentUserId, users }: WebRTCHookOptions) =
     });
   }, [initializeLocalStream, socket, users, currentUserId, createOffer]);
 
-  // Stop video chat: stop tracks, close connections
+  // Stop video chat: emit toggle events BEFORE tearing down tracks and
+  // peer connections (bug #4.2) — remote peers flip their UI on the
+  // socket events; closing first causes a brief "disconnected" flicker.
   const stopVideoChat = useCallback(() => {
-    // Stop all tracks on the local stream
-    if (localStream) {
-      localStream.getTracks().forEach(track => {
-        track.stop();
-      });
-    }
+    stopVideoChatInOrder({
+      socket,
+      stream: localStream,
+      connections: connectionsRef.current,
+    });
+
     localStreamRef.current = null;
     setLocalStream(null);
-
-    // Close all peer connections
-    connectionsRef.current.forEach(connection => {
-      connection.peerConnection.close();
-    });
-    connectionsRef.current.clear();
     setConnections(new Map());
 
     setVideoEnabled(false);
     setAudioEnabled(false);
     setIsActive(false);
     isActiveRef.current = false;
-
-    if (socket) {
-      socket.emit('toggle_video', { enabled: false });
-      socket.emit('toggle_audio', { enabled: false });
-    }
   }, [localStream, socket]);
 
   // Toggle video track
