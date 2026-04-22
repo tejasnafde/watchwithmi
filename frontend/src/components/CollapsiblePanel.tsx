@@ -73,9 +73,18 @@ export function CollapsiblePanel({
                     }`}
                 />
             </button>
-            {expanded && (
-                <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
-            )}
+            {/* Children stay mounted so stateful sub-components (video
+                calls, chat scroll position, WebRTC peer connections)
+                survive a collapse/expand cycle. `display: none` via the
+                `hidden` utility removes the subtree from tab order and
+                the accessibility tree. */}
+            <div
+                data-panel-body="true"
+                aria-hidden={!expanded}
+                className={`flex-1 min-h-0 overflow-hidden ${expanded ? "" : "hidden"}`}
+            >
+                {children}
+            </div>
         </section>
     );
 }

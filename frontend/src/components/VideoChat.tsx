@@ -139,11 +139,14 @@ export const VideoChat: React.FC<VideoChatProps> = ({
         users
     });
 
-    // Surface isActive transitions to the parent so it can auto-expand
-    // the enclosing collapsible panel. Using an effect keeps this in the
-    // component that actually owns the state without forcing the parent
-    // to consume useWebRTC directly.
+    // Surface isActive *transitions* to the parent so it can auto-expand
+    // the enclosing collapsible panel. Firing on initial mount would
+    // call onActiveChange(false) every render and collapse the panel
+    // immediately after the user expanded it.
+    const prevActiveRef = useRef<boolean>(isActive);
     useEffect(() => {
+        if (prevActiveRef.current === isActive) return;
+        prevActiveRef.current = isActive;
         onActiveChange?.(isActive);
     }, [isActive, onActiveChange]);
 
