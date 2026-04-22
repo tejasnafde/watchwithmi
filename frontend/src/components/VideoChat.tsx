@@ -11,6 +11,13 @@ interface VideoChatProps {
     socket: Socket | null;
     currentUserId: string;
     users: User[];
+    /**
+     * Fires when the call's `isActive` state changes. Used by the parent
+     * to auto-expand the sidebar's Video Chat panel the moment someone
+     * starts a call (so the tiles aren't hidden in a collapsed strip)
+     * and to auto-collapse it when the call ends.
+     */
+    onActiveChange?: (isActive: boolean) => void;
 }
 
 function getInitials(name: string): string {
@@ -112,7 +119,8 @@ export const VideoTile: React.FC<{
 export const VideoChat: React.FC<VideoChatProps> = ({
     socket,
     currentUserId,
-    users
+    users,
+    onActiveChange,
 }) => {
     const {
         setVideoRef,
@@ -130,6 +138,14 @@ export const VideoChat: React.FC<VideoChatProps> = ({
         currentUserId,
         users
     });
+
+    // Surface isActive transitions to the parent so it can auto-expand
+    // the enclosing collapsible panel. Using an effect keeps this in the
+    // component that actually owns the state without forcing the parent
+    // to consume useWebRTC directly.
+    useEffect(() => {
+        onActiveChange?.(isActive);
+    }, [isActive, onActiveChange]);
 
     const currentUser = users.find(u => u.id === currentUserId);
     const otherUsers = users.filter(u => u.id !== currentUserId);
