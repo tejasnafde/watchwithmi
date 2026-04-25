@@ -139,4 +139,4 @@ templates/
 scripts/
 
 # Allow frontend lib directory
-!frontend/src/lib/
+!frontend/src/lib/skills/
