@@ -3,6 +3,7 @@ API endpoints for media bridge functionality (P2P content streaming)
 """
 
 import os
+import re
 import uuid
 import logging
 from typing import Optional
@@ -131,29 +132,71 @@ class MediaStatusResponse(BaseModel):
     total_size: int
     has_metadata: bool
 
+def _info_hash_from_magnet(magnet: str) -> Optional[str]:
+    """Pull the BTIH out of a magnet for log correlation. Best-effort —
+    returns None if the URI doesn't carry one in the expected shape."""
+    try:
+        # xt=urn:btih:<hash> is standard; hash is 40 hex (v1) or 32 b32 chars.
+        m = re.search(r"xt=urn:btih:([A-Za-z0-9]+)", magnet)
+        return m.group(1).upper() if m else None
+    except Exception:
+        return None
+
+
+def _classify_add_error(message: str) -> int:
+    """Map a media_bridge.add_media error string to an HTTP status code.
+
+    The bridge reports failures as ``{'error': str}`` rather than typed
+    exceptions, so we squint at the message. Picking the right code matters
+    because the frontend retry/UX behaves very differently for 4xx vs 5xx —
+    an opaque 500 used to mask everything from "magnet missing info-hash"
+    to "no peers reachable from a Render datacenter IP" (the common case
+    for the user's deployment, where UDP DHT traffic is throttled).
+    """
+    msg = (message or "").lower()
+    if "metadata timeout" in msg or "no metadata" in msg:
+        return 504  # Gateway Timeout — peers / DHT didn't respond in time
+    if "disabled" in msg and "libmedia" in msg:
+        return 503  # Service Unavailable — libtorrent not installed
+    if "magnet" in msg or "parse" in msg or "info-hash" in msg:
+        return 400  # Bad Request — caller-supplied magnet is malformed
+    return 502  # Bad Gateway — upstream torrent stack failed in some other way
+
+
 @router.post("/add")
 async def add_media(request: AddMediaRequest):
     """Add a media source for server-side downloading"""
+    media_id = str(uuid.uuid4())
+    info_hash = _info_hash_from_magnet(request.magnet_url)
+    log_id = f"{media_id[:8]} btih={info_hash or '?'}"
+
     try:
-        # Generate unique ID for this media
-        media_id = str(uuid.uuid4())
+        logger.info(f"[media-add {log_id}] starting")
 
-        logger.info(f" Adding media via bridge: {media_id}")
-
-        # Add media to bridge
         result = await media_bridge.add_media(request.magnet_url, media_id)
 
-        if 'error' in result:
-            raise HTTPException(status_code=400, detail=result['error'])
+        # Bridge reports failures inline rather than raising, so translate
+        # error strings to specific HTTP statuses. See _classify_add_error.
+        if isinstance(result, dict) and "error" in result:
+            err = result["error"]
+            status_code = _classify_add_error(err)
+            logger.warning(f"[media-add {log_id}] failed ({status_code}): {err}")
+            raise HTTPException(status_code=status_code, detail=err)
 
+        logger.info(f"[media-add {log_id}] ok, has_metadata={result.get('has_metadata')}")
         return {
             "success": True,
             "media_id": media_id,
-            "status": result
+            "status": result,
         }
 
+    except HTTPException:
+        # Re-raise FastAPI HTTP errors so the right status reaches the
+        # client. Without this guard the bare ``except Exception`` below
+        # would catch our 4xx/5xx and rewrite them as a generic 500.
+        raise
     except Exception as e:
-        logger.error(f" Error adding media: {e}")
+        logger.error(f"[media-add {log_id}] unexpected error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/status/{media_id}")
@@ -167,6 +210,8 @@ async def get_media_status(media_id: str):
 
         return status
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f" Error getting media status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -296,6 +341,8 @@ async def remove_media(media_id: str, delete_files: bool = True):
 
         return {"success": True, "message": "Media source removed"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f" Error removing media source: {e}")
         raise HTTPException(status_code=500, detail=str(e))

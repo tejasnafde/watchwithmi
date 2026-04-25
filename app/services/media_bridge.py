@@ -174,9 +174,16 @@ class MediaBridge:
             # streaming_threshold will be determined dynamically based on file type
             }
 
-            # Wait for metadata only (don't wait for download)
-            logger.info(f"Waiting for metadata for {media_id}")
-            await self._wait_for_metadata(media_id, timeout=30)
+            # Wait for metadata only (don't wait for download).
+            # Render datacenter IPs frequently have UDP DHT/tracker traffic
+            # throttled or blocked outright, which means cold-start peer
+            # discovery can take 60s+ even on healthy magnets. The original
+            # 30s budget was tuned for residential connections and routinely
+            # times out in production. Configurable via MEDIA_METADATA_TIMEOUT
+            # so deployments on better-connected hosts can dial it down.
+            metadata_timeout = int(os.environ.get("MEDIA_METADATA_TIMEOUT", "75"))
+            logger.info(f"Waiting up to {metadata_timeout}s for metadata for {media_id}")
+            await self._wait_for_metadata(media_id, timeout=metadata_timeout)
 
             # Set up sequential downloading for largest video file
             await self._setup_streaming(media_id)
@@ -194,6 +201,8 @@ class MediaBridge:
     async def _wait_for_metadata(self, media_id: str, timeout: int = 30):
         """Wait for media metadata to be available"""
         start_time = time.time()
+        last_log_time = 0.0
+        last_status = None
 
         while time.time() - start_time < timeout:
             if media_id not in self.active_media:
@@ -201,6 +210,18 @@ class MediaBridge:
 
             handle = self.active_media[media_id]['handle']
             status = handle.status()
+            last_status = status
+
+            # Periodic peer-count log so timeouts in production are
+            # debuggable from Render logs without re-running the request.
+            now = time.time()
+            if now - last_log_time > 5:
+                logger.info(
+                    f"[media-meta {media_id[:8]}] elapsed={now - start_time:.0f}s "
+                    f"peers={status.num_peers} state={self._get_status_string(status.state)} "
+                    f"has_metadata={status.has_metadata}"
+                )
+                last_log_time = now
 
             if status.has_metadata:
                 # Get file info
@@ -252,7 +273,13 @@ class MediaBridge:
 
             await asyncio.sleep(1)
 
-        raise Exception(f"Metadata timeout after {timeout} seconds")
+        # Include peer count in the error so the frontend / logs can
+        # distinguish "no peers reachable at all" (UDP blocked / dead
+        # swarm) from "peers are responding but slow to send metadata".
+        peers = last_status.num_peers if last_status is not None else 0
+        raise Exception(
+            f"Metadata timeout after {timeout} seconds (peers reached: {peers})"
+        )
 
     def _find_existing_media(self, magnet_url: str) -> Optional[str]:
         """Find if this magnet URL is already being downloaded"""
