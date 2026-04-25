@@ -23,6 +23,13 @@ import httpx
 from bs4 import BeautifulSoup
 import urllib.parse
 
+try:
+    import cloudscraper  # type: ignore
+    _CLOUDSCRAPER_AVAILABLE = True
+except Exception:  # pragma: no cover - import-time guard
+    cloudscraper = None  # type: ignore
+    _CLOUDSCRAPER_AVAILABLE = False
+
 logger = logging.getLogger("watchwithmi.services.p2p_search")
 
 # Rotating user agents to avoid detection
@@ -63,6 +70,51 @@ def _build_magnet(info_hash: str, display_name: str = "") -> str:
 def _random_ua() -> str:
     """Return a random user agent string."""
     return random.choice(USER_AGENTS)
+
+
+def _browser_headers(referer: Optional[str] = None) -> Dict[str, str]:
+    """Return a full set of browser-like headers.
+
+    Sending only ``User-Agent`` is the easiest fingerprint for a provider
+    to flag — real browsers always send Accept / Accept-Language /
+    Accept-Encoding too. Adding these costs nothing and helps us look
+    less like a Python script when scraping public endpoints.
+    """
+    headers = {
+        "User-Agent": _random_ua(),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    }
+    if referer:
+        headers["Referer"] = referer
+    return headers
+
+
+async def _cloudscraper_get(
+    url: str,
+    *,
+    timeout: float,
+    headers: Optional[Dict[str, str]] = None,
+) -> Tuple[int, str]:
+    """GET ``url`` via cloudscraper (Cloudflare-aware) in a worker thread.
+
+    Returns ``(status_code, text)``. Raises if cloudscraper is unavailable
+    or the call itself fails — callers should fall back to httpx.
+    """
+    if not _CLOUDSCRAPER_AVAILABLE:
+        raise RuntimeError("cloudscraper not available")
+
+    def _do_request() -> Tuple[int, str]:
+        scraper = cloudscraper.create_scraper(  # type: ignore[union-attr]
+            browser={"browser": "chrome", "platform": "windows", "mobile": False},
+        )
+        resp = scraper.get(url, headers=headers or {}, timeout=timeout)
+        return resp.status_code, resp.text
+
+    return await asyncio.to_thread(_do_request)
 
 
 class RateLimitError(Exception):
@@ -447,7 +499,7 @@ class ContentSearchService:
         try:
             async with httpx.AsyncClient() as client:
                 url = f"https://bitsearch.to/search?q={urllib.parse.quote(query)}"
-                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
+                response = await client.get(url, headers=_browser_headers(), timeout=self.timeout)
 
                 if response.status_code == 429:
                     raise RateLimitError("BitSearch rate limited")
@@ -511,7 +563,7 @@ class ContentSearchService:
         try:
             async with httpx.AsyncClient() as client:
                 url = f"https://nyaa.si/?f=0&c=0_0&q={urllib.parse.quote(query)}"
-                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
+                response = await client.get(url, headers=_browser_headers(), timeout=self.timeout)
 
                 if response.status_code == 429:
                     raise RateLimitError("Nyaa rate limited")
@@ -569,7 +621,7 @@ class ContentSearchService:
         try:
             async with httpx.AsyncClient() as client:
                 url = f"https://btdig.com/search?q={urllib.parse.quote(query)}"
-                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
+                response = await client.get(url, headers=_browser_headers(), timeout=self.timeout)
 
                 if response.status_code == 429:
                     raise RateLimitError("BTDigg rate limited")
@@ -611,48 +663,74 @@ class ContentSearchService:
         return results
 
     async def _search_piratebay(self, query: str) -> List[ContentSearchResult]:
-        """Search The Pirate Bay via apibay.org JSON API."""
+        """Search The Pirate Bay via apibay.org JSON API.
+
+        Tries cloudscraper first (transparently handles any Cloudflare
+        challenge if apibay puts one up) and falls back to plain httpx
+        if cloudscraper isn't available or errors out.
+        """
         results = []
+        url = f"https://apibay.org/q.php?q={urllib.parse.quote(query)}"
+        headers = _browser_headers(referer="https://thepiratebay.org/")
+        status_code = 0
+        items: List[Dict[str, Any]] = []
+
         try:
-            async with httpx.AsyncClient() as client:
-                url = f"https://apibay.org/q.php?q={urllib.parse.quote(query)}"
-                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
-
-                if response.status_code == 429:
-                    raise RateLimitError("PirateBay API rate limited")
-
-                if response.status_code == 200:
-                    items = response.json()
-                    # apibay returns a list; a single item with id "0" means no results
-                    if not items or (len(items) == 1 and str(items[0].get('id')) == '0'):
-                        return []
-
-                    for item in items[:20]:
+            try:
+                status_code, body_text = await _cloudscraper_get(
+                    url, timeout=self.timeout, headers=headers
+                )
+                if status_code == 200:
+                    import json as _json
+                    try:
+                        items = _json.loads(body_text)
+                    except Exception:
+                        items = []
+            except Exception as cs_err:  # cloudscraper unavailable / failed
+                logger.debug(f"PirateBay cloudscraper path failed, falling back to httpx: {cs_err}")
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(url, headers=headers, timeout=self.timeout)
+                    status_code = response.status_code
+                    if status_code == 200:
                         try:
-                            name = item.get('name', '')
-                            info_hash = item.get('info_hash', '')
-                            if not name or not info_hash:
-                                continue
+                            items = response.json()
+                        except Exception:
+                            items = []
 
-                            magnet = _build_magnet(info_hash, name)
+            if status_code == 429:
+                raise RateLimitError("PirateBay API rate limited")
 
-                            # Size is in bytes — convert to human-readable
-                            raw_size = int(item.get('size', 0))
-                            size = self._format_bytes(raw_size)
+            if status_code == 200:
+                # apibay returns a list; a single item with id "0" means no results
+                if not items or (len(items) == 1 and str(items[0].get('id')) == '0'):
+                    return []
 
-                            seeders = int(item.get('seeders', 0))
-                            leechers = int(item.get('leechers', 0))
-
-                            results.append(ContentSearchResult(
-                                title=name,
-                                magnet=magnet,
-                                size=size,
-                                seeders=seeders,
-                                leechers=leechers,
-                            ))
-                        except Exception as e:
-                            logger.debug(f"Error parsing PirateBay item: {e}")
+                for item in items[:20]:
+                    try:
+                        name = item.get('name', '')
+                        info_hash = item.get('info_hash', '')
+                        if not name or not info_hash:
                             continue
+
+                        magnet = _build_magnet(info_hash, name)
+
+                        # Size is in bytes — convert to human-readable
+                        raw_size = int(item.get('size', 0))
+                        size = self._format_bytes(raw_size)
+
+                        seeders = int(item.get('seeders', 0))
+                        leechers = int(item.get('leechers', 0))
+
+                        results.append(ContentSearchResult(
+                            title=name,
+                            magnet=magnet,
+                            size=size,
+                            seeders=seeders,
+                            leechers=leechers,
+                        ))
+                    except Exception as e:
+                        logger.debug(f"Error parsing PirateBay item: {e}")
+                        continue
         except RateLimitError:
             raise
         except Exception as e:
@@ -667,7 +745,7 @@ class ContentSearchService:
         try:
             async with httpx.AsyncClient() as client:
                 url = f"https://yts.mx/api/v2/list_movies.json?query_term={urllib.parse.quote(query)}&limit=20"
-                response = await client.get(url, headers={'User-Agent': _random_ua()}, timeout=self.timeout)
+                response = await client.get(url, headers=_browser_headers(), timeout=self.timeout)
 
                 if response.status_code == 429:
                     raise RateLimitError("YTS rate limited")
@@ -723,6 +801,63 @@ class ContentSearchService:
                 return f"{num_bytes:.1f} {unit}"
             num_bytes /= 1024.0
         return f"{num_bytes:.1f} PB"
+
+    async def diagnose(self, query: str) -> Dict[str, Any]:
+        """Run every provider once (no retries, no circuit-breaker gating)
+        and return per-provider diagnostics.
+
+        Designed for ``GET /api/diag/search`` — when a deployed instance
+        returns "no results found", this surfaces *which* providers the
+        host can actually reach (status codes, latency, errors) so we can
+        tell apart "code is broken" from "datacenter IP is blocked".
+        """
+        all_providers: List[Tuple[str, Callable]] = (
+            self.tier1_providers + self.tier2_providers + self.tier3_providers
+        )
+
+        clean_query = self._clean_query(query)
+
+        async def _run_one(name: str, func: Callable) -> Dict[str, Any]:
+            start = time.monotonic()
+            try:
+                results = await asyncio.wait_for(func(clean_query), timeout=self.timeout)
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                return {
+                    "provider": name,
+                    "ok": True,
+                    "result_count": len(results),
+                    "latency_ms": elapsed_ms,
+                    "error": None,
+                }
+            except asyncio.TimeoutError:
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                return {
+                    "provider": name,
+                    "ok": False,
+                    "result_count": 0,
+                    "latency_ms": elapsed_ms,
+                    "error": f"timeout after {self.timeout}s",
+                }
+            except Exception as e:
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                return {
+                    "provider": name,
+                    "ok": False,
+                    "result_count": 0,
+                    "latency_ms": elapsed_ms,
+                    "error": f"{type(e).__name__}: {e}",
+                }
+
+        diagnostics = await asyncio.gather(
+            *[_run_one(n, f) for n, f in all_providers]
+        )
+        total = sum(d["result_count"] for d in diagnostics)
+        return {
+            "query": clean_query,
+            "cloudscraper_available": _CLOUDSCRAPER_AVAILABLE,
+            "total_results": total,
+            "providers": list(diagnostics),
+        }
 
     def get_provider_stats(self) -> Dict[str, Dict[str, Any]]:
         """Get statistics for all providers."""

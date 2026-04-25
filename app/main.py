@@ -272,15 +272,34 @@ async def get_stats():
 
 @app.post("/api/search-content")
 async def search_content(request: ContentSearchRequest):
-    """Search for P2P content (for personal use)."""
+    """Search for P2P content (for personal use).
+
+    Filters placeholder/fallback rows out of the response so the frontend
+    always sees real results or an empty list. When every result is a
+    placeholder it means every provider failed — log that loudly so the
+    server logs make the failure mode obvious without having to inspect
+    the UI.
+    """
     try:
         logger.info(f" P2P content search requested: {request.query}")
         results = await content_search.search(request.query)
 
+        all_placeholder = bool(results) and all(
+            getattr(r, "is_placeholder", False) for r in results
+        )
+        real_results = [r for r in results if not getattr(r, "is_placeholder", False)]
+
+        if all_placeholder:
+            logger.warning(
+                f"All providers returned no results for '{request.query}' "
+                f"— UI will show empty list. Check /api/diag/search for per-provider status."
+            )
+
         return {
             "query": request.query,
-            "results": [result.to_dict() for result in results],
-            "count": len(results)
+            "results": [r.to_dict() for r in real_results],
+            "count": len(real_results),
+            "all_providers_failed": all_placeholder,
         }
     except ValueError as e:
         logger.warning(f" Invalid search query: {e}")
@@ -288,6 +307,27 @@ async def search_content(request: ContentSearchRequest):
     except Exception as e:
         logger.error(f" P2P content search failed: {e}")
         raise HTTPException(status_code=500, detail="Search failed")
+
+
+@app.get("/api/diag/search")
+async def diag_search(q: str = "ubuntu"):
+    """Per-provider diagnostic for the P2P search layer.
+
+    Calls every provider once (no retries, no circuit-breaker gating)
+    and returns ``{provider, ok, result_count, latency_ms, error}`` for
+    each. Use this to confirm whether the deployed host can actually
+    reach providers — e.g. when a Render datacenter IP is geo-blocked
+    or rate-limited but the same code works locally.
+    """
+    if not content_search:
+        raise HTTPException(status_code=503, detail="Search service not initialized")
+    if not q or not q.strip():
+        raise HTTPException(status_code=400, detail="Query 'q' is required")
+    try:
+        return await content_search.diagnose(q.strip())
+    except Exception as e:
+        logger.error(f"Search diagnostic failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Diagnostic failed: {e}")
 
 @app.post("/api/search-youtube")
 async def search_youtube(request: YouTubeSearchRequest):
