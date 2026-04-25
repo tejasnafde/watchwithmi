@@ -225,19 +225,32 @@ class ContentSearchService:
         self.circuit_failure_threshold = 5  # Open circuit after 5 failures
         self.circuit_reset_timeout = 300  # Try again after 5 minutes
 
-        # Provider tiers (ordered by reliability)
-        # Tier 1: most reliable — JSON APIs, run concurrently
+        # Provider tiers (ordered by reliability).
+        # Provenance notes (April 2026 audit against /api/diag/search/raw
+        # from a Render datacenter IP):
+        #  - knaben:   JSON aggregator over ~30 trackers; works from
+        #              datacenter IPs. Primary.
+        #  - nyaa:     anime-focused but reliably reachable; promoted to
+        #              tier 1 to give us a second always-on source.
+        #  - piratebay: kept on the list — apibay returns 403 from Render
+        #              (Cloudflare "Just a moment..." page, cloudscraper
+        #              can't solve it) but works fine from residential
+        #              IPs / self-hosting.
+        #  - btdig:    kept as tier-3 fallback; commonly rate-limits.
+        #  - bitsearch: REMOVED. Site no longer exposes magnets in the
+        #              search listing — only `/torrent/<id>` detail
+        #              links. Parsing requires N+1 follow-up fetches.
+        #              Code retained on the class for future revival.
+        #  - yts:      REMOVED. yts.mx is NXDOMAIN globally as of this
+        #              audit; yts.am does not respond either. Code
+        #              retained on the class.
         self.tier1_providers = [
             ('knaben', self._search_knaben),
-            ('bitsearch', self._search_bitsearch),
-            ('piratebay', self._search_piratebay),
-        ]
-        # Tier 2: specialised content
-        self.tier2_providers = [
-            ('yts', self._search_yts),
             ('nyaa', self._search_nyaa_api),
         ]
-        # Tier 3: less reliable / rate-limited
+        self.tier2_providers = [
+            ('piratebay', self._search_piratebay),
+        ]
         self.tier3_providers = [
             ('btdig', self._search_btdig_api),
         ]
@@ -903,13 +916,15 @@ class ContentSearchService:
         # NOTE: knaben uses POST so it's tested via the higher-level diagnose()
         # rather than this raw GET probe.
         targets: List[Tuple[str, str, str, Optional[str]]] = [
-            ("bitsearch", f"https://bitsearch.to/search?q={encoded}", "httpx", None),
+            ("nyaa", f"https://nyaa.si/?f=0&c=0_0&q={encoded}", "httpx", None),
             ("piratebay", f"https://apibay.org/q.php?q={encoded}", "cloudscraper",
              "https://thepiratebay.org/"),
-            ("yts", f"https://yts.mx/api/v2/list_movies.json?query_term={encoded}&limit=20",
-             "httpx", None),
-            ("nyaa", f"https://nyaa.si/?f=0&c=0_0&q={encoded}", "httpx", None),
             ("btdig", f"https://btdig.com/search?q={encoded}", "httpx", None),
+            # Disabled providers kept here for ad-hoc reachability testing —
+            # they're no longer in the active tier list.
+            ("bitsearch_disabled", f"https://bitsearch.to/search?q={encoded}", "httpx", None),
+            ("yts_disabled", f"https://yts.mx/api/v2/list_movies.json?query_term={encoded}&limit=5",
+             "httpx", None),
         ]
 
         async def _probe(name: str, url: str, fetcher: str, referer: Optional[str]) -> Dict[str, Any]:
