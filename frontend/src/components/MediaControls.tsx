@@ -6,10 +6,11 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { logger } from '@/lib/logger';
 import type { ContentSearchResult, MediaType, QueueItem } from '@/types';
 import { isYouTubePlaylistUrl } from '@/lib/youtube-api';
+import { detectCodec, byPlayability } from '@/lib/codecHint';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -62,6 +63,14 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
     const [activeTab, setActiveTab] = useState('content');
 
     const canDJ = canControl || isHost;
+
+    // Pre-sort P2P results so browser-playable releases (x264 / MP4) bubble
+    // to the top before HEVC / MKV / 10-bit ones that won't play in <video>.
+    // Stable within each bucket — preserves the seeder ordering from the API.
+    const sortedContentResults = useMemo(
+        () => [...contentResults].sort(byPlayability),
+        [contentResults]
+    );
 
     const handleSearch = async () => {
         if (!searchQuery.trim()) return;
@@ -184,7 +193,7 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                                         NO RESULTS FOUND. TRY A DIFFERENT SEARCH TERM.
                                     </p>
                                 ) : (
-                                    contentResults.map((result, index) => (
+                                    sortedContentResults.map((result, index) => (
                                         // Whole card is the primary "PLAY" affordance —
                                         // click anywhere to load. The QUEUE button stops
                                         // propagation so the two actions stay separable.
@@ -219,6 +228,30 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                                                         <span className="text-[10px] px-2 border-2 border-current font-mono font-bold">
                                                             UP {result.seeders}
                                                         </span>
+                                                        {(() => {
+                                                            // Codec badge — green when the release should play in
+                                                            // browsers (x264/MP4), amber when it likely won't
+                                                            // (HEVC/MKV/10-bit). `group-hover:` overrides keep the
+                                                            // pill readable when the card flips to white-on-black.
+                                                            const hint = detectCodec(result.title);
+                                                            if (!hint.label) return null;
+                                                            const cls =
+                                                                hint.severity === "good"
+                                                                    ? "bg-green-500/20 border-green-400 text-green-300 group-hover:bg-green-600 group-hover:text-white group-hover:border-green-700"
+                                                                    : "bg-amber-500/20 border-amber-400 text-amber-300 group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-700";
+                                                            return (
+                                                                <span
+                                                                    className={`text-[10px] px-2 border-2 font-mono font-bold ${cls}`}
+                                                                    title={
+                                                                        hint.severity === "warn"
+                                                                            ? "May not play in this browser"
+                                                                            : "Should play in this browser"
+                                                                    }
+                                                                >
+                                                                    {hint.label}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2 shrink-0">
