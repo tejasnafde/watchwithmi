@@ -84,7 +84,10 @@ def _browser_headers(referer: Optional[str] = None) -> Dict[str, str]:
         "User-Agent": _random_ua(),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
+        # Deliberately omit `br` — httpx auto-decompresses gzip/deflate
+        # but needs the optional `brotli` package for br. Without it we
+        # get raw compressed bytes back as `response.text`.
+        "Accept-Encoding": "gzip, deflate",
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1",
     }
@@ -225,6 +228,7 @@ class ContentSearchService:
         # Provider tiers (ordered by reliability)
         # Tier 1: most reliable — JSON APIs, run concurrently
         self.tier1_providers = [
+            ('knaben', self._search_knaben),
             ('bitsearch', self._search_bitsearch),
             ('piratebay', self._search_piratebay),
         ]
@@ -662,6 +666,81 @@ class ContentSearchService:
 
         return results
 
+    async def _search_knaben(self, query: str) -> List[ContentSearchResult]:
+        """Search Knaben.eu — meta-search aggregator with a POST JSON API.
+
+        Aggregates ~30 trackers, returns hashes + seeders. Crucially it's
+        not Cloudflare-fronted and tends to be reachable from datacenter
+        IPs where apibay/bitsearch get 403'd.
+        """
+        results: List[ContentSearchResult] = []
+        url = "https://api.knaben.org/v1"
+        payload = {
+            # "100%" filters to titles containing the query verbatim;
+            # "score" returns trending content unfiltered.
+            "search_type": "100%",
+            "search_field": "title",
+            "query": query,
+            "order_by": "seeders",
+            "order_direction": "desc",
+            "size": 30,
+            "from": 0,
+        }
+        headers = _browser_headers()
+        headers["Content-Type"] = "application/json"
+        headers["Accept"] = "application/json"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url, json=payload, headers=headers, timeout=self.timeout
+                )
+
+                if response.status_code == 429:
+                    raise RateLimitError("Knaben rate limited")
+                if response.status_code != 200:
+                    raise RuntimeError(f"Knaben returned HTTP {response.status_code}")
+
+                data = response.json()
+                hits = data.get("hits") or []
+
+                for hit in hits[:25]:
+                    try:
+                        title = hit.get("title") or ""
+                        info_hash = hit.get("hash") or ""
+                        if not title or not info_hash:
+                            continue
+
+                        # Knaben sometimes provides a magnet directly; prefer
+                        # that, otherwise build from the hash.
+                        magnet = hit.get("magnetUrl") or _build_magnet(info_hash, title)
+
+                        raw_size = int(hit.get("bytes") or 0)
+                        size = self._format_bytes(raw_size)
+
+                        seeders = int(hit.get("seeders") or 0)
+                        peers = int(hit.get("peers") or 0)
+                        # Knaben reports total peers; estimate leechers
+                        leechers = max(peers - seeders, 0)
+
+                        results.append(ContentSearchResult(
+                            title=title,
+                            magnet=magnet,
+                            size=size,
+                            seeders=seeders,
+                            leechers=leechers,
+                        ))
+                    except Exception as e:
+                        logger.debug(f"Error parsing Knaben item: {e}")
+                        continue
+        except RateLimitError:
+            raise
+        except Exception as e:
+            logger.debug(f"Knaben search failed: {e}")
+            raise
+
+        return results
+
     async def _search_piratebay(self, query: str) -> List[ContentSearchResult]:
         """Search The Pirate Bay via apibay.org JSON API.
 
@@ -699,6 +778,12 @@ class ContentSearchService:
 
             if status_code == 429:
                 raise RateLimitError("PirateBay API rate limited")
+
+            # 403 / 5xx from datacenter IPs is the typical apibay failure
+            # mode on hosts like Render — surface it as a real error so the
+            # circuit breaker opens instead of silently returning empty.
+            if status_code and status_code != 200:
+                raise RuntimeError(f"PirateBay API returned HTTP {status_code}")
 
             if status_code == 200:
                 # apibay returns a list; a single item with id "0" means no results
@@ -815,6 +900,8 @@ class ContentSearchService:
         encoded = urllib.parse.quote(clean_query)
 
         # (provider name, URL, fetcher: "cloudscraper" | "httpx", referer)
+        # NOTE: knaben uses POST so it's tested via the higher-level diagnose()
+        # rather than this raw GET probe.
         targets: List[Tuple[str, str, str, Optional[str]]] = [
             ("bitsearch", f"https://bitsearch.to/search?q={encoded}", "httpx", None),
             ("piratebay", f"https://apibay.org/q.php?q={encoded}", "cloudscraper",
