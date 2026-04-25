@@ -302,9 +302,21 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                     <div className="absolute inset-0 z-10 bg-transparent cursor-default" />
                 )}
 
-                {/* Loading overlay */}
+                {/* Loading overlay.
+                    When the player isn't ready yet there's nothing under us
+                    to interact with, so we want the overlay to block clicks
+                    (default behaviour). Once the player is ready and we're
+                    only showing this for `ytBuffering`, we make it
+                    pointer-events-none so YT's native play button stays
+                    clickable as a manual escape hatch — combined with the
+                    8s buffering watchdog in useYouTubePlayer, this prevents
+                    the "stuck buffering after pause" trap. */}
                 {(!ytReady || ytBuffering) && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <div
+                        className={`absolute inset-0 bg-black/50 flex items-center justify-center ${
+                            ytReady ? 'pointer-events-none' : ''
+                        }`}
+                    >
                         <div className="text-center text-white">
                             <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
                             <p>{!ytReady ? 'Loading YouTube player...' : 'Buffering...'}</p>

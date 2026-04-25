@@ -89,6 +89,25 @@ export const useYouTubePlayer = ({
         }
     }, []);
 
+    // Watchdog for the BUFFERING state. The 100ms poll below clears
+    // buffering when YT resolves to PLAYING/PAUSED, but if YT gets stuck
+    // in BUFFERING — which happens on transient post-pause re-buffer, ad
+    // insertion, or network blips — the state would otherwise hang
+    // indefinitely. The overlay then traps the user (see fix in
+    // MediaPlayer.tsx that also makes the overlay non-blocking once
+    // ready). 8s is conservative: real buffering on a 1080p YT video
+    // shouldn't ever take longer; if it does we clear and let the user
+    // click play themselves.
+    const bufferingWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const BUFFERING_WATCHDOG_MS = 8000;
+
+    const cancelBufferingWatchdog = useCallback(() => {
+        if (bufferingWatchdogTimerRef.current) {
+            clearTimeout(bufferingWatchdogTimerRef.current);
+            bufferingWatchdogTimerRef.current = null;
+        }
+    }, []);
+
     // Cancel any pending auto-clears on unmount so they don't fire after
     // the host has already destroyed the player.
     useEffect(() => {
@@ -96,8 +115,9 @@ export const useYouTubePlayer = ({
             if (syncingClearTimerRef.current) clearTimeout(syncingClearTimerRef.current);
             if (seekingClearTimerRef.current) clearTimeout(seekingClearTimerRef.current);
             cancelUnstartedBufferingFallback();
+            cancelBufferingWatchdog();
         };
-    }, [cancelUnstartedBufferingFallback]);
+    }, [cancelUnstartedBufferingFallback, cancelBufferingWatchdog]);
 
     // Extract video ID
     const videoId = extractYouTubeVideoId(videoUrl);
@@ -125,6 +145,12 @@ export const useYouTubePlayer = ({
         // so cancel the stuck-in-UNSTARTED fallback.
         if (state !== YT.PlayerState.UNSTARTED) {
             cancelUnstartedBufferingFallback();
+        }
+
+        // Any non-BUFFERING state means we're out of the buffering hole;
+        // cancel the watchdog before the per-state setters run.
+        if (state !== YT.PlayerState.BUFFERING) {
+            cancelBufferingWatchdog();
         }
 
         switch (state) {
@@ -165,6 +191,18 @@ export const useYouTubePlayer = ({
                 // Don't emit any sync events while buffering — this is a transient state.
                 // Mark as seeking so no sync operations overlap with the buffer resolution.
                 isSeekingRef.current = true;
+                // Arm the watchdog. If we're still in BUFFERING after
+                // BUFFERING_WATCHDOG_MS (no PLAYING / PAUSED transition),
+                // force-clear the UI state so the user isn't trapped behind
+                // a permanent overlay. They can then click YT's own play
+                // button to resume manually.
+                cancelBufferingWatchdog();
+                bufferingWatchdogTimerRef.current = setTimeout(() => {
+                    logger.warn('YouTube buffering watchdog tripped — force-clearing buffering UI');
+                    setBuffering(false);
+                    isSeekingRef.current = false;
+                    bufferingWatchdogTimerRef.current = null;
+                }, BUFFERING_WATCHDOG_MS);
                 break;
 
             case YT.PlayerState.ENDED:
@@ -184,7 +222,7 @@ export const useYouTubePlayer = ({
                 }, UNSTARTED_BUFFERING_TIMEOUT_MS);
                 break;
         }
-    }, [isHost, socket, callPlayerMethod, cancelUnstartedBufferingFallback]);
+    }, [isHost, socket, callPlayerMethod, cancelUnstartedBufferingFallback, cancelBufferingWatchdog]);
 
     // Handle player errors
     const handleError = useCallback((event: YT.OnErrorEvent) => {
