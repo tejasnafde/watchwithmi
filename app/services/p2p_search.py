@@ -802,6 +802,96 @@ class ContentSearchService:
             num_bytes /= 1024.0
         return f"{num_bytes:.1f} PB"
 
+    async def diagnose_raw(self, query: str) -> Dict[str, Any]:
+        """Inspect the raw HTTP response from each provider's search URL.
+
+        Bypasses the parsers entirely — returns status code, content-type,
+        body size, a body preview, and a heuristic ``cloudflare_challenge``
+        flag. Use this when ``diagnose`` reports ``ok=true, result_count=0``
+        and you need to know *why* (genuine empty vs Cloudflare challenge
+        vs HTML-changed-on-us).
+        """
+        clean_query = self._clean_query(query)
+        encoded = urllib.parse.quote(clean_query)
+
+        # (provider name, URL, fetcher: "cloudscraper" | "httpx", referer)
+        targets: List[Tuple[str, str, str, Optional[str]]] = [
+            ("bitsearch", f"https://bitsearch.to/search?q={encoded}", "httpx", None),
+            ("piratebay", f"https://apibay.org/q.php?q={encoded}", "cloudscraper",
+             "https://thepiratebay.org/"),
+            ("yts", f"https://yts.mx/api/v2/list_movies.json?query_term={encoded}&limit=20",
+             "httpx", None),
+            ("nyaa", f"https://nyaa.si/?f=0&c=0_0&q={encoded}", "httpx", None),
+            ("btdig", f"https://btdig.com/search?q={encoded}", "httpx", None),
+        ]
+
+        async def _probe(name: str, url: str, fetcher: str, referer: Optional[str]) -> Dict[str, Any]:
+            start = time.monotonic()
+            try:
+                headers = _browser_headers(referer=referer)
+                if fetcher == "cloudscraper":
+                    try:
+                        status_code, body_text = await _cloudscraper_get(
+                            url, timeout=self.timeout, headers=headers
+                        )
+                        actual_fetcher = "cloudscraper"
+                    except Exception:
+                        # fall back to httpx for visibility
+                        async with httpx.AsyncClient() as client:
+                            r = await client.get(url, headers=headers, timeout=self.timeout)
+                            status_code = r.status_code
+                            body_text = r.text
+                        actual_fetcher = "httpx (cloudscraper failed)"
+                else:
+                    async with httpx.AsyncClient() as client:
+                        r = await client.get(url, headers=headers, timeout=self.timeout)
+                        status_code = r.status_code
+                        body_text = r.text
+                    actual_fetcher = "httpx"
+
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                body_lower = body_text.lower()
+                cloudflare_challenge = (
+                    "cf-browser-verification" in body_lower
+                    or "cf_chl_" in body_lower
+                    or "checking your browser" in body_lower
+                    or "just a moment..." in body_lower
+                    or "attention required" in body_lower
+                )
+                return {
+                    "provider": name,
+                    "url": url,
+                    "fetcher": actual_fetcher,
+                    "ok": True,
+                    "status_code": status_code,
+                    "body_size": len(body_text),
+                    "body_preview": body_text[:400],
+                    "cloudflare_challenge": cloudflare_challenge,
+                    "latency_ms": elapsed_ms,
+                    "error": None,
+                }
+            except Exception as e:
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                return {
+                    "provider": name,
+                    "url": url,
+                    "fetcher": fetcher,
+                    "ok": False,
+                    "status_code": None,
+                    "body_size": 0,
+                    "body_preview": "",
+                    "cloudflare_challenge": False,
+                    "latency_ms": elapsed_ms,
+                    "error": f"{type(e).__name__}: {e}",
+                }
+
+        probes = await asyncio.gather(*[_probe(*t) for t in targets])
+        return {
+            "query": clean_query,
+            "cloudscraper_available": _CLOUDSCRAPER_AVAILABLE,
+            "providers": list(probes),
+        }
+
     async def diagnose(self, query: str) -> Dict[str, Any]:
         """Run every provider once (no retries, no circuit-breaker gating)
         and return per-provider diagnostics.

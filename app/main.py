@@ -309,6 +309,27 @@ async def search_content(request: ContentSearchRequest):
         raise HTTPException(status_code=500, detail="Search failed")
 
 
+@app.get("/api/diag/search/raw")
+async def diag_search_raw(q: str = "ubuntu"):
+    """Raw-response diagnostic — bypasses parsers and returns status code,
+    content-type, body size, body preview, and a Cloudflare-challenge
+    heuristic for each provider URL.
+
+    Use when ``/api/diag/search`` reports ``ok=true, result_count=0``
+    and you need to see *why* (genuine empty vs Cloudflare interstitial
+    vs HTML-changed-on-us).
+    """
+    if not content_search:
+        raise HTTPException(status_code=503, detail="Search service not initialized")
+    if not q or not q.strip():
+        raise HTTPException(status_code=400, detail="Query 'q' is required")
+    try:
+        return await content_search.diagnose_raw(q.strip())
+    except Exception as e:
+        logger.error(f"Raw search diagnostic failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Diagnostic failed: {e}")
+
+
 @app.get("/api/diag/search")
 async def diag_search(q: str = "ubuntu"):
     """Per-provider diagnostic for the P2P search layer.
