@@ -413,7 +413,12 @@ class TestSearchProviderParsing:
         mock_resp = _mock_response(status_code=200, json_data=PIRATEBAY_JSON)
         mock_cl = _mock_client(mock_resp)
 
-        with patch("httpx.AsyncClient", return_value=mock_cl):
+        # apibay path tries cloudscraper first, then falls back to httpx.
+        # Force the cloudscraper helper to raise so the httpx mock is hit.
+        with patch(
+            "app.services.p2p_search._cloudscraper_get",
+            new=AsyncMock(side_effect=RuntimeError("cloudscraper disabled in test")),
+        ), patch("httpx.AsyncClient", return_value=mock_cl):
             results = await svc._search_piratebay("bunny")
 
         assert len(results) == 2
@@ -475,7 +480,10 @@ class TestSearchProviderParsing:
         mock_resp = _mock_response(status_code=200, json_data=PIRATEBAY_NO_RESULTS)
         mock_cl = _mock_client(mock_resp)
 
-        with patch("httpx.AsyncClient", return_value=mock_cl):
+        with patch(
+            "app.services.p2p_search._cloudscraper_get",
+            new=AsyncMock(side_effect=RuntimeError("cloudscraper disabled in test")),
+        ), patch("httpx.AsyncClient", return_value=mock_cl):
             results = await svc._search_piratebay("xyznonexistent")
 
         assert results == []
@@ -507,7 +515,10 @@ class TestSearchProviderParsing:
         mock_resp = _mock_response(status_code=429)
         mock_cl = _mock_client(mock_resp)
 
-        with patch("httpx.AsyncClient", return_value=mock_cl):
+        with patch(
+            "app.services.p2p_search._cloudscraper_get",
+            new=AsyncMock(side_effect=RuntimeError("cloudscraper disabled in test")),
+        ), patch("httpx.AsyncClient", return_value=mock_cl):
             with pytest.raises(RateLimitError):
                 await svc._search_piratebay("test")
 
