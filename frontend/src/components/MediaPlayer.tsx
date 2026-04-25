@@ -12,6 +12,7 @@ import { Socket } from 'socket.io-client';
 import { logger } from '@/lib/logger';
 import { useVideoSync } from '@/hooks/useVideoSync';
 import { useYouTubePlayer } from '@/hooks/useYouTubePlayer';
+import { explainPlaybackFailure } from '@/lib/codecHint';
 import type { MediaState, MediaStatus } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -113,6 +114,10 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [videoError, setVideoError] = useState<string | null>(null);
+    // Set alongside videoError when the failure looks like a codec/container
+    // problem (MediaError code 4). Drives the "try an x264/MP4 release"
+    // hint in the error overlay; null falls back to the generic message.
+    const [videoErrorDetail, setVideoErrorDetail] = useState<string | null>(null);
     const [isBuffering, setIsBuffering] = useState(false);
     const videoErrorRetryCount = useRef(0);
     const lastVideoErrorTime = useRef(0);
@@ -159,7 +164,26 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
             networkState: video.networkState
         });
 
-        // Retry up to 3 times
+        // MEDIA_ERR_SRC_NOT_SUPPORTED (code 4) is the classic codec/container
+        // failure — retrying won't help because the browser can't decode the
+        // stream at all (e.g. HEVC in Firefox, MKV anywhere but Chrome+H.264).
+        // Skip the retry budget and surface the codec-specific advice if we
+        // can derive it from the release title.
+        const isUnsupported = error?.code === 4; // MEDIA_ERR_SRC_NOT_SUPPORTED
+
+        if (isUnsupported) {
+            const explanation = currentMedia.title
+                ? explainPlaybackFailure(currentMedia.title)
+                : null;
+            setVideoError("This video can't play in your browser.");
+            setVideoErrorDetail(
+                explanation ??
+                    "The release format isn't supported. Try a different release (look for X264 / MP4) or open in Chrome / Safari."
+            );
+            return;
+        }
+
+        // Retry up to 3 times for transient errors (network, decode glitch).
         if (videoErrorRetryCount.current <= 3) {
             logger.info('Retrying video load', { attempt: videoErrorRetryCount.current });
             setTimeout(() => {
@@ -169,8 +193,9 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
             }, 1000 * videoErrorRetryCount.current);
         } else {
             setVideoError('Failed to load video after multiple attempts');
+            setVideoErrorDetail(null);
         }
-    }, []);
+    }, [currentMedia.title]);
 
     // Handle buffering states (combines local UI state + sync hook buffering ref)
     const handleWaiting = useCallback(() => {
@@ -189,6 +214,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     // Reset error state when media changes
     useEffect(() => {
         setVideoError(null);
+        setVideoErrorDetail(null);
         videoErrorRetryCount.current = 0;
     }, [currentMedia.url]);
 
@@ -429,8 +455,8 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
                     <div className="text-center text-white p-6">
                         <p className="text-red-400 mb-2">{videoError}</p>
-                        <p className="text-xs text-gray-400 mb-4">
-                            Max retries reached. Reload the page to try again.
+                        <p className="text-xs text-gray-400 mb-4 max-w-md mx-auto">
+                            {videoErrorDetail ?? 'Max retries reached. Reload the page to try again.'}
                         </p>
                         <Button
                             onClick={() => window.location.reload()}
