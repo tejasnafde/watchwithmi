@@ -185,25 +185,38 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                                     </p>
                                 ) : (
                                     contentResults.map((result, index) => (
+                                        // Whole card is the primary "PLAY" affordance —
+                                        // click anywhere to load. The QUEUE button stops
+                                        // propagation so the two actions stay separable.
                                         <div
                                             key={index}
-                                            className="bg-black border-4 border-white p-4 group"
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-label={`Play ${result.title}`}
+                                            onClick={() => handleLoadContent(result)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault()
+                                                    handleLoadContent(result)
+                                                }
+                                            }}
+                                            className="bg-black border-4 border-white p-4 group cursor-pointer transition-colors hover:bg-white hover:text-black focus:outline-none focus:bg-white focus:text-black"
                                         >
                                             <div className="flex justify-between items-start gap-4">
                                                 <div className="flex-1 min-w-0">
-                                                    <h4 className="text-lg font-bold uppercase truncate text-white">
+                                                    <h4 className="text-lg font-bold uppercase truncate">
                                                         {result.title}
                                                     </h4>
                                                     <div className="flex gap-2 mt-2 flex-wrap">
-                                                        <span className="text-[10px] px-2 border-2 border-white text-white font-mono font-bold">
+                                                        <span className="text-[10px] px-2 border-2 border-current font-mono font-bold">
                                                             {result.size.toUpperCase()}
                                                         </span>
                                                         {result.quality && (
-                                                            <span className="text-[10px] px-2 border-2 border-white text-white font-mono font-bold">
+                                                            <span className="text-[10px] px-2 border-2 border-current font-mono font-bold">
                                                                 {result.quality.toUpperCase()}
                                                             </span>
                                                         )}
-                                                        <span className="text-[10px] px-2 border-2 border-white text-white font-mono font-bold">
+                                                        <span className="text-[10px] px-2 border-2 border-current font-mono font-bold">
                                                             UP {result.seeders}
                                                         </span>
                                                     </div>
@@ -212,21 +225,24 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                                                     {onAddToQueue && (
                                                         <Button
                                                             size="sm"
-                                                            onClick={() => handleAddContentToQueue(result)}
-                                                            className="bg-black text-white border-2 border-white hover:bg-white hover:text-black h-8 px-3 rounded-none font-bold uppercase text-xs"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                handleAddContentToQueue(result)
+                                                            }}
+                                                            className="bg-transparent text-current border-2 border-current hover:bg-current hover:text-black group-hover:text-black h-8 px-3 rounded-none font-bold uppercase text-xs"
+                                                            aria-label={`Add ${result.title} to queue`}
                                                         >
                                                             <Plus className="h-3 w-3 mr-1" />
                                                             QUEUE
                                                         </Button>
                                                     )}
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => handleLoadContent(result)}
-                                                        className="bg-white text-black hover:bg-gray-200 border-2 border-white h-8 px-3 rounded-none font-bold uppercase text-xs"
+                                                    <div
+                                                        className="flex items-center gap-1 px-3 h-8 border-2 border-current font-bold uppercase text-xs pointer-events-none"
+                                                        aria-hidden="true"
                                                     >
-                                                        <Play className="h-3 w-3 mr-1" />
+                                                        <Play className="h-3 w-3" />
                                                         PLAY
-                                                    </Button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
