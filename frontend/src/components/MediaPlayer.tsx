@@ -164,33 +164,56 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
             networkState: video.networkState
         });
 
-        // MEDIA_ERR_SRC_NOT_SUPPORTED (code 4) is the classic codec/container
-        // failure — retrying won't help because the browser can't decode the
-        // stream at all (e.g. HEVC in Firefox, MKV anywhere but Chrome+H.264).
-        // Skip the retry budget and surface the codec-specific advice if we
-        // can derive it from the release title.
-        const isUnsupported = error?.code === 4; // MEDIA_ERR_SRC_NOT_SUPPORTED
-
-        if (isUnsupported) {
-            const explanation = currentMedia.title
+        // MEDIA_ERR_SRC_NOT_SUPPORTED (code 4) is *ambiguous* — Firefox /
+        // Chrome fire it for both:
+        //   (a) genuine codec/container mismatch (HEVC in Firefox,
+        //       MKV outside Chrome+H.264), AND
+        //   (b) any HTTP failure during the initial load — 4xx / 5xx /
+        //       CORS rejection. The MediaError API can't distinguish.
+        //
+        // We disambiguate via `explainPlaybackFailure`: it only returns a
+        // string when the release title clearly matches a known-bad codec
+        // (severity === "warn"). For H.264/MP4 / unknown titles it returns
+        // null, which we treat as a transient HTTP failure (the common
+        // case here is HTTP 425 "Too Early" while the torrent is still
+        // buffering on the backend) and fall through to the retry path.
+        const isUnsupported = error?.code === 4;
+        const codecExplanation =
+            isUnsupported && currentMedia.title
                 ? explainPlaybackFailure(currentMedia.title)
                 : null;
+
+        if (isUnsupported && codecExplanation) {
+            // Codec is the actual culprit — retrying won't help.
             setVideoError("This video can't play in your browser.");
-            setVideoErrorDetail(
-                explanation ??
-                    "The release format isn't supported. Try a different release (look for X264 / MP4) or open in Chrome / Safari."
-            );
+            setVideoErrorDetail(codecExplanation);
             return;
         }
 
-        // Retry up to 3 times for transient errors (network, decode glitch).
-        if (videoErrorRetryCount.current <= 3) {
-            logger.info('Retrying video load', { attempt: videoErrorRetryCount.current });
+        // Exponential backoff — 1s, 2s, 4s, 8s, 16s = ~31s total over 5
+        // retries. The earlier 1s/2s/3s linear ramp totalled ~6s, which
+        // wasn't enough for a cold libtorrent on Render to buffer 5+ MB.
+        const MAX_RETRIES = 5;
+        if (videoErrorRetryCount.current <= MAX_RETRIES) {
+            const delayMs = 1000 * Math.pow(2, videoErrorRetryCount.current - 1);
+            logger.info('Retrying video load', {
+                attempt: videoErrorRetryCount.current,
+                delayMs,
+            });
             setTimeout(() => {
                 if (video) {
                     video.load();
                 }
-            }, 1000 * videoErrorRetryCount.current);
+            }, delayMs);
+        } else if (isUnsupported) {
+            // Exhausted retries on a code-4 we couldn't pin to a codec —
+            // almost certainly an HTTP/buffering problem on the backend
+            // (most often "still downloading the torrent header"). Don't
+            // mislead the user about codecs.
+            setVideoError("Couldn't start playback.");
+            setVideoErrorDetail(
+                "The server may still be buffering the torrent. Give it a few seconds and try Reload Page, or pick a different release with more seeders."
+            );
         } else {
             setVideoError('Failed to load video after multiple attempts');
             setVideoErrorDetail(null);

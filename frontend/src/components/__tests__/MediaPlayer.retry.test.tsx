@@ -59,12 +59,14 @@ beforeEach(() => {
 });
 
 /**
- * Fire 4 consecutive error events on the <video>. The handler increments
- * the retry counter each time; by the 4th call it exceeds 3 and setVideoError
- * is called, rendering the overlay.
+ * Fire enough consecutive error events on the <video> to blow past the
+ * retry budget (MAX_RETRIES = 5, so the 6th call surfaces the overlay).
+ * The budget was widened from 3 to 5 with exponential backoff so a
+ * still-buffering torrent has time to catch up before we give up — see
+ * the comment in MediaPlayer.handleVideoError.
  */
 function exhaustRetries(video: HTMLVideoElement) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
         act(() => {
             fireEvent.error(video);
         });
