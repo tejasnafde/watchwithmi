@@ -120,7 +120,11 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     const [videoErrorDetail, setVideoErrorDetail] = useState<string | null>(null);
     const [isBuffering, setIsBuffering] = useState(false);
     const videoErrorRetryCount = useRef(0);
-    const lastVideoErrorTime = useRef(0);
+    // Mirrored into state so the loading overlay can show "(retry N/5)" —
+    // the ref alone wouldn't trigger a re-render. Reset alongside the
+    // ref on canplay / new-media. UI-only; the ref is still the source
+    // of truth for retry-budget logic.
+    const [retryAttempt, setRetryAttempt] = useState(0);
 
     // Use video sync hook for synchronized playback
     const {
@@ -143,16 +147,15 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         const video = videoRef.current;
         if (!video) return;
 
-        const now = Date.now();
-        const timeSinceLastError = now - lastVideoErrorTime.current;
-
-        // Reset retry count if it's been a while since last error
-        if (timeSinceLastError > 10000) {
-            videoErrorRetryCount.current = 0;
-        }
-
-        lastVideoErrorTime.current = now;
+        // The retry counter is reset by `handleCanPlay` (success), by the
+        // `currentMedia.url` change effect (new media loaded), and only
+        // by those. We deliberately do NOT auto-reset based on
+        // "time since last error" — the exponential backoff itself has
+        // gaps up to 16s, which used to exceed the previous 10s cooldown
+        // and re-opened the budget every cycle, trapping the player in
+        // an infinite retry loop with the loading overlay stuck up.
         videoErrorRetryCount.current++;
+        setRetryAttempt(videoErrorRetryCount.current);
 
         const error = video.error;
         logger.error('Video error occurred', {
@@ -231,6 +234,14 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         logger.debug('Video can play');
         setIsBuffering(false);
         setVideoError(null);
+        setVideoErrorDetail(null);
+        // A successful canplay is the right signal to refill the retry
+        // budget — future transient mid-stream errors get a fresh 5
+        // attempts. (Previously we used a wallclock cooldown for this,
+        // which interacted badly with exponential backoff and looped
+        // forever; see the comment in handleVideoError.)
+        videoErrorRetryCount.current = 0;
+        setRetryAttempt(0);
         syncHandleCanPlay();
     }, [syncHandleCanPlay]);
 
@@ -239,6 +250,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         setVideoError(null);
         setVideoErrorDetail(null);
         videoErrorRetryCount.current = 0;
+        setRetryAttempt(0);
     }, [currentMedia.url]);
 
     // Update video source when URL changes
@@ -438,8 +450,14 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 <ReactionBar onReaction={onVideoReaction} />
             )}
 
-            {/* Loading overlay */}
-            {(currentMedia.loading || isBuffering) && (
+            {/* Loading overlay.
+                Hidden once `videoError` is set so the error overlay (with
+                the actual reason + Reload Page button) isn't competing
+                with a "Loading media..." spinner. The parent's
+                `currentMedia.loading` flag is server-driven and can stay
+                truthy through a failure, which is what trapped the user
+                behind the spinner before. */}
+            {(currentMedia.loading || isBuffering) && !videoError && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <div className="text-center text-white w-80 max-w-[90%]">
                         {currentMedia.loading && mediaStatus ? (
@@ -471,6 +489,15 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                             <>
                                 <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
                                 <p>{currentMedia.loading ? 'Loading media...' : 'Buffering...'}</p>
+                                {/* When we're actively burning retries, show
+                                    progress so the user knows we haven't
+                                    silently wedged. After this counter hits
+                                    MAX_RETRIES the error overlay takes over. */}
+                                {retryAttempt > 0 && (
+                                    <p className="text-xs mt-1 opacity-60 font-mono">
+                                        retry {retryAttempt}/5 — server may still be buffering
+                                    </p>
+                                )}
                                 {currentMedia.title && (
                                     <p className="text-sm mt-2 opacity-75">{currentMedia.title}</p>
                                 )}
