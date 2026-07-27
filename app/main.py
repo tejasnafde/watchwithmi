@@ -19,6 +19,8 @@ import re
 # Import our modules
 from .config import (
     APP_NAME,
+    MEDIA_BRIDGE_ENABLED,
+    MEDIA_BRIDGE_WIP_MESSAGE,
     SOCKETIO_CORS_ALLOWED_ORIGINS,
     VERSION,
     setup_logging,
@@ -134,17 +136,18 @@ cors_origins = SOCKETIO_CORS_ALLOWED_ORIGINS
 if isinstance(cors_origins, str) and cors_origins != "*":
     cors_origins = [o.strip() for o in cors_origins.split(",")]
 
-    # Render provides host without protocol, so we need to add https://
-    # If it's just a hostname (no dots), append .onrender.com
+    # Origins may arrive without a scheme (Render's `fromService` injects a
+    # bare host). Normalise those to https://.
+    #
+    # A bare single-label name used to get `.onrender.com` appended, which is
+    # wrong anywhere else and fails as a silent CORS rejection rather than a
+    # startup error. Provider-specific guessing is gone: supply a full origin,
+    # or a resolvable hostname, and nothing is invented.
     processed_origins = []
     for origin in cors_origins:
         processed_origins.append(origin)
         if not origin.startswith("http") and origin != "*" and "localhost" not in origin:
-            # If it's a bare hostname (no dots), it's from Render's fromService
-            if "." not in origin:
-                processed_origins.append(f"https://{origin}.onrender.com")
-            else:
-                processed_origins.append(f"https://{origin}")
+            processed_origins.append(f"https://{origin}")
     cors_origins = processed_origins
 
 # Create Socket.IO server
@@ -274,12 +277,18 @@ async def get_stats():
 async def search_content(request: ContentSearchRequest):
     """Search for P2P content (for personal use).
 
+    Gated by the same WIP flag as /api/media - magnet search is useless
+    without a bridge that can act on the result, and the public indexers
+    403 datacenter IPs anyway.
+
     Filters placeholder/fallback rows out of the response so the frontend
     always sees real results or an empty list. When every result is a
     placeholder it means every provider failed — log that loudly so the
     server logs make the failure mode obvious without having to inspect
     the UI.
     """
+    if not MEDIA_BRIDGE_ENABLED:
+        raise HTTPException(status_code=501, detail=MEDIA_BRIDGE_WIP_MESSAGE)
     try:
         logger.info(f" P2P content search requested: {request.query}")
         results = await content_search.search(request.query)
@@ -319,6 +328,8 @@ async def diag_search_raw(q: str = "ubuntu"):
     and you need to see *why* (genuine empty vs Cloudflare interstitial
     vs HTML-changed-on-us).
     """
+    if not MEDIA_BRIDGE_ENABLED:
+        raise HTTPException(status_code=501, detail=MEDIA_BRIDGE_WIP_MESSAGE)
     if not content_search:
         raise HTTPException(status_code=503, detail="Search service not initialized")
     if not q or not q.strip():
@@ -340,6 +351,8 @@ async def diag_search(q: str = "ubuntu"):
     reach providers — e.g. when a Render datacenter IP is geo-blocked
     or rate-limited but the same code works locally.
     """
+    if not MEDIA_BRIDGE_ENABLED:
+        raise HTTPException(status_code=501, detail=MEDIA_BRIDGE_WIP_MESSAGE)
     if not content_search:
         raise HTTPException(status_code=503, detail="Search service not initialized")
     if not q or not q.strip():

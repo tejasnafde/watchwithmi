@@ -106,6 +106,33 @@ MAX_USER_NAME_LENGTH = 50
 # Socket.IO settings
 SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "*")
 
+# ---------------------------------------------------------------------------
+# Feature flags
+# ---------------------------------------------------------------------------
+
+# The P2P / torrent bridge is WORK IN PROGRESS and ships DISABLED.
+#
+# It is not merely unfinished, it is architecturally incompatible with any
+# managed HTTP container (Render, Cloud Run). It needs inbound TCP+UDP on
+# 6881-6891 for DHT and trackers, a real writable disk sized for whole video
+# files, and a process that stays warm for the length of a movie. Cloud Run
+# gives none of those: one inbound HTTP port, no inbound UDP, and /tmp is
+# tmpfs (RAM), so a 2 GB download OOMs the instance rather than filling a disk.
+# Public indexers also 403 datacenter IPs (see the audit note in
+# app/services/p2p_search.py), so even search degrades.
+#
+# Leave this off in any cloud deployment. The intended direction is to stop
+# fetching server-side altogether and accept a user-supplied direct link from
+# a browser extension, which removes every requirement listed above.
+MEDIA_BRIDGE_ENABLED = os.getenv("ENABLE_MEDIA_BRIDGE", "false").lower() == "true"
+
+# Human-readable reason surfaced to clients that hit a gated endpoint, so the
+# UI can say something true instead of showing an opaque network error.
+MEDIA_BRIDGE_WIP_MESSAGE = (
+    "Server-side P2P streaming is a work in progress and is disabled on this "
+    "deployment. Planned replacement: bring your own direct link."
+)
+
 # Security settings
 # `ENV` gates production-only checks. Set to "production" on Render /
 # deployed environments; defaults to "development" so local work is

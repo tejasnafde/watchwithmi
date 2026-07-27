@@ -13,12 +13,11 @@ import type {
 // FastAPI backend URL - adjust this based on your setup
 let BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 if (BACKEND_URL && !BACKEND_URL.startsWith('http')) {
-  // If it's just a hostname (from Render's fromService), append .onrender.com
-  if (!BACKEND_URL.includes('.')) {
-    BACKEND_URL = `https://${BACKEND_URL}.onrender.com`;
-  } else {
-    BACKEND_URL = `https://${BACKEND_URL}`;
-  }
+  // A scheme-less value gets https://. Previously a single-label name had
+  // `.onrender.com` appended, which silently pointed the whole client at a
+  // non-existent host on any other platform. Pass a full URL in
+  // NEXT_PUBLIC_BACKEND_URL and no guessing happens at all.
+  BACKEND_URL = `https://${BACKEND_URL}`;
 }
 // Strip trailing slashes
 BACKEND_URL = BACKEND_URL.replace(/\/+$/, '');

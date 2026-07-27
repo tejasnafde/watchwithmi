@@ -135,6 +135,21 @@ def client():
         yield c
 
 
+@pytest.fixture
+def media_bridge_enabled(monkeypatch):
+    """Turn the WIP P2P feature on for the duration of one test.
+
+    The search and media endpoints ship gated behind
+    ``config.MEDIA_BRIDGE_ENABLED`` (default false), so tests that exercise the
+    real search behaviour have to opt in. Each module reads the flag from its
+    own namespace at call time, so both have to be patched: ``app.main`` for the
+    search/diag routes and ``app.api.media_bridge_api`` for the router-level
+    dependency guarding ``/api/media/*``.
+    """
+    monkeypatch.setattr("app.main.MEDIA_BRIDGE_ENABLED", True)
+    monkeypatch.setattr("app.api.media_bridge_api.MEDIA_BRIDGE_ENABLED", True)
+
+
 def _placeholder_result() -> ContentSearchResult:
     r = ContentSearchResult(title="No results found for 'x'", magnet="")
     r.is_placeholder = True
@@ -151,6 +166,7 @@ def _real_result() -> ContentSearchResult:
     )
 
 
+@pytest.mark.usefixtures("media_bridge_enabled")
 class TestSearchContentPlaceholderHygiene:
     def test_strips_placeholder_when_real_results_exist(self, client):
         with patch("app.main.content_search.search", new=AsyncMock(
@@ -189,6 +205,7 @@ class TestSearchContentPlaceholderHygiene:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("media_bridge_enabled")
 class TestDiagSearchEndpoint:
     def test_requires_non_empty_query(self, client):
         resp = client.get("/api/diag/search?q=")
@@ -216,3 +233,48 @@ class TestDiagSearchEndpoint:
         assert body["query"] == "ubuntu"
         assert body["total_results"] == 3
         assert {p["provider"] for p in body["providers"]} == {"bitsearch", "piratebay"}
+
+
+# ---------------------------------------------------------------------------
+# WIP gate on the P2P surface
+# ---------------------------------------------------------------------------
+
+
+class TestMediaBridgeWipGate:
+    """The P2P/torrent surface ships disabled. These assert the gate holds,
+    because the failure mode if it silently opens is a server that starts
+    downloading torrents on a shared cloud project.
+
+    Note there is no `media_bridge_enabled` fixture here: this class deliberately
+    exercises the default (off) configuration.
+    """
+
+    def test_search_content_is_gated(self, client):
+        resp = client.post("/api/search-content", json={"query": "anything"})
+        assert resp.status_code == 501
+        assert "work in progress" in resp.json()["detail"].lower()
+
+    def test_diag_search_is_gated(self, client):
+        assert client.get("/api/diag/search?q=ubuntu").status_code == 501
+
+    def test_diag_search_raw_is_gated(self, client):
+        assert client.get("/api/diag/search/raw?q=ubuntu").status_code == 501
+
+    @pytest.mark.parametrize("path", ["/api/media/list", "/api/media/status/abc"])
+    def test_media_routes_are_gated(self, client, path):
+        assert client.get(path).status_code == 501
+
+    def test_media_add_is_gated(self, client):
+        resp = client.post(
+            "/api/media/add",
+            json={"magnet_url": "magnet:?xt=urn:btih:" + "0" * 40},
+        )
+        assert resp.status_code == 501
+
+    def test_gate_is_not_503_so_the_player_does_not_retry(self, client):
+        """MediaPlayer.tsx treats 503 as "still buffering" and retries five
+        times with backoff. A disabled feature must not look retryable."""
+        assert client.get("/api/media/list").status_code != 503
+
+    def test_health_is_not_gated(self, client):
+        assert client.get("/health").status_code == 200

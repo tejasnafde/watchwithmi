@@ -1,0 +1,32 @@
+# Builds the Next.js frontend image with the backend URL baked in.
+#
+# Why this file exists instead of `gcloud run deploy --source`: NEXT_PUBLIC_*
+# values are inlined into the client bundle at BUILD time, and --source gives
+# no way to pass --build-arg. So the URL is a substitution here, and changing
+# the backend hostname means rebuilding, not just editing an env var.
+#
+# Usage:
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_BACKEND_URL=https://<api-host>,_TAG=v1 .
+
+substitutions:
+  _BACKEND_URL: ""
+  _TAG: "latest"
+  _IMAGE: "asia-south1-docker.pkg.dev/teejayproject/cloud-run-source-deploy/watchwithmi-web"
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg=NEXT_PUBLIC_BACKEND_URL=${_BACKEND_URL}
+      - -t=${_IMAGE}:${_TAG}
+      - -t=${_IMAGE}:latest
+      - .
+
+images:
+  - ${_IMAGE}:${_TAG}
+  - ${_IMAGE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
