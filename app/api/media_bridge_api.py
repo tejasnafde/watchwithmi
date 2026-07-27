@@ -7,16 +7,35 @@ import re
 import uuid
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, validator
 import aiofiles
 
+from app.config import MEDIA_BRIDGE_ENABLED, MEDIA_BRIDGE_WIP_MESSAGE
 from app.services.media_bridge import media_bridge
 
 logger = logging.getLogger("watchwithmi.api.media_bridge")
 
-router = APIRouter(prefix="/api/media", tags=["media_bridge"])
+
+def require_media_bridge_enabled() -> None:
+    """Gate every /api/media route behind the WIP feature flag.
+
+    Applied as a router-level dependency so a newly added route cannot forget
+    it. Returns 501 rather than 503: 503 means "temporarily unavailable, retry
+    later" and the frontend player retries on it (MediaPlayer.tsx backs off and
+    retries up to 5 times). 501 Not Implemented is terminal, which is the
+    honest answer for a feature that is switched off by design.
+    """
+    if not MEDIA_BRIDGE_ENABLED:
+        raise HTTPException(status_code=501, detail=MEDIA_BRIDGE_WIP_MESSAGE)
+
+
+router = APIRouter(
+    prefix="/api/media",
+    tags=["media_bridge"],
+    dependencies=[Depends(require_media_bridge_enabled)],
+)
 
 
 # ---------------------------------------------------------------------------

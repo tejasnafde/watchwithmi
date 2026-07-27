@@ -140,3 +140,4 @@ scripts/
 
 # Allow frontend lib directory
 !frontend/src/lib/skills/
+.wrangler/

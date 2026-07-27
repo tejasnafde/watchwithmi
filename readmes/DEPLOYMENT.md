@@ -1,5 +1,20 @@
 # 🚀 WatchWithMi Deployment Guide
 
+> **OUT OF DATE. See `DEPLOYMENT-GCP.md` for how this is actually deployed.**
+>
+> Kept for the scaling notes near the bottom (the Redis / sticky-session path
+> out of `--max-instances=1`), which are still the plan. Everything above that
+> is wrong or obsolete:
+>
+> - Production is **GCP Cloud Run**, at <https://watchwithmi.tn07.dev>. The
+>   Render services were suspended on 2026-07-27 and receive no traffic.
+> - Railway was never used.
+> - The Vercel-for-frontend instructions do not apply; the frontend is a
+>   container on Cloud Run.
+> - The ASGI target given below is **wrong**: with Socket.IO mounted it is
+>   `app.main:socket_app`, not `app.main:app`. Using the latter serves HTTP but
+>   silently breaks every realtime feature.
+
 ## Quick Start Options (Choose One)
 
 ### 🌟 Option 1: Railway (Recommended - Full Stack)
