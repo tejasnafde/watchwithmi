@@ -1,5 +1,28 @@
 # 🌉 WatchWithMi Torrent Bridge Setup
 
+> **STATUS: WORK IN PROGRESS. DISABLED IN ALL DEPLOYMENTS.**
+>
+> Set `ENABLE_MEDIA_BRIDGE=true` to run it locally. With the flag off, every
+> `/api/media/*` route and `/api/search-content` return **501** with an
+> explanatory message, and `libtorrent` is not installed (see
+> `requirements.txt`).
+>
+> **Why it is off, and why "just move it to a better host" does not fix it.**
+> This design needs inbound TCP+UDP on 6881-6891 for DHT and trackers
+> (`app/services/media_bridge.py:120-129`), a writable disk sized for whole
+> video files (`media_bridge.py:111`, 24-hour retention), and a process that
+> stays warm for the length of a movie. No managed HTTP container provides any
+> of that. Cloud Run is strictly worse than Render here, because `/tmp` is
+> tmpfs, so a 2 GB download exhausts RAM rather than disk. Public indexers also
+> 403 datacenter IPs (see the April 2026 audit in
+> `app/services/p2p_search.py:228-256`), so search degrades even before a
+> download starts.
+>
+> **Intended direction:** stop fetching server-side. Accept a user-supplied
+> direct link, sourced by a browser extension, the way comparable extensions
+> already do. That removes the port, disk, warmth and egress requirements at
+> once, and takes the bandwidth cost off the server.
+
 ## Overview
 
 The **Torrent Bridge** allows your WatchWithMi app to stream **any torrent** (including UDP tracker torrents) by downloading them server-side using **libtorrent** and streaming the video files to browsers via HTTP.
