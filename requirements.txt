@@ -15,9 +15,16 @@ pydantic>=2.5.0
 beautifulsoup4==4.12.2
 cloudscraper==1.2.71
 
-# P2P functionality - Windows users may need alternative installation
-# For Windows install issues: conda install -c conda-forge libtorrent
-# Or download wheel from: https://www.lfd.uci.edu/~gohlke/pythonlibs/
-libtorrent==2.0.11
+# P2P functionality: libtorrent is NOT installed by default.
+#
+# The media bridge is WIP and disabled (config.MEDIA_BRIDGE_ENABLED), so the
+# dependency is dead weight in a cloud image and an active liability: there is
+# no manylinux wheel for every platform, and when pip falls back to building
+# against Boost it fails late in the image build. app/services/media_bridge.py
+# already degrades gracefully when the import is missing.
+#
+# To work on the bridge locally:
+#   pip install libtorrent==2.0.11   (or: conda install -c conda-forge libtorrent)
+#   ENABLE_MEDIA_BRIDGE=true python run.py
 google-api-python-client==2.188.0
 gunicorn==21.2.0

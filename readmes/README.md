@@ -12,6 +12,14 @@ A real-time shared media viewing platform that allows users to watch videos toge
 - **📱 Responsive Design**: Works on desktop and mobile devices
 - **⚡ Real-Time Updates**: Instant user join/leave notifications and activity feed
 
+### Work in progress
+
+- **P2P / torrent streaming**: DISABLED. Gated behind `ENABLE_MEDIA_BRIDGE`
+  (default `false`), so `/api/media/*` and `/api/search-content` return 501.
+  It is incompatible with managed HTTP hosting by design, not merely
+  unfinished - see the status note at the top of `TORRENT_BRIDGE_README.md`.
+  Deployed hosting is documented in `DEPLOYMENT-GCP.md`.
+
 ## 🏗️ Architecture
 
 ### Backend (Python + FastAPI)
