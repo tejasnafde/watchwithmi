@@ -1,0 +1,103 @@
+# Deploys both services to Cloud Run. See readmes/DEPLOYMENT-GCP.md.
+#
+# Two jobs because the pieces have different build shapes, not for symmetry:
+# the API is a plain --source deploy, the frontend needs NEXT_PUBLIC_BACKEND_URL
+# baked in at image build time (Cloud Build substitution, since --source cannot
+# pass --build-arg).
+#
+# ponytail: no staging, no canary. Traffic goes straight to 100% because this is
+# a watch-party app for friends. Add --no-traffic + tag promotion if that stops
+# being true.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["readmes/**", "docs/**", "**/*.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGION: asia-south1
+  API_URL: https://watchwithmi-api-974343814740.asia-south1.run.app
+  PUBLIC_URL: https://watchwithmi.tn07.dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests -q
+
+  api:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # --max-instances=1 is load-bearing, not a cost control. Room state lives
+      # in process (app/services/room_manager.py), so a second instance splits
+      # users in the same room across processes with no error. Do not raise it
+      # without the Redis adapter.
+      - name: Deploy API
+        run: |
+          gcloud run deploy watchwithmi-api \
+            --source . --region "$REGION" --allow-unauthenticated \
+            --min-instances=0 --max-instances=1 --session-affinity \
+            --timeout=3600 --cpu=1 --memory=512Mi \
+            --set-env-vars="ENV=production,DEBUG=false,ENABLE_MEDIA_BRIDGE=false,CORS_ALLOWED_ORIGINS=$PUBLIC_URL" \
+            --set-secrets="SECRET_KEY=WATCHWITHMI_SECRET_KEY:latest,YOUTUBE_API_KEY=WATCHWITHMI_YOUTUBE_API_KEY:latest" \
+            --quiet
+
+      - name: Smoke test
+        run: |
+          curl -fsS "$PUBLIC_URL/health" > /dev/null
+          # The torrent bridge must stay gated. 501 is the expected answer.
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$PUBLIC_URL/api/media/list")" = "501"
+
+  web:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # Same origin as the frontend: the edge Worker routes /api and /socket.io
+      # to the API, so the browser never makes a cross-origin request.
+      - name: Build image
+        working-directory: frontend
+        run: |
+          gcloud builds submit --config cloudbuild.yaml \
+            --substitutions=_BACKEND_URL="$PUBLIC_URL",_TAG="${GITHUB_SHA::7}" \
+            --region "$REGION" . --quiet
+
+      - name: Deploy web
+        run: |
+          gcloud run deploy watchwithmi-web \
+            --image "asia-south1-docker.pkg.dev/teejayproject/cloud-run-source-deploy/watchwithmi-web:${GITHUB_SHA::7}" \
+            --region "$REGION" --allow-unauthenticated \
+            --min-instances=0 --max-instances=2 --port=8080 --quiet
+
+      - name: Smoke test
+        run: curl -fsS "$PUBLIC_URL/" > /dev/null
