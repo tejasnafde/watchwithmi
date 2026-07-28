@@ -1,0 +1,6 @@
+# Test-only dependencies. Kept out of requirements.txt so the runtime image
+# stays slim; CI and local dev install both files.
+-r requirements.txt
+pytest==9.0.3
+pytest-asyncio==1.3.0
+httpx==0.25.2
