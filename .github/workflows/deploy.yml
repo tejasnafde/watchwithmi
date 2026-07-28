@@ -26,6 +26,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # Explicit, because gcloud otherwise infers the project from the service
+  # account's email domain (...@developer.gserviceaccount.com) and tries to
+  # deploy into a project literally named "developer".
+  PROJECT: teejayproject
   REGION: asia-south1
   API_URL: https://watchwithmi-api-974343814740.asia-south1.run.app
   PUBLIC_URL: https://watchwithmi.tn07.dev
@@ -59,7 +63,7 @@ jobs:
       - name: Deploy API
         run: |
           gcloud run deploy watchwithmi-api \
-            --source . --region "$REGION" --allow-unauthenticated \
+            --source . --project "$PROJECT" --region "$REGION" --allow-unauthenticated \
             --min-instances=0 --max-instances=1 --session-affinity \
             --timeout=3600 --cpu=1 --memory=512Mi \
             --set-env-vars="ENV=production,DEBUG=false,ENABLE_MEDIA_BRIDGE=false,CORS_ALLOWED_ORIGINS=$PUBLIC_URL" \
@@ -89,12 +93,14 @@ jobs:
         working-directory: frontend
         run: |
           gcloud builds submit --config cloudbuild.yaml \
+            --project "$PROJECT" \
             --substitutions=_BACKEND_URL="$PUBLIC_URL",_TAG="${GITHUB_SHA::7}" \
             --region "$REGION" . --quiet
 
       - name: Deploy web
         run: |
           gcloud run deploy watchwithmi-web \
+            --project "$PROJECT" \
             --image "asia-south1-docker.pkg.dev/teejayproject/cloud-run-source-deploy/watchwithmi-web:${GITHUB_SHA::7}" \
             --region "$REGION" --allow-unauthenticated \
             --min-instances=0 --max-instances=2 --port=8080 --quiet
