@@ -64,28 +64,28 @@ export class ErrorBoundary extends Component<Props, State> {
 
             // Default fallback UI
             return (
-                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
-                    <Card className="max-w-2xl w-full bg-white/10 backdrop-blur-md border-white/20">
+                <div className="min-h-screen flex items-center justify-center bg-background p-6">
+                    <Card className="max-w-2xl w-full">
                         <CardHeader>
                             <div className="flex items-center gap-3">
-                                <AlertTriangle className="h-8 w-8 text-yellow-400" />
-                                <CardTitle className="text-2xl text-white">
-                                    Oops! Something went wrong
+                                <AlertTriangle className="h-6 w-6 shrink-0 text-destructive" aria-hidden="true" />
+                                <CardTitle className="text-xl">
+                                    Something went wrong
                                 </CardTitle>
                             </div>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <p className="text-white/80">
-                                We encountered an unexpected error. Don&apos;t worry, your data is safe.
+                        <CardContent className="space-y-5">
+                            <p className="text-muted-foreground">
+                                We hit an unexpected error. Don&apos;t worry, your data is safe.
                             </p>
 
                             {process.env.NODE_ENV === 'development' && this.state.error && (
-                                <div className="bg-black/30 p-4 rounded-lg">
-                                    <p className="text-red-400 font-mono text-sm mb-2">
+                                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4">
+                                    <p className="text-destructive font-mono text-sm mb-2">
                                         {this.state.error.toString()}
                                     </p>
                                     {this.state.errorInfo && (
-                                        <pre className="text-white/60 font-mono text-xs overflow-auto max-h-48">
+                                        <pre className="text-muted-foreground font-mono text-xs overflow-auto max-h-48">
                                             {this.state.errorInfo.componentStack}
                                         </pre>
                                     )}
@@ -95,16 +95,16 @@ export class ErrorBoundary extends Component<Props, State> {
                             <div className="flex gap-3">
                                 <Button
                                     onClick={this.handleReset}
-                                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                                    className="h-11 px-5"
                                 >
-                                    Reload Page
+                                    Reload page
                                 </Button>
                                 <Button
                                     variant="outline"
                                     onClick={() => window.history.back()}
-                                    className="border-white/20 text-white hover:bg-white/10"
+                                    className="h-11 px-5"
                                 >
-                                    Go Back
+                                    Go back
                                 </Button>
                             </div>
                         </CardContent>

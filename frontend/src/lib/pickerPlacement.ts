@@ -5,7 +5,7 @@
  * uses right-anchoring (picker's right edge aligns with the trigger's
  * right edge and grows leftward), which looks balanced for messages on
  * the right side of the chat column. On narrow viewports that placement
- * can push the picker off the left edge — this helper flips to
+ * can push the picker off the left edge - this helper flips to
  * left-anchoring in that case.
  *
  * Keeping the decision pure + testable means the component itself only
@@ -38,7 +38,7 @@ export function choosePickerAnchor({
         return "left";
     }
 
-    // Suppress "unused viewportWidth" — kept in the signature so callers
+    // Suppress "unused viewportWidth" - kept in the signature so callers
     // can stay forward-compatible with a future bottom/top decision that
     // also needs the viewport height / width.
     void viewportWidth;

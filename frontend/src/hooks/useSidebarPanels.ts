@@ -55,7 +55,7 @@ function safeWriteBoolean(key: string, value: boolean): void {
     try {
         window.localStorage.setItem(key, value ? "true" : "false");
     } catch {
-        // Private browsing / quota issues — silently drop.
+        // Private browsing / quota issues - silently drop.
     }
 }
 

@@ -3,7 +3,7 @@ import { choosePickerAnchor } from "@/lib/pickerPlacement";
 
 /**
  * Bug #3.7 (docs/polishing/03-chat-reactions-queue.md):
- *   "Emoji picker overflow on small screens — picker renders off-screen
+ *   "Emoji picker overflow on small screens - picker renders off-screen
  *    near viewport edges."
  *
  * `choosePickerAnchor` is the pure placement helper the picker uses to
@@ -33,7 +33,7 @@ describe("choosePickerAnchor", () => {
 
     it("flips to left-anchor when right-anchor would clip the left edge", () => {
         // Trigger is near the left edge: right edge at x=120. Right-anchoring
-        // would push the picker to x=120-280=-160 — clipped.
+        // would push the picker to x=120-280=-160 - clipped.
         const anchor = choosePickerAnchor({
             triggerRight: 120,
             viewportWidth: VIEWPORT,

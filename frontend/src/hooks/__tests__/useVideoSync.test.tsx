@@ -30,7 +30,7 @@ const settleMountEffects = () => {
  *
  * Item #1 from docs/polishing/02-sync-playback.md claimed
  * "early-return in handleVideoPlay/handleVideoPause skips a sync-flag clear."
- * Auditing the current code showed no such leak — these handlers don't set
+ * Auditing the current code showed no such leak - these handlers don't set
  * `isUpdatingFromSocket` at all, only read it. The tests below pin that
  * invariant so any future refactor that introduces a leak is caught.
  *
@@ -101,10 +101,10 @@ const makeMedia = (overrides: Partial<MediaState> = {}): MediaState => ({
 });
 
 // ---------------------------------------------------------------------------
-// Item #1 — Early returns don't leak state
+// Item #1 - Early returns don't leak state
 // ---------------------------------------------------------------------------
 
-describe("useVideoSync — early returns are idempotent (bug #1 invariant)", () => {
+describe("useVideoSync - early returns are idempotent (bug #1 invariant)", () => {
     it("a rejected play event does not block a subsequent legitimate play event", () => {
         const video = makeFakeVideo({ currentTime: 10, paused: false });
         const onPlayPause = vi.fn();
@@ -163,7 +163,7 @@ describe("useVideoSync — early returns are idempotent (bug #1 invariant)", () 
         // Seed lastKnownTimeRef at 40.
         act(() => result.current.handleTimeUpdate());
 
-        // Reject via the stale-pause clause: lastKnownTime 40, currentTime 5 → delta 35 > 30.
+        // Reject via the stale-pause clause: lastKnownTime 40, currentTime 5 -> delta 35 > 30.
         video.currentTime = 5;
         act(() => result.current.handleVideoPause());
         expect(onPlayPause).not.toHaveBeenCalled();
@@ -178,10 +178,10 @@ describe("useVideoSync — early returns are idempotent (bug #1 invariant)", () 
 });
 
 // ---------------------------------------------------------------------------
-// Item #5 — Tighter reset-timestamp threshold
+// Item #5 - Tighter reset-timestamp threshold
 // ---------------------------------------------------------------------------
 
-describe("useVideoSync — reset-timestamp detection (bug #5)", () => {
+describe("useVideoSync - reset-timestamp detection (bug #5)", () => {
     it("rejects a float-near-zero play event when we were clearly ahead", () => {
         // Buffer glitches frequently land at 0.03 or similar rather than exact 0.
         // The stricter check (currentTime < 0.1) catches these.
@@ -208,7 +208,7 @@ describe("useVideoSync — reset-timestamp detection (bug #5)", () => {
     });
 
     it("does not reject a play event when we were only slightly ahead (delta <= 3s)", () => {
-        // Previously: `lastKnownTime > 5` — a user who started, played 2s,
+        // Previously: `lastKnownTime > 5` - a user who started, played 2s,
         // then seeked to 0 would not trigger the check anyway. The new
         // delta-based rule (`delta > 3`) keeps this allowed while making the
         // condition symmetric with the threshold.
@@ -231,7 +231,7 @@ describe("useVideoSync — reset-timestamp detection (bug #5)", () => {
         video.currentTime = 0;
         act(() => result.current.handleVideoPlay());
 
-        // Delta is 2, below the 3s threshold — should accept.
+        // Delta is 2, below the 3s threshold - should accept.
         expect(onPlayPause).toHaveBeenCalledTimes(1);
         expect(onPlayPause).toHaveBeenCalledWith("play", 0);
     });

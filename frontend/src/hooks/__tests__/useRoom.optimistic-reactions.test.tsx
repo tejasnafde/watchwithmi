@@ -52,7 +52,7 @@ beforeEach(() => {
     fakeSocket = makeFakeSocket("my-sid");
 });
 
-describe("useRoom — optimistic reactions (bug #3.6)", () => {
+describe("useRoom - optimistic reactions (bug #3.6)", () => {
     it("adds the emoji to the local message immediately on toggleReaction", async () => {
         const { useRoom } = await import("@/hooks/useRoom");
         const { result } = renderHook(() => useRoom("ABCDEF", "alice"));
@@ -78,7 +78,7 @@ describe("useRoom — optimistic reactions (bug #3.6)", () => {
             result.current.toggleReaction("msg-1", "🔥");
         });
 
-        // Server hasn't responded yet — local state already reflects it.
+        // Server hasn't responded yet - local state already reflects it.
         expect(result.current.chatMessages[0].reactions).toEqual({
             "🔥": ["my-sid"],
         });

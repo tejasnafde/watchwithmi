@@ -16,6 +16,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { MediaPlayer } from "@/components/MediaPlayer"
 import { ChatPanel } from "@/components/ChatPanel"
 import { MediaControls } from "@/components/MediaControls"
+import { ThemeToggle } from "@/components/ThemeToggle"
 import { logger } from "@/lib/logger"
 
 export const dynamic = 'force-dynamic';
@@ -25,18 +26,17 @@ function Toast({
   message,
   type,
 }: { message: string; type: "info" | "success" | "error" | "warning" }) {
-  const colors = {
-    info: "bg-blue-500 border-blue-400",
-    success: "bg-green-500 border-green-400",
-    error: "bg-red-500 border-red-400",
-    warning: "bg-yellow-500 border-yellow-400",
+  // Neutral surface in every state; only the text carries the meaning.
+  const tone = {
+    info: "text-foreground",
+    success: "text-pos",
+    error: "text-destructive",
+    warning: "text-warn",
   }
 
   return (
-    <div
-      className={`${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg border backdrop-blur-sm animate-in slide-in-from-right-full duration-300`}
-    >
-      <p className="text-sm font-medium">{message}</p>
+    <div className="rounded-lg border border-border bg-card px-4 py-3 shadow-lg animate-in slide-in-from-right-full duration-200">
+      <p className={`text-sm font-medium ${tone[type]}`}>{message}</p>
     </div>
   )
 }
@@ -98,7 +98,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
 
   // Collapsible sidebar panels. Smart defaults:
   //   USERS: collapsed on mobile (it's a secondary glance), expanded on desktop.
-  //   CHAT: expanded by default everywhere — primary interaction surface.
+  //   CHAT: expanded by default everywhere - primary interaction surface.
   //   VIDEO: collapsed by default; auto-expands when a call becomes active
   //          (wired via VideoChat's onActiveChange below).
   const sidebar = useSidebarPanels(
@@ -173,20 +173,17 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
   // Room error state
   if (roomError) {
     return (
-      <div className="h-screen flex items-center justify-center bg-black">
-        <div className="text-center max-w-md px-6">
-          <div className="w-16 h-16 border-4 border-white flex items-center justify-center mx-auto mb-6">
-            <span className="text-white text-2xl font-bold">!</span>
+      <div className="h-screen flex items-center justify-center bg-background p-6">
+        <div className="w-full max-w-md rounded-lg border border-border bg-card p-8 text-center">
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-lg border border-destructive/40 bg-destructive/10">
+            <span className="text-2xl font-semibold text-destructive">!</span>
           </div>
-          <h1 className="text-2xl font-bold text-white uppercase tracking-tight mb-3">
-            Room Not Found
+          <h1 className="mb-3 text-2xl font-semibold text-foreground">
+            Room not found
           </h1>
-          <p className="text-zinc-400 mb-8 font-mono text-sm">{roomError}</p>
-          <Button
-            onClick={() => router.push('/')}
-            className="bg-white text-black hover:bg-zinc-200 border-2 border-white font-bold uppercase"
-          >
-            Back to Home
+          <p className="mb-8 text-sm text-muted-foreground">{roomError}</p>
+          <Button onClick={() => router.push('/')} className="h-11">
+            Back to home
           </Button>
         </div>
       </div>
@@ -196,19 +193,19 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
   // Loading skeleton state
   if (!connected) {
     return (
-      <div className="h-screen flex flex-col bg-black overflow-hidden">
+      <div className="h-screen flex flex-col bg-background overflow-hidden">
         {/* Header skeleton */}
-        <div className="border-b-4 border-white bg-black">
+        <div className="border-b border-border bg-card">
           <div className="max-w-full px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-6">
-                <div className="h-8 w-48 animate-pulse bg-zinc-800 rounded" />
+                <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
                 <div className="flex items-center gap-3">
-                  <div className="h-7 w-24 animate-pulse bg-zinc-800 rounded" />
-                  <div className="h-7 w-16 animate-pulse bg-zinc-800 rounded" />
+                  <div className="h-7 w-24 animate-pulse rounded-md bg-muted" />
+                  <div className="h-7 w-16 animate-pulse rounded-md bg-muted" />
                 </div>
               </div>
-              <div className="h-9 w-32 animate-pulse bg-zinc-800 rounded" />
+              <div className="h-9 w-32 animate-pulse rounded-md bg-muted" />
             </div>
           </div>
         </div>
@@ -216,36 +213,36 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
         {/* Main content skeleton */}
         <div className="flex-1 flex overflow-hidden">
           {/* Left: Video player skeleton */}
-          <div className="flex-1 flex flex-col border-r-4 border-white">
-            <div className="flex-1 bg-[#0a0a0a] p-4">
-              <div className="aspect-video animate-pulse bg-zinc-800 rounded" />
+          <div className="flex-1 flex flex-col border-r border-border">
+            <div className="flex-1 bg-muted p-4">
+              <div className="aspect-video animate-pulse rounded-lg bg-secondary" />
             </div>
-            <div className="bg-black border-t-4 border-white p-4">
-              <div className="h-10 w-full animate-pulse bg-zinc-800 rounded" />
+            <div className="border-t border-border bg-card p-4">
+              <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
             </div>
           </div>
 
           {/* Right: Users + Chat skeleton */}
-          <div className="w-[400px] flex flex-col bg-black">
+          <div className="w-[400px] flex flex-col bg-card">
             {/* Users skeleton */}
-            <div className="border-b-4 border-white p-4">
-              <div className="h-5 w-24 animate-pulse bg-zinc-800 rounded mb-3" />
+            <div className="border-b border-border p-4">
+              <div className="mb-3 h-5 w-24 animate-pulse rounded-md bg-muted" />
               <div className="space-y-2">
-                <div className="h-10 w-full animate-pulse bg-zinc-800 rounded" />
-                <div className="h-10 w-full animate-pulse bg-zinc-800 rounded" />
-                <div className="h-10 w-3/4 animate-pulse bg-zinc-800 rounded" />
+                <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+                <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+                <div className="h-10 w-3/4 animate-pulse rounded-md bg-muted" />
               </div>
             </div>
 
             {/* Chat skeleton */}
-            <div className="flex-1 border-b-4 border-white p-4">
-              <div className="h-5 w-16 animate-pulse bg-zinc-800 rounded mb-3" />
+            <div className="flex-1 border-b border-border p-4">
+              <div className="mb-3 h-5 w-16 animate-pulse rounded-md bg-muted" />
               <div className="space-y-3">
-                <div className="h-6 w-4/5 animate-pulse bg-zinc-800 rounded" />
-                <div className="h-6 w-3/5 animate-pulse bg-zinc-800 rounded" />
-                <div className="h-6 w-full animate-pulse bg-zinc-800 rounded" />
-                <div className="h-6 w-2/3 animate-pulse bg-zinc-800 rounded" />
-                <div className="h-6 w-4/5 animate-pulse bg-zinc-800 rounded" />
+                <div className="h-6 w-4/5 animate-pulse rounded-md bg-muted" />
+                <div className="h-6 w-3/5 animate-pulse rounded-md bg-muted" />
+                <div className="h-6 w-full animate-pulse rounded-md bg-muted" />
+                <div className="h-6 w-2/3 animate-pulse rounded-md bg-muted" />
+                <div className="h-6 w-4/5 animate-pulse rounded-md bg-muted" />
               </div>
             </div>
           </div>
@@ -256,7 +253,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
 
   return (
     <ErrorBoundary>
-      <div className="h-screen flex flex-col bg-black overflow-hidden">
+      <div className="h-screen flex flex-col bg-background overflow-hidden">
         {/* Toast Notifications */}
         <div className="fixed top-4 right-4 z-50 space-y-2">
           {toasts.map((toast) => (
@@ -269,35 +266,37 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
         </div>
 
         {/* Header - Single Row */}
-        <div className="border-b-4 border-white bg-black">
+        <div className="border-b border-border bg-card">
           <div className="max-w-full px-6 py-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               {/* Left: Logo + Room Info */}
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-3">
-                  <img src="/logo.svg" alt="WatchWithMi" width={32} height={32} className="bg-white p-1" />
-                  <h1 className="text-2xl font-bold text-white uppercase tracking-tight">
-                    WATCHWITHMI
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-card">
+                    <img src="/logo.svg" alt="WatchWithMi" width={24} height={24} />
+                  </span>
+                  <h1 className="text-2xl font-semibold text-foreground">
+                    WatchWithMi
                   </h1>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant="secondary" className="bg-white text-black text-sm px-3 py-1 font-mono">
+                  <Badge variant="secondary" className="num px-3 py-1 font-mono text-sm uppercase">
                     {actualRoomCode}
                   </Badge>
                   <Button
-                    size="sm"
                     variant="outline"
                     onClick={copyRoomCode}
-                    className="border-2 border-white bg-black text-white hover:bg-white hover:text-black h-8"
+                    className="h-11 transition-colors duration-150"
                   >
-                    <Copy className="h-3 w-3 mr-2" />
-                    COPY
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy
                   </Button>
+                  <ThemeToggle />
                   <Badge
-                    variant={connected ? "default" : "destructive"}
-                    className={`px-3 py-1 font-mono text-xs ${connected ? 'bg-white text-black' : 'bg-black text-white border-2 border-white'}`}
+                    variant="outline"
+                    className={`px-3 py-1 text-xs ${connected ? 'text-pos' : 'text-destructive'}`}
                   >
-                    {connected ? "CONNECTED" : "DISCONNECTED"}
+                    {connected ? "Connected" : "Disconnected"}
                   </Badge>
                 </div>
               </div>
@@ -305,15 +304,15 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
               {/* Right: Leave Button */}
               <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
                 <DialogTrigger asChild>
-                  <Button variant="destructive" className="bg-white text-black hover:bg-gray-200 border-2 border-white">
-                    <LogOut className="h-4 w-4 mr-2" />
-                    LEAVE ROOM
+                  <Button variant="outline" className="h-11 text-destructive transition-colors duration-150">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Leave room
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="bg-black border-4 border-white">
+                <DialogContent>
                   <DialogHeader>
-                    <DialogTitle className="text-white uppercase">Leave Room?</DialogTitle>
-                    <DialogDescription className="text-gray-400">
+                    <DialogTitle>Leave room?</DialogTitle>
+                    <DialogDescription>
                       Are you sure you want to leave this room?
                     </DialogDescription>
                   </DialogHeader>
@@ -321,16 +320,19 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
                     <Button
                       variant="outline"
                       onClick={() => setShowLeaveDialog(false)}
-                      className="border-2 border-white bg-black text-white hover:bg-white hover:text-black"
+                      className="h-11 transition-colors duration-150"
                     >
-                      CANCEL
+                      Cancel
                     </Button>
+                    {/* Outline, not a destructive fill: shadcn's destructive
+                        variant hardcodes text-white, which is 3.06:1 on the
+                        dark theme's --neg. */}
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       onClick={handleLeaveRoom}
-                      className="bg-white text-black hover:bg-gray-200"
+                      className="h-11 border-destructive/40 text-destructive transition-colors duration-150 hover:bg-destructive/10"
                     >
-                      LEAVE
+                      Leave
                     </Button>
                   </div>
                 </DialogContent>
@@ -347,7 +349,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
               becomes the sidebar's top-border handled by the aside below. */}
           <div className={`flex-1 flex flex-col overflow-y-auto min-h-0 ${isMobile ? "" : ""}`}>
             {/* Media Player */}
-            <div className="flex-1 bg-[#0a0a0a]">
+            <div className="flex-1 bg-muted">
               <MediaPlayer
                 currentMedia={currentMedia}
                 canControl={canControl}
@@ -364,24 +366,32 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
 
             {/* Media Status */}
             {mediaStatus && (
-              <div className="bg-black border-t-4 border-white p-4">
+              <div className="border-t border-border bg-card p-4">
                 <div className="space-y-3">
                   <div>
-                    <div className="flex justify-between text-sm text-white mb-2 font-mono">
-                      <span>OVERALL: {(mediaStatus.progress * 100).toFixed(1)}%</span>
-                      <span>{mediaStatus.num_peers} PEERS</span>
+                    <div className="mb-2 flex items-baseline justify-between gap-3">
+                      <span className="label">Overall</span>
+                      <span className="num text-sm text-foreground">
+                        {(mediaStatus.progress * 100).toFixed(1)}%
+                      </span>
+                      <span className="num ml-auto text-sm text-muted-foreground">
+                        {mediaStatus.num_peers} peers
+                      </span>
                     </div>
-                    <Progress value={mediaStatus.progress * 100} className="h-2 bg-gray-800" />
+                    <Progress value={mediaStatus.progress * 100} className="h-2 bg-secondary" />
                   </div>
                   {mediaStatus.file_progress !== undefined && (
                     <div>
-                      <div className="flex justify-between text-sm text-white mb-2 font-mono">
-                        <span>FILE: {(mediaStatus.file_progress * 100).toFixed(1)}%</span>
-                        <span className="text-xs">
-                          {mediaStatus.streaming_ready ? "READY" : "BUFFERING"}
+                      <div className="mb-2 flex items-baseline justify-between gap-3">
+                        <span className="label">File</span>
+                        <span className="num text-sm text-foreground">
+                          {(mediaStatus.file_progress * 100).toFixed(1)}%
+                        </span>
+                        <span className={`ml-auto text-sm ${mediaStatus.streaming_ready ? 'text-pos' : 'text-warn'}`}>
+                          {mediaStatus.streaming_ready ? "Ready" : "Buffering"}
                         </span>
                       </div>
-                      <Progress value={mediaStatus.file_progress * 100} className="h-2 bg-gray-800" />
+                      <Progress value={mediaStatus.file_progress * 100} className="h-2 bg-secondary" />
                     </div>
                   )}
                 </div>
@@ -389,7 +399,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
             )}
 
             {/* Media Controls */}
-            <div className="bg-black border-t-4 border-white">
+            <div className="border-t border-border bg-card">
               <MediaControls
                 onLoadMedia={handleLoadMedia}
                 onSearchContent={handleSearchContent}
@@ -418,45 +428,48 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
               Mobile: stacks BELOW the player via flex-col on the outer row,
               see the `isMobile` branch on that row's className above. */}
           <aside
-            className={`flex flex-col bg-black min-h-0 overflow-hidden ${
+            className={`flex flex-col bg-card min-h-0 overflow-hidden ${
               isMobile
-                ? "w-full border-t-4 border-white"
+                ? "w-full border-t border-border"
                 : isTablet
-                  ? "w-[320px] border-l-4 border-white"
-                  : "w-[400px] border-l-4 border-white"
+                  ? "w-[320px] border-l border-border"
+                  : "w-[400px] border-l border-border"
             }`}
           >
             <CollapsiblePanel
-              title="USERS"
+              title="Users"
               icon={Users}
               count={users.length}
               expanded={sidebar.expanded.users}
               onToggle={() => sidebar.toggle("users")}
               onSolo={() => sidebar.solo("users")}
-              className="border-b-2 border-white"
+              className="border-b border-border"
             >
               <div className="p-3 space-y-2 h-full overflow-y-auto">
                 {users.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between p-2 bg-[#0a0a0a] border-2 border-white/20 group hover:border-white/40"
+                    className="group flex items-center justify-between gap-2 rounded-md border border-border bg-secondary p-2 transition-colors duration-150 hover:border-line-2"
                   >
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 ${user.id === currentUserId ? 'bg-white' : 'bg-gray-500'}`} />
+                      <span
+                        aria-hidden="true"
+                        className={`h-2 w-2 shrink-0 rounded-full ${user.id === currentUserId ? 'bg-primary' : 'bg-muted-foreground'}`}
+                      />
                       <div className="flex flex-col">
-                        <span className="text-white text-sm font-mono">
-                          {user.name} {user.id === currentUserId && "(YOU)"}
+                        <span className="text-sm text-foreground">
+                          {user.name} {user.id === currentUserId && "(you)"}
                         </span>
                         <div className="flex gap-1 mt-1">
                           {user.is_host && (
-                            <span className="text-[10px] px-1 border border-white text-white bg-black font-mono">
-                              <Crown className="h-2 w-2 inline mr-1" />
-                              HOST
+                            <span className="label inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5">
+                              <Crown className="h-2.5 w-2.5 text-primary" aria-hidden="true" />
+                              Host
                             </span>
                           )}
                           {user.can_control && !user.is_host && (
-                            <span className="text-[10px] px-1 border border-white text-white bg-black font-mono">
-                              <Music className="h-2 w-2 inline mr-1" />
+                            <span className="label inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5">
+                              <Music className="h-2.5 w-2.5 text-primary" aria-hidden="true" />
                               DJ
                             </span>
                           )}
@@ -468,11 +481,11 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
                     {isHost && user.id !== currentUserId && (
                       <Button
                         size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 border border-white text-white hover:bg-white hover:text-black"
+                        variant="outline"
+                        className="h-11 px-3 text-xs opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
                         onClick={() => grantControl(user.id, !user.can_control)}
                       >
-                        {user.can_control ? "REVOKE" : "GRANT"}
+                        {user.can_control ? "Revoke" : "Grant"}
                       </Button>
                     )}
                   </div>
@@ -481,13 +494,13 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
             </CollapsiblePanel>
 
             <CollapsiblePanel
-              title="CHAT"
+              title="Chat"
               icon={MessageCircle}
               count={chatMessages.filter((m) => !m.isServer).length}
               expanded={sidebar.expanded.chat}
               onToggle={() => sidebar.toggle("chat")}
               onSolo={() => sidebar.solo("chat")}
-              className="border-b-2 border-white"
+              className="border-b border-border"
             >
               <ChatPanel
                 messages={chatMessages}
@@ -499,7 +512,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
             </CollapsiblePanel>
 
             <CollapsiblePanel
-              title="VIDEO CHAT"
+              title="Video chat"
               icon={Video}
               expanded={sidebar.expanded.video}
               onToggle={() => sidebar.toggle("video")}

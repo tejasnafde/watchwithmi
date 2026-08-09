@@ -62,7 +62,7 @@ beforeEach(() => {
  * Fire enough consecutive error events on the <video> to blow past the
  * retry budget (MAX_RETRIES = 5, so the 6th call surfaces the overlay).
  * The budget was widened from 3 to 5 with exponential backoff so a
- * still-buffering torrent has time to catch up before we give up — see
+ * still-buffering torrent has time to catch up before we give up - see
  * the comment in MediaPlayer.handleVideoError.
  */
 function exhaustRetries(video: HTMLVideoElement) {
@@ -73,7 +73,7 @@ function exhaustRetries(video: HTMLVideoElement) {
     }
 }
 
-describe("MediaPlayer — retry exhaustion (bug #4)", () => {
+describe("MediaPlayer - retry exhaustion (bug #4)", () => {
     it("surfaces 'max retries' copy once automatic retries are exhausted", () => {
         const { container } = render(
             <MediaPlayer

@@ -9,7 +9,7 @@
 import type { WebRTCConnection } from "@/hooks/useWebRTC.types";
 
 // ---------------------------------------------------------------------------
-// #4.3 — Glare resolution
+// #4.3 - Glare resolution
 // ---------------------------------------------------------------------------
 
 export type GlareAction =
@@ -19,7 +19,7 @@ export type GlareAction =
     | "rollback-accept"
     /** Standard path: apply remote offer, create answer. */
     | "accept"
-    /** No existing connection or state — build a fresh PC. */
+    /** No existing connection or state - build a fresh PC. */
     | "create-new";
 
 export interface GlareInput {
@@ -52,14 +52,14 @@ export function resolveGlareAction({
             return "accept";
 
         default:
-            // "have-local-pranswer" / "have-remote-pranswer" — rare, treat as
+            // "have-local-pranswer" / "have-remote-pranswer" - rare, treat as
             // "build a fresh PC" so the caller's fallback path kicks in.
             return "create-new";
     }
 }
 
 // ---------------------------------------------------------------------------
-// #4.4 — ICE state cleanup decision
+// #4.4 - ICE state cleanup decision
 // ---------------------------------------------------------------------------
 
 /**
@@ -76,7 +76,7 @@ export function shouldCleanupOnIceState(state: RTCIceConnectionState): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// #4.2 — Ordered teardown
+// #4.2 - Ordered teardown
 // ---------------------------------------------------------------------------
 
 /**

@@ -109,10 +109,10 @@ function renderYTHookInComponent(
 }
 
 // ---------------------------------------------------------------------------
-// Bug #3 — UNSTARTED buffering must time out
+// Bug #3 - UNSTARTED buffering must time out
 // ---------------------------------------------------------------------------
 
-describe("useYouTubePlayer — UNSTARTED buffering timeout (bug #3)", () => {
+describe("useYouTubePlayer - UNSTARTED buffering timeout (bug #3)", () => {
     it("clears buffering after the fallback window if the player stays UNSTARTED", async () => {
         const { useYouTubePlayer } = await import("@/hooks/useYouTubePlayer");
 
@@ -148,7 +148,7 @@ describe("useYouTubePlayer — UNSTARTED buffering timeout (bug #3)", () => {
         expect(latest!.buffering).toBe(false);
     });
 
-    it("does not clear prematurely on its own — the fallback only fires for UNSTARTED", async () => {
+    it("does not clear prematurely on its own - the fallback only fires for UNSTARTED", async () => {
         const { useYouTubePlayer } = await import("@/hooks/useYouTubePlayer");
 
         let latest: ReturnType<typeof useYouTubePlayer> | null = null;
