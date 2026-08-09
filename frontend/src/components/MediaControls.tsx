@@ -38,6 +38,9 @@ interface MediaControlsProps {
     isHost?: boolean;
 }
 
+// One pill style for every result badge (size, quality, seeders, codec).
+const BADGE = 'inline-flex items-center rounded-full border border-border px-2 py-0.5 font-mono text-xs';
+
 export const MediaControls: React.FC<MediaControlsProps> = ({
     onLoadMedia,
     onSearchContent,
@@ -66,7 +69,7 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
 
     // Pre-sort P2P results so browser-playable releases (x264 / MP4) bubble
     // to the top before HEVC / MKV / 10-bit ones that won't play in <video>.
-    // Stable within each bucket — preserves the seeder ordering from the API.
+    // Stable within each bucket - preserves the seeder ordering from the API.
     const sortedContentResults = useMemo(
         () => [...contentResults].sort(byPlayability),
         [contentResults]
@@ -122,11 +125,13 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
 
     if (!canControl) {
         return (
-            <div className="bg-black p-6">
+            <div className="bg-card p-6">
                 {/* Even non-controllers can view and add to queue */}
-                <div className="bg-[#0a0a0a] border-4 border-white p-6 text-center mb-6">
-                    <Download className="h-12 w-12 mx-auto mb-3 text-white" />
-                    <p className="text-white uppercase font-bold text-lg">ONLY USERS WITH CONTROL PERMISSIONS CAN LOAD MEDIA</p>
+                <div className="mb-6 rounded-lg border border-border bg-secondary p-6 text-center">
+                    <Download className="mx-auto mb-3 h-8 w-8 text-primary" />
+                    <p className="text-sm text-muted-foreground">
+                        Only users with control permissions can load media.
+                    </p>
                 </div>
 
                 {/* Queue button for non-controllers */}
@@ -145,20 +150,20 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
     }
 
     return (
-        <div className="bg-black p-6">
+        <div className="bg-card p-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="flex w-full bg-black border-4 border-white h-12 p-1 rounded-none mb-6">
-                    <TabsTrigger value="content" className="flex-1 bg-black text-white font-bold uppercase text-xs data-[state=active]:bg-white data-[state=active]:text-black rounded-none border-0 h-full">
-                        <Download className="h-4 w-4 mr-2" />
+                <TabsList className="mb-6 flex h-12 w-full rounded-md border border-border bg-secondary p-0.5">
+                    <TabsTrigger value="content" className="h-full flex-1 rounded-md text-sm font-medium text-muted-foreground data-[state=active]:bg-card data-[state=active]:text-foreground">
+                        <Download className="mr-2 h-4 w-4" />
                         P2P
                     </TabsTrigger>
-                    <TabsTrigger value="youtube" className="flex-1 bg-black text-white font-bold uppercase text-xs data-[state=active]:bg-white data-[state=active]:text-black rounded-none border-0 h-full">
-                        <Youtube className="h-4 w-4 mr-2" />
-                        YOUTUBE
+                    <TabsTrigger value="youtube" className="h-full flex-1 rounded-md text-sm font-medium text-muted-foreground data-[state=active]:bg-card data-[state=active]:text-foreground">
+                        <Youtube className="mr-2 h-4 w-4" />
+                        YouTube
                     </TabsTrigger>
-                    <TabsTrigger value="direct" className="flex-1 bg-black text-white font-bold uppercase text-xs data-[state=active]:bg-white data-[state=active]:text-black rounded-none border-0 h-full">
-                        <LinkIcon className="h-4 w-4 mr-2" />
-                        DIRECT
+                    <TabsTrigger value="direct" className="h-full flex-1 rounded-md text-sm font-medium text-muted-foreground data-[state=active]:bg-card data-[state=active]:text-foreground">
+                        <LinkIcon className="mr-2 h-4 w-4" />
+                        Direct
                     </TabsTrigger>
                 </TabsList>
 
@@ -168,14 +173,15 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                            placeholder="SEARCH FOR MOVIES, SHOWS..."
-                            className="flex-1 bg-black border-4 border-white text-white placeholder:text-white/40 font-mono h-12 uppercase"
+                            placeholder="Search for movies, shows..."
+                            className="h-11 flex-1"
                             disabled={isSearching}
                         />
                         <Button
                             onClick={handleSearch}
                             disabled={isSearching || !searchQuery.trim()}
-                            className="bg-white text-black hover:bg-gray-200 border-4 border-white h-12 px-6 rounded-none font-bold uppercase"
+                            aria-label="Search"
+                            className="h-11 w-11 shrink-0 p-0"
                         >
                             {isSearching ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -186,16 +192,16 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                     </div>
 
                     {hasSearched && (
-                        <ScrollArea className="h-64 mt-6">
-                            <div className="space-y-4 pr-4">
+                        <ScrollArea className="mt-6 h-64">
+                            <div className="space-y-3 pr-4">
                                 {contentResults.length === 0 ? (
-                                    <p className="text-center text-white font-mono uppercase border-2 border-white py-8">
-                                        NO RESULTS FOUND. TRY A DIFFERENT SEARCH TERM.
+                                    <p className="rounded-lg border border-border py-8 text-center text-sm text-muted-foreground">
+                                        No results found. Try a different search term.
                                     </p>
                                 ) : (
                                     sortedContentResults.map((result, index) => (
-                                        // Whole card is the primary "PLAY" affordance —
-                                        // click anywhere to load. The QUEUE button stops
+                                        // Whole card is the primary "play"affordance -
+                                        // click anywhere to load. The queue button stops
                                         // propagation so the two actions stay separable.
                                         <div
                                             key={index}
@@ -209,39 +215,39 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                                                     handleLoadContent(result)
                                                 }
                                             }}
-                                            className="bg-black border-4 border-white p-4 group cursor-pointer transition-colors hover:bg-white hover:text-black focus:outline-none focus:bg-white focus:text-black"
+                                            className="group cursor-pointer rounded-lg border border-border bg-secondary p-4 transition-colors duration-150 hover:border-primary"
                                         >
-                                            <div className="flex justify-between items-start gap-4">
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="text-lg font-bold uppercase truncate">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="min-w-0 flex-1">
+                                                    <h4 className="truncate text-base font-semibold transition-colors duration-150 group-hover:text-primary">
                                                         {result.title}
                                                     </h4>
-                                                    <div className="flex gap-2 mt-2 flex-wrap">
-                                                        <span className="text-[10px] px-2 border-2 border-current font-mono font-bold">
-                                                            {result.size.toUpperCase()}
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        <span className={`${BADGE} num text-muted-foreground`}>
+                                                            {result.size}
                                                         </span>
                                                         {result.quality && (
-                                                            <span className="text-[10px] px-2 border-2 border-current font-mono font-bold">
-                                                                {result.quality.toUpperCase()}
+                                                            <span className={`${BADGE} num text-muted-foreground`}>
+                                                                {result.quality}
                                                             </span>
                                                         )}
-                                                        <span className="text-[10px] px-2 border-2 border-current font-mono font-bold">
-                                                            UP {result.seeders}
+                                                        <span className={`${BADGE} text-muted-foreground`}>
+                                                            <span className="num">{result.seeders}</span>
+                                                            <span className="ml-1">seeders</span>
                                                         </span>
                                                         {(() => {
-                                                            // Codec badge — green when the release should play in
+                                                            // Codec badge - green when the release should play in
                                                             // browsers (x264/MP4), amber when it likely won't
-                                                            // (HEVC/MKV/10-bit). `group-hover:` overrides keep the
-                                                            // pill readable when the card flips to white-on-black.
+                                                            // (HEVC/MKV/10-bit).
                                                             const hint = detectCodec(result.title);
                                                             if (!hint.label) return null;
                                                             const cls =
                                                                 hint.severity === "good"
-                                                                    ? "bg-green-500/20 border-green-400 text-green-300 group-hover:bg-green-600 group-hover:text-white group-hover:border-green-700"
-                                                                    : "bg-amber-500/20 border-amber-400 text-amber-300 group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-700";
+                                                                    ? "text-pos"
+                                                                    : "text-warn";
                                                             return (
                                                                 <span
-                                                                    className={`text-[10px] px-2 border-2 font-mono font-bold ${cls}`}
+                                                                    className={`${BADGE} ${cls}`}
                                                                     title={
                                                                         hint.severity === "warn"
                                                                             ? "May not play in this browser"
@@ -254,27 +260,27 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                                                         })()}
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2 shrink-0">
+                                                <div className="flex shrink-0 gap-2">
                                                     {onAddToQueue && (
                                                         <Button
-                                                            size="sm"
+                                                            variant="outline"
                                                             onClick={(e) => {
                                                                 e.stopPropagation()
                                                                 handleAddContentToQueue(result)
                                                             }}
-                                                            className="bg-transparent text-current border-2 border-current hover:bg-current hover:text-black group-hover:text-black h-8 px-3 rounded-none font-bold uppercase text-xs"
+                                                            className="h-11 px-4"
                                                             aria-label={`Add ${result.title} to queue`}
                                                         >
-                                                            <Plus className="h-3 w-3 mr-1" />
-                                                            QUEUE
+                                                            <Plus className="mr-1 h-4 w-4" />
+                                                            Queue
                                                         </Button>
                                                     )}
                                                     <div
-                                                        className="flex items-center gap-1 px-3 h-8 border-2 border-current font-bold uppercase text-xs pointer-events-none"
+                                                        className="flex h-11 items-center gap-1 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
                                                         aria-hidden="true"
                                                     >
-                                                        <Play className="h-3 w-3" />
-                                                        PLAY
+                                                        <Play className="h-4 w-4" />
+                                                        Play
                                                     </div>
                                                 </div>
                                             </div>
@@ -292,14 +298,15 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                            placeholder="SEARCH YOUTUBE..."
-                            className="flex-1 bg-black border-4 border-white text-white placeholder:text-white/40 font-mono h-12 uppercase"
+                            placeholder="Search YouTube..."
+                            className="h-11 flex-1"
                             disabled={isSearching}
                         />
                         <Button
                             onClick={handleSearch}
                             disabled={isSearching || !searchQuery.trim()}
-                            className="bg-white text-black hover:bg-gray-200 border-4 border-white h-12 px-6 rounded-none font-bold uppercase"
+                            aria-label="Search YouTube"
+                            className="h-11 w-11 shrink-0 p-0"
                         >
                             {isSearching ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -310,61 +317,62 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                     </div>
 
                     {hasSearched && (
-                        <ScrollArea className="h-64 mt-6">
-                            <div className="space-y-4 pr-4">
+                        <ScrollArea className="mt-6 h-64">
+                            <div className="space-y-3 pr-4">
                                 {contentResults.length === 0 ? (
-                                    <p className="text-center text-white font-mono uppercase border-2 border-white py-8">
-                                        NO YOUTUBE VIDEOS FOUND. TRY A DIFFERENT SEARCH TERM.
+                                    <p className="rounded-lg border border-border py-8 text-center text-sm text-muted-foreground">
+                                        No YouTube videos found. Try a different search term.
                                     </p>
                                 ) : (
                                     contentResults.map((result, index) => (
                                         <div
                                             key={index}
-                                            className="bg-black border-4 border-white p-4 group"
+                                            className="group rounded-lg border border-border bg-secondary p-4 transition-colors duration-150 hover:border-primary"
                                         >
                                             <div className="flex gap-4">
                                                 {result.thumbnail && (
-                                                    <div className="border-2 border-white">
+                                                    <div className="overflow-hidden rounded-md border border-border">
                                                         <img
                                                             src={result.thumbnail}
                                                             alt={result.title}
-                                                            className="w-32 h-20 object-cover"
+                                                            className="h-20 w-32 object-cover"
                                                         />
                                                     </div>
                                                 )}
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="text-lg font-bold uppercase line-clamp-2 text-white">
+                                                <div className="min-w-0 flex-1">
+                                                    <h4 className="line-clamp-2 text-base font-semibold text-foreground">
                                                         {result.title}
                                                     </h4>
                                                     {result.channel && (
-                                                        <p className="text-[10px] font-mono uppercase mt-1 text-white/70">
+                                                        <p className="mt-1 text-xs text-muted-foreground">
                                                             {result.channel}
                                                         </p>
                                                     )}
                                                     {result.duration && (
-                                                        <span className="inline-block text-[10px] px-1 border border-white text-white font-mono mt-2 uppercase">
+                                                        <span className={`${BADGE} num mt-2 text-muted-foreground`}>
                                                             {result.duration}
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="flex flex-col gap-2 shrink-0">
+                                                <div className="flex shrink-0 flex-col gap-2">
                                                     {onAddToQueue && (
                                                         <Button
-                                                            size="sm"
+                                                            variant="outline"
                                                             onClick={() => handleAddYouTubeToQueue(result)}
-                                                            className="bg-black text-white border-2 border-white hover:bg-white hover:text-black h-8 px-3 rounded-none font-bold uppercase text-xs"
+                                                            className="h-11 px-4"
+                                                            aria-label={`Add ${result.title} to queue`}
                                                         >
-                                                            <Plus className="h-3 w-3 mr-1" />
-                                                            QUEUE
+                                                            <Plus className="mr-1 h-4 w-4" />
+                                                            Queue
                                                         </Button>
                                                     )}
                                                     <Button
-                                                        size="sm"
                                                         onClick={() => result.url && onLoadMedia(result.url, 'youtube')}
-                                                        className="bg-white text-black hover:bg-gray-200 border-2 border-white h-8 px-3 rounded-none font-bold uppercase text-xs"
+                                                        className="h-11 px-4"
+                                                        aria-label={`Play ${result.title}`}
                                                     >
-                                                        <Play className="h-3 w-3 mr-1" />
-                                                        PLAY
+                                                        <Play className="mr-1 h-4 w-4" />
+                                                        Play
                                                     </Button>
                                                 </div>
                                             </div>
@@ -382,28 +390,30 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                             value={directUrl}
                             onChange={(e) => setDirectUrl(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleLoadDirect()}
-                            placeholder="ENTER VIDEO URL OR MAGNET LINK..."
-                            className="flex-1 bg-black border-4 border-white text-white placeholder:text-white/40 font-mono h-12 uppercase"
+                            placeholder="Enter a video URL or magnet link..."
+                            className="h-11 flex-1"
                         />
                         <Button
                             onClick={handleLoadDirect}
                             disabled={!directUrl.trim()}
-                            className="bg-white text-black hover:bg-gray-200 border-4 border-white h-12 px-6 rounded-none font-bold uppercase"
+                            className="h-11 px-6"
                         >
-                            LOAD
+                            Load
                         </Button>
                     </div>
-                    <p className="text-white font-mono text-xs uppercase opacity-70">
-                        PASTE A DIRECT VIDEO URL, YOUTUBE PLAYLIST LINK, OR MAGNET LINK FOR P2P STREAMING
+                    <p className="text-sm text-muted-foreground">
+                        Paste a direct video URL, a YouTube playlist link, or a magnet link for P2P streaming.
                     </p>
                 </TabsContent>
             </Tabs>
 
             {playlistItems.length > 0 && (
-                <div className="mt-6 border-4 border-white p-3">
-                    <div className="flex items-center gap-2 mb-3 text-white">
-                        <ListMusic className="h-4 w-4" />
-                        <h4 className="font-bold uppercase text-sm">Playlist ({playlistItems.length})</h4>
+                <div className="mt-6 rounded-lg border border-border p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                        <ListMusic className="h-4 w-4 text-primary" />
+                        <h4 className="text-sm font-semibold">
+                            Playlist (<span className="num">{playlistItems.length}</span>)
+                        </h4>
                     </div>
                     <ScrollArea className="h-48">
                         <div className="space-y-2 pr-2">
@@ -411,13 +421,14 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
                                 <button
                                     key={`${item.url}-${index}`}
                                     type="button"
-                                    className={`w-full text-left p-2 border-2 font-mono text-xs uppercase ${index === currentPlaylistIndex
-                                        ? 'bg-white text-black border-white'
-                                        : 'bg-black text-white border-white/50 hover:border-white'
+                                    className={`flex min-h-11 w-full items-center rounded-md border px-3 py-2 text-left text-sm transition-colors duration-150 ${index === currentPlaylistIndex
+                                        ? 'border-primary bg-primary text-primary-foreground'
+                                        : 'border-border bg-secondary text-foreground hover:border-primary'
                                         }`}
                                     onClick={() => onPlaylistSelect?.(index)}
                                 >
-                                    {index + 1}. {item.title}
+                                    <span className="num mr-2 shrink-0">{index + 1}.</span>
+                                    <span className="truncate">{item.title}</span>
                                 </button>
                             ))}
                         </div>
@@ -466,39 +477,33 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
     canDJ,
 }) => {
     return (
-        <div className="mt-6 border-4 border-white p-3">
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-white">
-                    <ListOrdered className="h-4 w-4" />
-                    <h4 className="font-bold uppercase text-sm">QUEUE ({queue.length})</h4>
+        <div className="mt-6 rounded-lg border border-border p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                    <ListOrdered className="h-4 w-4 text-primary" />
+                    <h4 className="text-sm font-semibold">
+                        Queue (<span className="num">{queue.length}</span>)
+                    </h4>
                 </div>
                 <div className="flex gap-2">
                     {canDJ && queue.length > 0 && (
-                        <Button
-                            size="sm"
-                            onClick={onPlayNext}
-                            className="bg-white text-black hover:bg-gray-200 border-2 border-white h-7 px-3 rounded-none font-bold uppercase text-[10px]"
-                        >
-                            <Play className="h-3 w-3 mr-1" />
-                            PLAY NEXT
+                        <Button onClick={onPlayNext} className="h-11 px-4">
+                            <Play className="mr-1 h-4 w-4" />
+                            Play next
                         </Button>
                     )}
                     {isHost && queue.length > 0 && (
-                        <Button
-                            size="sm"
-                            onClick={onClearQueue}
-                            className="bg-black text-white hover:bg-white hover:text-black border-2 border-white h-7 px-3 rounded-none font-bold uppercase text-[10px]"
-                        >
-                            <X className="h-3 w-3 mr-1" />
-                            CLEAR
+                        <Button variant="outline" onClick={onClearQueue} className="h-11 px-4">
+                            <X className="mr-1 h-4 w-4" />
+                            Clear
                         </Button>
                     )}
                 </div>
             </div>
 
             {queue.length === 0 ? (
-                <p className="text-center text-white/50 font-mono text-xs uppercase py-6 border-2 border-white/20">
-                    QUEUE IS EMPTY — SEARCH AND ADD MEDIA ABOVE
+                <p className="rounded-lg border border-border py-6 text-center text-sm text-muted-foreground">
+                    Queue is empty. Search and add media above.
                 </p>
             ) : (
                 <ScrollArea className="h-48">
@@ -508,52 +513,54 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
                             return (
                                 <div
                                     key={item.id}
-                                    className="flex items-center gap-2 p-2 bg-black border-2 border-white/50 hover:border-white group"
+                                    className="group flex items-center gap-2 rounded-md border border-border bg-secondary p-2 transition-colors duration-150 hover:border-primary"
                                 >
                                     {/* Position number */}
-                                    <span className="text-white/50 font-mono text-xs w-5 shrink-0 text-center">
+                                    <span className="num w-5 shrink-0 text-center text-xs text-muted-foreground">
                                         {index + 1}
                                     </span>
 
                                     {/* Thumbnail */}
                                     {item.thumbnail && (
-                                        <div className="border border-white/30 shrink-0">
+                                        <div className="shrink-0 overflow-hidden rounded-md border border-border">
                                             <img
                                                 src={item.thumbnail}
                                                 alt={item.title}
-                                                className="w-12 h-8 object-cover"
+                                                className="h-8 w-12 object-cover"
                                             />
                                         </div>
                                     )}
 
                                     {/* Info */}
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-white font-mono text-xs uppercase truncate">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm text-foreground">
                                             {item.title}
                                         </p>
-                                        <p className="text-white/40 font-mono text-[10px] uppercase">
-                                            ADDED BY {item.added_by_name}
+                                        <p className="text-xs text-muted-foreground">
+                                            Added by {item.added_by_name}
                                         </p>
                                     </div>
 
                                     {/* Reorder buttons (host/DJ only) */}
                                     {canDJ && onReorderQueue && (
-                                        <div className="flex flex-col gap-0.5 shrink-0 opacity-0 group-hover:opacity-100">
+                                        <div className="flex shrink-0 gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
                                             <button
                                                 type="button"
                                                 disabled={index === 0}
                                                 onClick={() => onReorderQueue(item.id, index - 1)}
-                                                className="text-white hover:bg-white hover:text-black disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-white p-0.5 border border-white/30"
+                                                aria-label={`Move ${item.title} up`}
+                                                className="flex h-11 w-11 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                                             >
-                                                <ChevronUp className="h-3 w-3" />
+                                                <ChevronUp className="h-4 w-4" />
                                             </button>
                                             <button
                                                 type="button"
                                                 disabled={index === queue.length - 1}
                                                 onClick={() => onReorderQueue(item.id, index + 1)}
-                                                className="text-white hover:bg-white hover:text-black disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-white p-0.5 border border-white/30"
+                                                aria-label={`Move ${item.title} down`}
+                                                className="flex h-11 w-11 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                                             >
-                                                <ChevronDown className="h-3 w-3" />
+                                                <ChevronDown className="h-4 w-4" />
                                             </button>
                                         </div>
                                     )}
@@ -563,9 +570,10 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
                                         <button
                                             type="button"
                                             onClick={() => onRemoveFromQueue(item.id)}
-                                            className="text-white/50 hover:text-white hover:bg-white hover:text-black p-1 border border-white/30 opacity-0 group-hover:opacity-100 shrink-0"
+                                            aria-label={`Remove ${item.title} from queue`}
+                                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 hover:bg-destructive/10 hover:text-destructive"
                                         >
-                                            <Trash2 className="h-3 w-3" />
+                                            <Trash2 className="h-4 w-4" />
                                         </button>
                                     )}
                                 </div>

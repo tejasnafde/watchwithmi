@@ -20,7 +20,7 @@ function makeStubStream(): MediaStream {
     return { id: `stream-${Math.random()}`, getTracks: () => [] } as unknown as MediaStream;
 }
 
-describe("VideoTile — stream prop changes rebind srcObject (bug #4.1)", () => {
+describe("VideoTile - stream prop changes rebind srcObject (bug #4.1)", () => {
     it("sets srcObject on mount", () => {
         const s1 = makeStubStream();
         const { container } = render(
@@ -107,7 +107,7 @@ vi.mock("@/hooks/useWebRTC", () => ({
     })),
 }));
 
-describe("VideoChat — onActiveChange is transition-only", () => {
+describe("VideoChat - onActiveChange is transition-only", () => {
     it("does not fire onActiveChange on initial mount with isActive=false", () => {
         const onActiveChange = vi.fn();
         render(

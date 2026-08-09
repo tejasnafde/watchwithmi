@@ -29,19 +29,6 @@ function getInitials(name: string): string {
         .slice(0, 2);
 }
 
-function getAvatarColor(name: string): string {
-    const colors = [
-        'bg-blue-600', 'bg-green-600', 'bg-purple-600',
-        'bg-pink-600', 'bg-yellow-600', 'bg-red-600',
-        'bg-indigo-600', 'bg-teal-600'
-    ];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-}
-
 export const VideoTile: React.FC<{
     userName: string;
     isLocal?: boolean;
@@ -71,7 +58,7 @@ export const VideoTile: React.FC<{
     }, [videoStream, isLocal]);
 
     return (
-        <div className="relative overflow-hidden bg-[#111] border border-white/20 aspect-video">
+        <div className="relative aspect-video overflow-hidden rounded-lg border border-border bg-card">
             {/* Video element */}
             <video
                 ref={isLocal && setVideoRef ? setVideoRef : remoteVideoElementRef}
@@ -83,9 +70,9 @@ export const VideoTile: React.FC<{
 
             {/* Avatar placeholder when video is off */}
             {!videoEnabled && (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#111]">
-                    <div className={`w-10 h-10 rounded-full ${getAvatarColor(userName)} flex items-center justify-center`}>
-                        <span className="text-white text-sm font-bold font-mono">
+                <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
+                        <span className="font-mono text-sm font-semibold text-primary-foreground">
                             {getInitials(userName)}
                         </span>
                     </div>
@@ -94,22 +81,30 @@ export const VideoTile: React.FC<{
 
             {/* Name label */}
             <div className="absolute bottom-1 left-1">
-                <span className="text-[10px] font-mono text-white bg-black/70 px-1.5 py-0.5">
-                    {isLocal ? 'YOU' : userName.toUpperCase()}
+                <span className="rounded-md border border-border bg-card/90 px-1.5 py-0.5 text-xs text-foreground">
+                    {isLocal ? 'You' : userName}
                 </span>
             </div>
 
             {/* Status indicators */}
-            <div className="absolute top-1 right-1 flex items-center gap-0.5">
+            <div className="absolute top-1 right-1 flex items-center gap-1">
                 {!audioEnabled && (
-                    <div className="w-4 h-4 bg-red-600/90 rounded-full flex items-center justify-center">
-                        <MicOff className="w-2.5 h-2.5 text-white" />
-                    </div>
+                    <span
+                        role="img"
+                        aria-label="Microphone off"
+                        className="flex h-5 w-5 items-center justify-center rounded-full border border-destructive/40 bg-card/90 text-destructive"
+                    >
+                        <MicOff className="h-3 w-3" aria-hidden="true" />
+                    </span>
                 )}
                 {!videoEnabled && (
-                    <div className="w-4 h-4 bg-red-600/90 rounded-full flex items-center justify-center">
-                        <VideoOff className="w-2.5 h-2.5 text-white" />
-                    </div>
+                    <span
+                        role="img"
+                        aria-label="Camera off"
+                        className="flex h-5 w-5 items-center justify-center rounded-full border border-destructive/40 bg-card/90 text-destructive"
+                    >
+                        <VideoOff className="h-3 w-3" aria-hidden="true" />
+                    </span>
                 )}
             </div>
         </div>
@@ -160,12 +155,12 @@ export const VideoChat: React.FC<VideoChatProps> = ({
                 <Button
                     onClick={startVideoChat}
                     disabled={isInitializing}
-                    className="w-full border-2 border-white bg-black text-white hover:bg-white hover:text-black font-mono uppercase text-xs"
+                    className="h-11 w-full"
                 >
-                    <Video className="w-3.5 h-3.5 mr-2" />
-                    {isInitializing ? 'STARTING...' : 'START VIDEO CHAT'}
+                    <Video className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {isInitializing ? 'Starting...' : 'Start video chat'}
                 </Button>
-                <p className="text-[10px] text-gray-500 font-mono">
+                <p className="text-xs text-muted-foreground">
                     Camera and mic will be requested
                 </p>
             </div>
@@ -176,7 +171,7 @@ export const VideoChat: React.FC<VideoChatProps> = ({
     return (
         <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
             {/* Video grid */}
-            <div className="grid grid-cols-2 gap-1">
+            <div className="grid grid-cols-2 gap-2">
                 {/* Local tile */}
                 <VideoTile
                     userName={currentUser?.name || 'You'}
@@ -202,46 +197,56 @@ export const VideoChat: React.FC<VideoChatProps> = ({
             </div>
 
             {/* Controls */}
-            <div className="flex items-center justify-center gap-1 pt-1">
+            <div className="flex items-center justify-center gap-2 pt-1">
                 <Button
                     onClick={toggleVideo}
-                    size="sm"
-                    className={`h-7 w-7 p-0 border border-white ${
+                    variant="secondary"
+                    size="icon"
+                    className={`h-11 w-11 border transition-colors duration-150 ${
                         videoEnabled
-                            ? 'bg-black text-white hover:bg-white hover:text-black'
-                            : 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+                            ? 'border-border'
+                            : 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20'
                     }`}
+                    aria-label={videoEnabled ? 'Turn off camera' : 'Turn on camera'}
                     title={videoEnabled ? 'Turn off camera' : 'Turn on camera'}
                 >
-                    {videoEnabled ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
+                    {videoEnabled
+                        ? <Video className="h-4 w-4" aria-hidden="true" />
+                        : <VideoOff className="h-4 w-4" aria-hidden="true" />}
                 </Button>
 
                 <Button
                     onClick={toggleAudio}
-                    size="sm"
-                    className={`h-7 w-7 p-0 border border-white ${
+                    variant="secondary"
+                    size="icon"
+                    className={`h-11 w-11 border transition-colors duration-150 ${
                         audioEnabled
-                            ? 'bg-black text-white hover:bg-white hover:text-black'
-                            : 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+                            ? 'border-border'
+                            : 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20'
                     }`}
+                    aria-label={audioEnabled ? 'Mute microphone' : 'Unmute microphone'}
                     title={audioEnabled ? 'Mute microphone' : 'Unmute microphone'}
                 >
-                    {audioEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+                    {audioEnabled
+                        ? <Mic className="h-4 w-4" aria-hidden="true" />
+                        : <MicOff className="h-4 w-4" aria-hidden="true" />}
                 </Button>
 
                 <Button
                     onClick={stopVideoChat}
-                    size="sm"
-                    className="h-7 w-7 p-0 bg-red-600 text-white border border-red-600 hover:bg-red-700"
+                    variant="secondary"
+                    size="icon"
+                    className="h-11 w-11 border border-destructive/40 bg-destructive/10 text-destructive transition-colors duration-150 hover:bg-destructive/20"
+                    aria-label="End video chat"
                     title="End video chat"
                 >
-                    <PhoneOff className="w-3.5 h-3.5" />
+                    <PhoneOff className="h-4 w-4" aria-hidden="true" />
                 </Button>
             </div>
 
             {/* Connection info */}
             {otherUsers.length === 0 && (
-                <p className="text-[10px] text-gray-500 font-mono text-center">
+                <p className="text-center text-xs text-muted-foreground">
                     No other users in room
                 </p>
             )}

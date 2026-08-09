@@ -8,7 +8,7 @@ import type { ChatMessage } from "@/types";
 /**
  * Bug #3.2 (docs/polishing/03-chat-reactions-queue.md):
  *   The emoji picker's `useEffect` that attaches a document `mousedown`
- *   listener depends on `onClose`. In the current code, `MessageReactions`
+ *   listener depends on `onClose`. In the current code, ` MessageReactions`
  *   passes `() => setShowPicker(false)` inline, so the function identity
  *   changes on every parent render and the effect re-attaches the listener
  *   each time.
@@ -45,7 +45,7 @@ const baseMessage: ChatMessage = {
 };
 
 /**
- * Test harness: renders <ChatPanel> and exposes a "bump" button to force
+ * Test harness: renders <ChatPanel> and exposes a " bump" button to force
  * an unrelated state change in the parent, which re-renders the whole
  * subtree including the open picker.
  */
@@ -68,18 +68,15 @@ function Harness() {
     );
 }
 
-describe("ChatPanel — emoji picker listener stability (bug #3.2)", () => {
+describe("ChatPanel - emoji picker listener stability (bug #3.2)", () => {
     it("attaches the mousedown listener exactly once per open session, even across parent re-renders", () => {
         render(<Harness />);
 
         // Open the picker. Each message renders a single "+" button via
-        // MessageReactions; getAllByRole('button') includes it. We target
-        // by its svg lucide class-name via testid-ish fallback: it's the
-        // only button with no text inside MessageReactions. Easiest:
-        // grab via its sibling SVG title — or just pick the last button in
-        // the message row. Using querySelector to avoid brittle selectors.
+        // MessageReactions. Targeted by data-testid; the old selector was
+        // 'button.w-5.h-5', which broke when the chip was resized.
         const plusButton = document.querySelector<HTMLButtonElement>(
-            'button.w-5.h-5',
+            '[data-testid="add-reaction"]',
         );
         expect(plusButton).not.toBeNull();
 

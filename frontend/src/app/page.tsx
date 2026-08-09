@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Play, Users, Plus, LogIn, ArrowRight, MessageCircle } from 'lucide-react';
 import Image from 'next/image';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function HomePage() {
   const router = useRouter();
@@ -60,110 +61,105 @@ export default function HomePage() {
     router.push(`/room/${roomCode.trim().toUpperCase()}?name=${encodeURIComponent(joinUserName.trim())}`);
   };
 
+  const features = [
+    { icon: Users, label: 'In sync', copy: 'Everyone sees the same frame at the same moment.' },
+    { icon: Play, label: 'Any source', copy: 'YouTube, a direct link, or a file you already have.' },
+    { icon: MessageCircle, label: 'Chat', copy: 'React and talk without leaving the video.' },
+  ];
+
   return (
     <ErrorBoundary>
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
-      {/* Main Container */}
-      <div className="w-full max-w-4xl">
-        {/* Header */}
-        <div className="mb-16 text-center">
-          <div className="flex items-center justify-center gap-6 mb-6">
-            <div className="w-20 h-20 bg-white flex items-center justify-center border-4 border-white">
-              <Image src="/logo.svg" alt="WatchWithMi" width={80} height={80} />
-            </div>
-            <h1 className="text-6xl md:text-7xl font-bold text-white">
-              WATCHWITHMI
-            </h1>
-          </div>
-          <p className="text-xl text-gray-300 uppercase tracking-wide">
-            Synchronized Video Watching // Real-Time Chat
-          </p>
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      {/* pb-20 keeps the last row clear of the tn07 ring bar pinned to the bottom */}
+      <div className="w-full max-w-4xl pb-20">
+        <div className="mb-6 flex justify-end">
+          <ThemeToggle />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+        <header className="mb-14">
+          <div className="flex items-center gap-4 mb-5">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+              <Image src="/logo.svg" alt="" width={32} height={32} aria-hidden="true" />
+            </div>
+            <h1 className="text-3xl md:text-4xl font-semibold">
+              WatchWithMi
+            </h1>
+          </div>
+          <p className="text-lg text-muted-foreground">
+            Start a room, send the code to a friend, and watch the same thing at the same time.
+          </p>
+        </header>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-14">
           <button
             onClick={() => setShowCreateDialog(true)}
-            className="group relative p-10 border-4 border-white bg-[#0a0a0a] transition-all duration-300 hover:scale-[1.02]"
+            className="group relative rounded-lg border border-border bg-card p-6 text-left transition-colors duration-150 hover:border-primary"
           >
-            <div className="relative">
-              <div className="w-16 h-16 mx-auto mb-4 bg-black flex items-center justify-center">
-                <Plus className="w-10 h-10 text-white" strokeWidth={3} />
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-2 uppercase tracking-wide">Create Room</h2>
-              <p className="text-gray-400 text-sm">Start a new watch party</p>
-              <ArrowRight className="w-6 h-6 absolute bottom-4 right-4 text-gray-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Plus className="h-5 w-5" />
             </div>
+            <h2 className="mb-1 text-lg font-semibold">Create a room</h2>
+            <p className="text-sm text-muted-foreground">Start a new watch party.</p>
+            <ArrowRight className="absolute bottom-6 right-6 h-4 w-4 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1 group-hover:text-primary" />
           </button>
 
           <button
             onClick={() => setShowJoinDialog(true)}
-            className="group relative p-10 border-4 border-white bg-[#0a0a0a] transition-all duration-300 hover:scale-[1.02]"
+            className="group relative rounded-lg border border-border bg-card p-6 text-left transition-colors duration-150 hover:border-primary"
           >
-
-            <div className="relative">
-              <div className="w-16 h-16 mx-auto mb-4 bg-black flex items-center justify-center">
-                <LogIn className="w-10 h-10 text-white" strokeWidth={3} />
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-2 uppercase tracking-wide">Join Room</h2>
-              <p className="text-gray-400 text-sm">Enter an existing room</p>
-              <ArrowRight className="w-6 h-6 absolute bottom-4 right-4 text-gray-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md border border-border bg-secondary text-foreground">
+              <LogIn className="h-5 w-5" />
             </div>
+            <h2 className="mb-1 text-lg font-semibold">Join a room</h2>
+            <p className="text-sm text-muted-foreground">Enter a code you were sent.</p>
+            <ArrowRight className="absolute bottom-6 right-6 h-4 w-4 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1 group-hover:text-primary" />
           </button>
         </div>
 
-        {/* Feature Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 border-2 border-white/10 text-center">
-            <Users className="w-12 h-12 mx-auto mb-3 text-white" strokeWidth={2} />
-            <h3 className="text-white font-bold text-base mb-2 uppercase">Watch Together</h3>
-            <p className="text-gray-400 text-sm">Synchronized playback</p>
-          </div>
-          <div className="p-6 border-2 border-white/10 text-center">
-            <Play className="w-12 h-12 mx-auto mb-3 text-white" strokeWidth={2} />
-            <h3 className="text-white font-bold text-base mb-2 uppercase">Multiple Sources</h3>
-            <p className="text-gray-400 text-sm">YouTube, links, files</p>
-          </div>
-          <div className="p-6 border-2 border-white/10 text-center">
-            <MessageCircle className="w-12 h-12 mx-auto mb-3 text-white" strokeWidth={2} />
-            <h3 className="text-white font-bold text-base mb-2 uppercase">Built-In Chat</h3>
-            <p className="text-gray-400 text-sm">Real-time discussion</p>
-          </div>
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
+          {features.map(({ icon: Icon, label, copy }) => (
+            <div key={label} className="bg-card p-5">
+              <Icon className="mb-3 h-4 w-4 text-primary" />
+              <p className="label mb-2">{label}</p>
+              <p className="text-sm text-muted-foreground">{copy}</p>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Create Room Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="bg-black/95 border-2 border-white/20 text-white max-w-md">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold uppercase flex items-center gap-3">
-              <Plus className="w-6 h-6" />
-              Create Room
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Plus className="h-5 w-5 text-primary" />
+              Create a room
             </DialogTitle>
-            <DialogDescription className="text-gray-300">
-              Start a new watch party and invite your friends
+            <DialogDescription>
+              Start a new watch party and invite your friends.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 mt-4">
+          <div className="mt-2 space-y-5">
             {error && (
-              <div className="bg-red-500/20 border-2 border-red-500/50 p-4 text-red-300 font-mono text-sm">
+              <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
-              </div>
+              </p>
             )}
 
             <div>
-              <label className="text-sm font-bold text-gray-300 mb-3 block uppercase tracking-wider">
-                Your Name
+              <label htmlFor="create-name" className="label mb-2 block">
+                Your name
               </label>
               <Input
-                placeholder="ENTER YOUR NAME..."
+                id="create-name"
+                placeholder="Who is watching?"
                 value={createUserName}
                 onChange={(e) => {
                   setCreateUserName(e.target.value);
                   setError('');
                 }}
-                className="bg-gray-800/50 border-2 border-gray-600 text-white placeholder-gray-400 text-lg p-6"
-                onKeyPress={(e) => e.key === 'Enter' && createRoom()}
+                onKeyDown={(e) => e.key === 'Enter' && createRoom()}
                 autoFocus
               />
             </div>
@@ -171,10 +167,10 @@ export default function HomePage() {
             <Button
               onClick={createRoom}
               disabled={!createUserName.trim() || isCreating}
-              className="w-full bg-white hover:bg-gray-200 text-black font-bold py-6 text-lg uppercase tracking-wider"
+              className="w-full"
             >
-              {isCreating ? 'CREATING...' : 'CREATE ROOM'}
-              <ArrowRight className="w-5 h-5 ml-2" />
+              {isCreating ? 'Creating...' : 'Create room'}
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </DialogContent>
@@ -182,54 +178,55 @@ export default function HomePage() {
 
       {/* Join Room Dialog */}
       <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
-        <DialogContent className="bg-black/95 border-2 border-white/20 text-white max-w-md">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold uppercase flex items-center gap-3">
-              <LogIn className="w-6 h-6" />
-              Join Room
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <LogIn className="h-5 w-5 text-primary" />
+              Join a room
             </DialogTitle>
-            <DialogDescription className="text-gray-300">
-              Enter a room code to join an existing watch party
+            <DialogDescription>
+              Enter a room code to join an existing watch party.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 mt-4">
+          <div className="mt-2 space-y-5">
             {error && (
-              <div className="bg-red-500/20 border-2 border-red-500/50 p-4 text-red-300 font-mono text-sm">
+              <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
-              </div>
+              </p>
             )}
 
             <div>
-              <label className="text-sm font-bold text-gray-300 mb-3 block uppercase tracking-wider">
-                Your Name
+              <label htmlFor="join-name" className="label mb-2 block">
+                Your name
               </label>
               <Input
-                placeholder="ENTER YOUR NAME..."
+                id="join-name"
+                placeholder="Who is watching?"
                 value={joinUserName}
                 onChange={(e) => {
                   setJoinUserName(e.target.value);
                   setError('');
                 }}
-                className="bg-gray-800/50 border-2 border-gray-600 text-white placeholder-gray-400 text-lg p-6"
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="text-sm font-bold text-gray-300 mb-3 block uppercase tracking-wider">
-                Room Code
+              <label htmlFor="join-code" className="label mb-2 block">
+                Room code
               </label>
               <Input
-                placeholder="ENTER 6-DIGIT CODE..."
+                id="join-code"
+                placeholder="6 characters"
                 value={roomCode}
                 onChange={(e) => {
                   setRoomCode(e.target.value.toUpperCase());
                   setError('');
                 }}
-                className="bg-gray-800/50 border-2 border-gray-600 text-white placeholder-gray-400 text-lg p-6 font-mono tracking-widest"
-                onKeyPress={(e) => e.key === 'Enter' && joinRoom()}
+                onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
                 maxLength={6}
+                className="num font-mono tracking-[0.3em] uppercase"
               />
             </div>
 
@@ -237,10 +234,10 @@ export default function HomePage() {
               onClick={joinRoom}
               disabled={!roomCode.trim() || !joinUserName.trim() || isJoining}
               variant="outline"
-              className="w-full border-2 border-white/30 bg-white/10 text-white hover:bg-white/20 font-bold py-6 text-lg uppercase tracking-wider"
+              className="w-full"
             >
-              {isJoining ? 'JOINING...' : 'JOIN ROOM'}
-              <ArrowRight className="w-5 h-5 ml-2" />
+              {isJoining ? 'Joining...' : 'Join room'}
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </DialogContent>
@@ -248,4 +245,4 @@ export default function HomePage() {
     </div>
     </ErrorBoundary>
   );
-} 
+}

@@ -5,15 +5,12 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode, MouseEvent } from "react";
 
 /**
- * Single collapsible panel used in the room sidebar (USERS / CHAT /
- * VIDEO CHAT). Brutalist-by-design: sharp 2px borders, pure black/white,
- * monospace caps, no rounding, no easing. A header-only when collapsed;
- * `flex-1` content body when expanded so multiple expanded panels share
- * the available vertical space.
+ * Single collapsible panel used in the room sidebar. Header-only when
+ * collapsed; `flex-1` body when expanded so several open panels share the
+ * available height.
  *
- * The parent owns `expanded` state — this component is controlled, and
- * persistence / default behavior (localStorage, auto-expand on video
- * active, etc.) lives with the caller.
+ * The parent owns `expanded` state - this component is controlled, and
+ * persistence / default behavior lives with the caller.
  *
  * Shift-click on the header requests a "solo" (the caller collapses
  * every other panel). Plain click is a normal toggle.
@@ -57,18 +54,18 @@ export function CollapsiblePanel({
                 type="button"
                 aria-expanded={expanded}
                 onClick={handleClick}
-                className="shrink-0 h-11 flex items-center justify-between px-4 border-b-2 border-white bg-black text-white hover:bg-white hover:text-black transition-colors cursor-pointer font-bold uppercase font-mono text-sm select-none"
+                className="shrink-0 h-11 flex items-center justify-between gap-2 px-4 border-b border-border bg-card hover:bg-secondary transition-colors duration-150 cursor-pointer select-none"
             >
                 <span className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                    <span>{title}</span>
+                    <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                    <span className="label">{title}</span>
                     {count !== undefined && (
-                        <span className="opacity-70">({count})</span>
+                        <span className="label num">({count})</span>
                     )}
                 </span>
                 <ChevronDown
                     aria-hidden="true"
-                    className={`h-4 w-4 transition-transform duration-150 ${
+                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
                         expanded ? "rotate-0" : "-rotate-90"
                     }`}
                 />

@@ -75,7 +75,7 @@ export const useYouTubePlayer = ({
         }, ms);
     }, []);
 
-    // Fallback timer for the UNSTARTED state — if the iframe never leaves
+    // Fallback timer for the UNSTARTED state - if the iframe never leaves
     // UNSTARTED (autoplay blocked, private video, etc.) we still want the
     // buffering UI to clear instead of hanging forever. See bug #3 in
     // docs/polishing/02-sync-playback.md.
@@ -91,8 +91,8 @@ export const useYouTubePlayer = ({
 
     // Watchdog for the BUFFERING state. The 100ms poll below clears
     // buffering when YT resolves to PLAYING/PAUSED, but if YT gets stuck
-    // in BUFFERING — which happens on transient post-pause re-buffer, ad
-    // insertion, or network blips — the state would otherwise hang
+    // in BUFFERING - which happens on transient post-pause re-buffer, ad
+    // insertion, or network blips - the state would otherwise hang
     // indefinitely. The overlay then traps the user (see fix in
     // MediaPlayer.tsx that also makes the overlay non-blocking once
     // ready). 8s is conservative: real buffering on a 1080p YT video
@@ -188,7 +188,7 @@ export const useYouTubePlayer = ({
 
             case YT.PlayerState.BUFFERING:
                 setBuffering(true);
-                // Don't emit any sync events while buffering — this is a transient state.
+                // Don't emit any sync events while buffering - this is a transient state.
                 // Mark as seeking so no sync operations overlap with the buffer resolution.
                 isSeekingRef.current = true;
                 // Arm the watchdog. If we're still in BUFFERING after
@@ -198,7 +198,7 @@ export const useYouTubePlayer = ({
                 // button to resume manually.
                 cancelBufferingWatchdog();
                 bufferingWatchdogTimerRef.current = setTimeout(() => {
-                    logger.warn('YouTube buffering watchdog tripped — force-clearing buffering UI');
+                    logger.warn('YouTube buffering watchdog tripped - force-clearing buffering UI');
                     setBuffering(false);
                     isSeekingRef.current = false;
                     bufferingWatchdogTimerRef.current = null;
@@ -354,7 +354,7 @@ export const useYouTubePlayer = ({
             const isCurrentlyPlaying = playerState === YT.PlayerState.PLAYING;
             const isCurrentlyBuffering = playerState === YT.PlayerState.BUFFERING;
 
-            // Don't try to sync while YouTube is buffering — let it resolve naturally
+            // Don't try to sync while YouTube is buffering - let it resolve naturally
             if (isCurrentlyBuffering) {
                 logger.debug('Skipping sync: player is buffering');
                 return;
@@ -373,7 +373,7 @@ export const useYouTubePlayer = ({
                 scheduleSyncingClear(500);
             }
 
-            // Only seek if drift is significant — and skip seeking entirely when paused
+            // Only seek if drift is significant - and skip seeking entirely when paused
             // and the player is already paused (no point seeking a paused video unless
             // the timestamp jumped significantly, e.g., host seeked while paused)
             const currentPlayerTime = callPlayerMethod('getCurrentTime') || 0;
@@ -381,7 +381,7 @@ export const useYouTubePlayer = ({
 
             if (drift > SYNC_THRESHOLD) {
                 // When paused: only seek if drift is very large (host explicitly seeked)
-                // This prevents the pause→seek→buffer→stuck loop
+                // This prevents the pause->seek->buffer->stuck loop
                 const seekThreshold = shouldPlay ? SYNC_THRESHOLD : SYNC_THRESHOLD * 3;
                 if (drift > seekThreshold) {
                     logger.debug('Syncing YouTube player position', {
@@ -438,7 +438,7 @@ export const useYouTubePlayer = ({
         return () => clearInterval(interval);
     }, [isReady, callPlayerMethod, buffering, currentTime, isPlaying]);
 
-    // Drift detection for viewers — only runs while playing
+    // Drift detection for viewers - only runs while playing
     useEffect(() => {
         // Completely disable drift detection when paused, not ready, or host
         if (isHost || !isReady || !isPlaying || !shouldPlay) {
