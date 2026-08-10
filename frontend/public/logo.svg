@@ -1,10 +1,11 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Transparent background so it works on both themes. Accent is literal:
-       an external SVG in <img> gets no CSS, so var(--accent) resolves to
-       nothing. Keep in step with --accent in globals.css. -->
-  <g stroke="#FF7A5C" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <path d="M256 160C176 160 112 224 80 256C112 288 176 352 256 352C336 352 400 288 432 256C400 224 336 160 256 160Z"/>
-    <circle cx="256" cy="256" r="56"/>
-  </g>
-  <circle cx="256" cy="256" r="22" fill="#FF7A5C"/>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <title>WatchWithMi</title>
+  <!-- Solid shapes, not strokes: a 24px stroke on a 512 canvas renders at
+       0.75px in a 16px favicon and vanishes. Transparent background so the
+       mark reads on both themes. The colour is literal because an external
+       SVG loaded through img gets no CSS from the host page; keep it in step
+       with the accent in globals.css. Do not write a double hyphen anywhere
+       in this comment, XML forbids it and the whole file fails to parse. -->
+  <path fill="#FF7A5C" fill-rule="evenodd" d="M256 144C160 144 88 216 56 256C88 296 160 368 256 368C352 368 424 296 456 256C424 216 352 144 256 144Z M256 328C216 328 184 296 184 256C184 216 216 184 256 184C296 184 328 216 328 256C328 296 296 328 256 328Z"/>
+  <circle cx="256" cy="256" r="46" fill="#FF7A5C"/>
 </svg>
