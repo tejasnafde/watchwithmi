@@ -3,12 +3,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
  * Bug #1 (docs/polishing/01-critical-bugs.md):
- *   "Chat history loses message_id" — useRoom.ts:170.
+ *   "Chat history loses message_id" - useRoom.ts:170.
  *
  * The `room_joined` / `room_created` handler in useRoom maps chat history
  * messages without preserving the server-assigned `message_id`. As a result,
- * a subsequent `reaction_updated` event — which carries the server's
- * message_id — has nothing to match against, and emoji reactions on
+ * a subsequent `reaction_updated` event - which carries the server's
+ * message_id - has nothing to match against, and emoji reactions on
  * historical messages silently fail to render.
  *
  * These tests pin the contract:
@@ -74,7 +74,7 @@ beforeEach(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("useRoom — chat history preserves message_id", () => {
+describe("useRoom - chat history preserves message_id", () => {
   it("retains message_id on messages received via room_joined", async () => {
     const { useRoom } = await import("@/hooks/useRoom");
     const { result } = renderHook(() => useRoom("ABCDEF", "alice"));

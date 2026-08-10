@@ -18,14 +18,9 @@ const config: LoggerConfig = {
 
 const formatMessage = (level: LogLevel, message: string): string => {
     const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-    const emoji = {
-        info: 'ℹ️',
-        warn: '⚠️',
-        error: '❌',
-        debug: '🐛'
-    }[level];
+    const tag = level.toUpperCase();
 
-    return `${emoji} ${config.prefix} [${timestamp}] ${message}`;
+    return `${tag} ${config.prefix} [${timestamp}] ${message}`;
 };
 
 export const logger = {

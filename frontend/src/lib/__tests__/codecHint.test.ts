@@ -49,9 +49,9 @@ describe("detectCodec", () => {
   });
 
   it("any 'warn' input wins over a 'good' signal in the same title", () => {
-    // X264 (good) + 10bit (warn) → warn
+    // X264 (good) + 10bit (warn) -> warn
     expect(detectCodec("Movie X264 10bit").severity).toBe("warn");
-    // X264 (good) + MKV (warn) → warn (this is correct: Firefox can't play it)
+    // X264 (good) + MKV (warn) -> warn (this is correct: Firefox can't play it)
     expect(detectCodec("Movie X264 MKV").severity).toBe("warn");
   });
 

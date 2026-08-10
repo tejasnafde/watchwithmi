@@ -3,12 +3,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 /**
  * Bug #2 (docs/polishing/01-critical-bugs.md):
- *   "Video reaction setTimeout leak" — useRoom.ts:351-353.
+ *   "Video reaction setTimeout leak" - useRoom.ts:351-353.
  *
  * `video_reaction` events trigger a setTimeout that clears the ephemeral
  * reaction after 3s. The timeout ID is not tracked, so if the component
  * unmounts before 3s elapses the callback still fires and calls
- * `setVideoReactions` on an unmounted hook — a "leak" in two senses: the
+ * `setVideoReactions` on an unmounted hook - a "leak" in two senses: the
  * timer stays scheduled, and React warns about the late state update.
  *
  * These tests pin the expected cleanup behavior:
@@ -70,7 +70,7 @@ afterEach(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("useRoom — video reactions", () => {
+describe("useRoom - video reactions", () => {
   it("adds a reaction to state when a video_reaction event arrives", async () => {
     const { useRoom } = await import("@/hooks/useRoom");
     const { result } = renderHook(() => useRoom("ABCDEF", "alice"));

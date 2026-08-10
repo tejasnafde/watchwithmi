@@ -315,7 +315,7 @@ export const useWebRTC = ({ socket, currentUserId, users }: WebRTCHookOptions) =
   }, [initializeLocalStream, socket, users, currentUserId, createOffer]);
 
   // Stop video chat: emit toggle events BEFORE tearing down tracks and
-  // peer connections (bug #4.2) — remote peers flip their UI on the
+  // peer connections (bug #4.2) - remote peers flip their UI on the
   // socket events; closing first causes a brief "disconnected" flicker.
   const stopVideoChat = useCallback(() => {
     stopVideoChatInOrder({

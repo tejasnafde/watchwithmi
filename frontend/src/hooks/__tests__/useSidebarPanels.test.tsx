@@ -12,7 +12,7 @@ import { useSidebarPanels } from "@/hooks/useSidebarPanels";
  * - `solo(name)` collapses every other panel, keeps/opens the target.
  * - `setExpanded(name, value)` is the imperative hook used for
  *   programmatic auto-expand (e.g. when the WebRTC call becomes active).
- * - `singleExpandMode: true` enforces "only one expanded" — toggling open
+ * - `singleExpandMode: true` enforces "only one expanded" - toggling open
  *   a second panel silently collapses the others.
  */
 
@@ -106,8 +106,8 @@ describe("useSidebarPanels", () => {
 
         const { result } = renderHook(() =>
             useSidebarPanels({
-                chat: { defaultExpanded: true },  // overridden → false
-                video: { defaultExpanded: false }, // overridden → true
+                chat: { defaultExpanded: true },  // overridden -> false
+                video: { defaultExpanded: false }, // overridden -> true
             }),
         );
         expect(result.current.expanded.chat).toBe(false);
