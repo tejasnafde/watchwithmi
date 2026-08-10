@@ -37,7 +37,7 @@ interface MediaPlayerProps {
     onVideoReaction?: (emoji: string) => void;
 }
 
-const REACTION_EMOJIS = ['😂', '❤️', '👍', '🔥', '😮', '🎉'];
+const REACTION_EMOJIS = ['', '', '', '', '', ''];
 
 const floatUpKeyframes = `
 @keyframes floatUpReaction {
@@ -71,7 +71,7 @@ const VideoReactions: React.FC<{ reactions: VideoReaction[] }> = ({ reactions })
                         className="flex flex-col items-center"
                     >
                         <span className="text-2xl">{reaction.emoji}</span>
-                        <span className="text-[10px] text-white bg-black/60 px-1 rounded whitespace-nowrap">
+                        <span className="whitespace-nowrap rounded-full border border-border bg-card/90 px-2 py-0.5 text-xs text-foreground backdrop-blur-sm">
                             {reaction.user_name}
                         </span>
                     </div>
@@ -83,14 +83,15 @@ const VideoReactions: React.FC<{ reactions: VideoReaction[] }> = ({ reactions })
 
 const ReactionBar: React.FC<{ onReaction: (emoji: string) => void }> = ({ onReaction }) => {
     return (
-        <div className="absolute bottom-0 left-0 right-0 z-20 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-            <div className="flex gap-1 bg-black/50 backdrop-blur-sm rounded-t-lg px-2 py-1.5 pointer-events-auto">
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-20 flex justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+            <div className="pointer-events-auto flex gap-1 rounded-t-lg border border-b-0 border-border bg-card/90 px-2 py-1 backdrop-blur-sm">
                 {REACTION_EMOJIS.map((emoji) => (
                     <button
                         key={emoji}
                         onClick={() => onReaction(emoji)}
-                        className="text-xl hover:scale-125 transition-transform duration-150 px-1 cursor-pointer"
+                        className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md text-xl transition-transform duration-150 hover:scale-125"
                         title={`React with ${emoji}`}
+                        aria-label={`React with ${emoji}`}
                     >
                         {emoji}
                     </button>
@@ -120,7 +121,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     const [videoErrorDetail, setVideoErrorDetail] = useState<string | null>(null);
     const [isBuffering, setIsBuffering] = useState(false);
     const videoErrorRetryCount = useRef(0);
-    // Mirrored into state so the loading overlay can show "(retry N/5)" —
+    // Mirrored into state so the loading overlay can show "(retry N/5)" -
     // the ref alone wouldn't trigger a re-render. Reset alongside the
     // ref on canplay / new-media. UI-only; the ref is still the source
     // of truth for retry-budget logic.
@@ -150,7 +151,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         // The retry counter is reset by `handleCanPlay` (success), by the
         // `currentMedia.url` change effect (new media loaded), and only
         // by those. We deliberately do NOT auto-reset based on
-        // "time since last error" — the exponential backoff itself has
+        // "time since last error" - the exponential backoff itself has
         // gaps up to 16s, which used to exceed the previous 10s cooldown
         // and re-opened the budget every cycle, trapping the player in
         // an infinite retry loop with the loading overlay stuck up.
@@ -167,18 +168,18 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
             networkState: video.networkState
         });
 
-        // MEDIA_ERR_SRC_NOT_SUPPORTED (code 4) is *ambiguous* — Firefox /
+        // MEDIA_ERR_SRC_NOT_SUPPORTED (code 4) is *ambiguous* - Firefox /
         // Chrome fire it for both:
         //   (a) genuine codec/container mismatch (HEVC in Firefox,
         //       MKV outside Chrome+H.264), AND
-        //   (b) any HTTP failure during the initial load — 4xx / 5xx /
+        //   (b) any HTTP failure during the initial load - 4xx / 5xx /
         //       CORS rejection. The MediaError API can't distinguish.
         //
         // We disambiguate via `explainPlaybackFailure`: it only returns a
         // string when the release title clearly matches a known-bad codec
         // (severity === "warn"). For H.264/MP4 / unknown titles it returns
         // null, which we treat as a transient HTTP failure (the common
-        // case here is HTTP 425 "Too Early" while the torrent is still
+        // case here is HTTP 425 " Too Early" while the torrent is still
         // buffering on the backend) and fall through to the retry path.
         const isUnsupported = error?.code === 4;
         const codecExplanation =
@@ -187,13 +188,13 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 : null;
 
         if (isUnsupported && codecExplanation) {
-            // Codec is the actual culprit — retrying won't help.
+            // Codec is the actual culprit - retrying won't help.
             setVideoError("This video can't play in your browser.");
             setVideoErrorDetail(codecExplanation);
             return;
         }
 
-        // Exponential backoff — 1s, 2s, 4s, 8s, 16s = ~31s total over 5
+        // Exponential backoff - 1s, 2s, 4s, 8s, 16s = ~31s total over 5
         // retries. The earlier 1s/2s/3s linear ramp totalled ~6s, which
         // wasn't enough for a cold libtorrent on Render to buffer 5+ MB.
         const MAX_RETRIES = 5;
@@ -209,7 +210,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 }
             }, delayMs);
         } else if (isUnsupported) {
-            // Exhausted retries on a code-4 we couldn't pin to a codec —
+            // Exhausted retries on a code-4 we couldn't pin to a codec -
             // almost certainly an HTTP/buffering problem on the backend
             // (most often "still downloading the torrent header"). Don't
             // mislead the user about codecs.
@@ -236,7 +237,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
         setVideoError(null);
         setVideoErrorDetail(null);
         // A successful canplay is the right signal to refill the retry
-        // budget — future transient mid-stream errors get a fresh 5
+        // budget - future transient mid-stream errors get a fresh 5
         // attempts. (Previously we used a wallclock cooldown for this,
         // which interacted badly with exponential backoff and looped
         // forever; see the comment in handleVideoError.)
@@ -304,11 +305,11 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     // Empty state
     if (!currentMedia.url) {
         return (
-            <div className="aspect-video bg-[#0a0a0a] border-4 border-white flex items-center justify-center">
-                <div className="text-center text-white">
-                    <Play className="h-16 w-16 mx-auto mb-4" />
-                    <p className="text-lg uppercase font-bold">NO MEDIA LOADED</p>
-                    <p className="text-sm mt-2 text-gray-400">SEARCH AND SELECT CONTENT TO WATCH TOGETHER</p>
+            <div className="flex aspect-video items-center justify-center rounded-lg border border-border bg-card">
+                <div className="text-center text-foreground">
+                    <Play className="mx-auto mb-4 h-12 w-12 text-primary" />
+                    <p className="text-lg font-semibold">No media loaded</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Search and select content to watch together.</p>
                 </div>
             </div>
         );
@@ -317,7 +318,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     // YouTube player rendering
     if (currentMedia.type === 'youtube') {
         return (
-            <div className="relative aspect-video rounded-lg overflow-hidden bg-black group">
+            <div className="group relative aspect-video overflow-hidden rounded-lg border border-border bg-background">
                 {/* YouTube Player Container */}
                 <div
                     ref={playerContainerRef}
@@ -343,20 +344,22 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                     (default behaviour). Once the player is ready and we're
                     only showing this for `ytBuffering`, we make it
                     pointer-events-none so YT's native play button stays
-                    clickable as a manual escape hatch — combined with the
+                    clickable as a manual escape hatch - combined with the
                     8s buffering watchdog in useYouTubePlayer, this prevents
-                    the "stuck buffering after pause" trap. */}
+                    the " stuck buffering after pause" trap. */}
                 {(!ytReady || ytBuffering) && (
                     <div
-                        className={`absolute inset-0 bg-black/50 flex items-center justify-center ${
+                        className={`absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm ${
                             ytReady ? 'pointer-events-none' : ''
                         }`}
                     >
-                        <div className="text-center text-white">
-                            <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
-                            <p>{!ytReady ? 'Loading YouTube player...' : 'Buffering...'}</p>
+                        <div className="text-center">
+                            <Loader2 className={`mx-auto mb-4 h-10 w-10 animate-spin ${ytReady ? 'text-warn' : 'text-primary'}`} />
+                            <p className={ytReady ? 'text-warn' : 'text-foreground'}>
+                                {!ytReady ? 'Loading YouTube player...' : 'Buffering...'}
+                            </p>
                             {currentMedia.title && (
-                                <p className="text-sm mt-2 opacity-75">{currentMedia.title}</p>
+                                <p className="mt-2 text-sm text-muted-foreground">{currentMedia.title}</p>
                             )}
                         </div>
                     </div>
@@ -364,38 +367,44 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
 
                 {/* Error overlay */}
                 {ytError && (
-                    <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-                        <div className="text-center text-white p-6">
-                            <p className="text-red-400 mb-4">{ytError}</p>
-                            <div className="flex gap-3 justify-center">
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm">
+                        <div className="p-6 text-center">
+                            <p className="mb-4 text-destructive">{ytError}</p>
+                            <div className="flex justify-center gap-3">
                                 <Button
                                     onClick={() => {
                                         // Clear error state to allow the player to retry
                                         ytClearError();
                                     }}
                                     variant="outline"
-                                    className="border-white/20 text-white hover:bg-white/10"
+                                    className="h-11"
                                 >
                                     Retry
                                 </Button>
                                 <Button
                                     onClick={() => window.location.reload()}
                                     variant="outline"
-                                    className="border-red-400/30 text-red-300 hover:bg-red-400/10"
+                                    className="h-11 border-destructive/40 text-destructive hover:bg-destructive/10"
                                     title="This will disconnect you from the room"
                                 >
-                                    Reload Page
+                                    Reload page
                                 </Button>
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">Reload Page will disconnect you from the room</p>
+                            <p className="mt-3 text-xs text-muted-foreground">Reload page will disconnect you from the room.</p>
                         </div>
                     </div>
                 )}
 
                 {/* Viewer mode info overlay */}
                 {!canControl && ytReady && (
-                    <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-2 rounded-lg text-white text-sm">
-                        {ytPlaying ? '▶️ Playing' : '⏸️ Paused'} • {Math.floor(ytTime)}s / {Math.floor(ytDuration)}s
+                    <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-md border border-border bg-card/90 px-3 py-2 text-sm text-foreground backdrop-blur-sm">
+                        <span className={ytPlaying ? 'text-pos' : 'text-muted-foreground'}>
+                            {ytPlaying ? 'Playing' : 'Paused'}
+                        </span>
+                        <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
+                        <span className="num text-muted-foreground">
+                            {Math.floor(ytTime)}s / {Math.floor(ytDuration)}s
+                        </span>
                     </div>
                 )}
 
@@ -403,18 +412,20 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 {currentMedia.is_playlist && canControl && (
                     <div className="absolute bottom-4 right-4 flex items-center gap-2 z-20">
                         <Button
-                            size="sm"
+                            size="icon"
                             variant="secondary"
-                            className="bg-black/60 hover:bg-black/80 text-white"
+                            className="h-11 w-11 border border-border bg-card/90 backdrop-blur-sm transition-colors duration-150 hover:bg-accent"
                             onClick={onPlaylistPrev}
+                            aria-label="Previous item"
                         >
                             <SkipBack className="h-4 w-4" />
                         </Button>
                         <Button
-                            size="sm"
+                            size="icon"
                             variant="secondary"
-                            className="bg-black/60 hover:bg-black/80 text-white"
+                            className="h-11 w-11 border border-border bg-card/90 backdrop-blur-sm transition-colors duration-150 hover:bg-accent"
                             onClick={onPlaylistNext}
+                            aria-label="Next item"
                         >
                             <SkipForward className="h-4 w-4" />
                         </Button>
@@ -426,7 +437,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
 
     // Default Video player rendering
     return (
-        <div className="relative aspect-video rounded-lg overflow-hidden bg-black group">
+        <div className="group relative aspect-video overflow-hidden rounded-lg border border-border bg-background">
             <video
                 ref={videoRef}
                 className="w-full h-full"
@@ -453,53 +464,59 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
             {/* Loading overlay.
                 Hidden once `videoError` is set so the error overlay (with
                 the actual reason + Reload Page button) isn't competing
-                with a "Loading media..." spinner. The parent's
+                with a " Loading media..." spinner. The parent' s
                 `currentMedia.loading` flag is server-driven and can stay
                 truthy through a failure, which is what trapped the user
                 behind the spinner before. */}
             {(currentMedia.loading || isBuffering) && !videoError && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <div className="text-center text-white w-80 max-w-[90%]">
+                <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                    <div className="w-80 max-w-[90%] text-center text-foreground">
                         {currentMedia.loading && mediaStatus ? (
                             <>
                                 {currentMedia.title && (
-                                    <p className="text-sm font-medium mb-3 opacity-90 truncate">{currentMedia.title}</p>
+                                    <p className="mb-3 truncate text-sm font-medium">{currentMedia.title}</p>
                                 )}
                                 <div className="mb-3">
-                                    <div className="flex justify-between text-xs font-mono mb-1 opacity-75">
-                                        <span>{(mediaStatus.progress * 100).toFixed(1)}%</span>
+                                    <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+                                        <span className="num">{(mediaStatus.progress * 100).toFixed(1)}%</span>
                                         {mediaStatus.download_rate > 0 && (
-                                            <span>{(mediaStatus.download_rate / 1024 / 1024).toFixed(1)} MB/s</span>
+                                            <span className="num">{(mediaStatus.download_rate / 1024 / 1024).toFixed(1)} MB/s</span>
                                         )}
                                     </div>
-                                    <Progress value={mediaStatus.progress * 100} className="h-2 bg-white/20" />
+                                    <Progress value={mediaStatus.progress * 100} className="h-2" />
                                 </div>
                                 {mediaStatus.file_progress !== undefined && mediaStatus.file_progress !== mediaStatus.progress && (
                                     <div className="mb-3">
-                                        <div className="flex justify-between text-xs font-mono mb-1 opacity-75">
-                                            <span>File: {(mediaStatus.file_progress * 100).toFixed(1)}%</span>
-                                            <span>{mediaStatus.streaming_ready ? 'READY' : 'BUFFERING'}</span>
+                                        <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+                                            <span className="num">File: {(mediaStatus.file_progress * 100).toFixed(1)}%</span>
+                                            <span className={mediaStatus.streaming_ready ? 'label text-pos' : 'label text-warn'}>
+                                                {mediaStatus.streaming_ready ? 'Ready' : 'Buffering'}
+                                            </span>
                                         </div>
-                                        <Progress value={mediaStatus.file_progress * 100} className="h-2 bg-white/20" />
+                                        <Progress value={mediaStatus.file_progress * 100} className="h-2" />
                                     </div>
                                 )}
-                                <p className="text-xs opacity-50 font-mono">{mediaStatus.num_peers} peers connected</p>
+                                <p className="text-xs text-muted-foreground">
+                                    <span className="num">{mediaStatus.num_peers}</span> peers connected
+                                </p>
                             </>
                         ) : (
                             <>
-                                <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
-                                <p>{currentMedia.loading ? 'Loading media...' : 'Buffering...'}</p>
+                                <Loader2 className={`mx-auto mb-4 h-10 w-10 animate-spin ${currentMedia.loading ? 'text-primary' : 'text-warn'}`} />
+                                <p className={currentMedia.loading ? 'text-foreground' : 'text-warn'}>
+                                    {currentMedia.loading ? 'Loading media...' : 'Buffering...'}
+                                </p>
                                 {/* When we're actively burning retries, show
                                     progress so the user knows we haven't
                                     silently wedged. After this counter hits
                                     MAX_RETRIES the error overlay takes over. */}
                                 {retryAttempt > 0 && (
-                                    <p className="text-xs mt-1 opacity-60 font-mono">
-                                        retry {retryAttempt}/5 — server may still be buffering
+                                    <p className="mt-1 text-xs text-warn">
+                                        Retry <span className="num">{retryAttempt}/5</span> - the server may still be buffering
                                     </p>
                                 )}
                                 {currentMedia.title && (
-                                    <p className="text-sm mt-2 opacity-75">{currentMedia.title}</p>
+                                    <p className="mt-2 text-sm text-muted-foreground">{currentMedia.title}</p>
                                 )}
                             </>
                         )}
@@ -507,26 +524,26 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
                 </div>
             )}
 
-            {/* Error overlay — the videoError state is only set after the
+            {/* Error overlay - the videoError state is only set after the
                 auto-retry budget is exhausted (handleVideoError increments
                 `videoErrorRetryCount` up to 3 before surfacing this). The
-                overlay therefore represents the "max retries reached" state
+                overlay therefore represents the " max retries reached" state
                 and does not offer another Retry button (which used to reset
-                the counter and let the user loop forever — bug #4). */}
+                the counter and let the user loop forever - bug #4). */}
             {videoError && (
-                <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-                    <div className="text-center text-white p-6">
-                        <p className="text-red-400 mb-2">{videoError}</p>
-                        <p className="text-xs text-gray-400 mb-4 max-w-md mx-auto">
+                <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm">
+                    <div className="p-6 text-center">
+                        <p className="mb-2 text-destructive">{videoError}</p>
+                        <p className="mx-auto mb-4 max-w-md text-xs text-muted-foreground">
                             {videoErrorDetail ?? 'Max retries reached. Reload the page to try again.'}
                         </p>
                         <Button
                             onClick={() => window.location.reload()}
                             variant="outline"
-                            className="border-red-400/30 text-red-300 hover:bg-red-400/10"
+                            className="h-11 border-destructive/40 text-destructive hover:bg-destructive/10"
                             title="This will disconnect you from the room"
                         >
-                            Reload Page
+                            Reload page
                         </Button>
                     </div>
                 </div>
@@ -534,18 +551,19 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
 
             {/* Viewer mode indicator */}
             {!canControl && (
-                <div className="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-full text-white text-sm backdrop-blur-sm">
-                    Viewer Mode
+                <div className="label absolute top-4 right-4 rounded-full border border-border bg-card/90 px-3 py-1 backdrop-blur-sm">
+                    Viewer mode
                 </div>
             )}
 
             {/* Fullscreen button */}
-            <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute bottom-4 right-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
                 <Button
-                    size="sm"
+                    size="icon"
                     variant="secondary"
-                    className="bg-black/50 hover:bg-black/70 backdrop-blur-sm"
+                    className="h-11 w-11 border border-border bg-card/90 backdrop-blur-sm transition-colors duration-150 hover:bg-accent"
                     onClick={toggleFullscreen}
+                    aria-label="Toggle fullscreen"
                 >
                     <Maximize className="h-4 w-4" />
                 </Button>

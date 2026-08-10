@@ -8,7 +8,7 @@
  * fails with MEDIA_ERR_SRC_NOT_SUPPORTED, point the user at the actual
  * codec issue instead of a generic "max retries" message.
  *
- * The heuristic is title-substring based — Knaben/apibay/etc. don't
+ * The heuristic is title-substring based - Knaben/apibay/etc. don't
  * give us structured codec metadata. False negatives ("unknown") are
  * fine; false positives ("playable" when it isn't) cost more, so the
  * matching is conservative and leans on common scene-release tags.
@@ -30,15 +30,15 @@ export interface CodecHint {
 }
 
 const NORMALISED_CODEC_TAGS: Array<{ pattern: RegExp; codec: string; severity: Playability }> = [
-  // h.264 / x264 / avc — broad browser support, our preferred case.
+  // h.264 / x264 / avc - broad browser support, our preferred case.
   { pattern: /\b(?:x ?264|h ?264|avc)\b/i, codec: "H.264", severity: "good" },
-  // h.265 / x265 / hevc — Safari/some Chrome only; Firefox never.
+  // h.265 / x265 / hevc - Safari/some Chrome only; Firefox never.
   { pattern: /\b(?:x ?265|h ?265|hevc)\b/i, codec: "H.265", severity: "warn" },
-  // av1 — limited but improving support.
+  // av1 - limited but improving support.
   { pattern: /\bav1\b/i, codec: "AV1", severity: "warn" },
-  // vp9 — Chrome/Firefox yes, Safari sometimes.
+  // vp9 - Chrome/Firefox yes, Safari sometimes.
   { pattern: /\bvp9\b/i, codec: "VP9", severity: "good" },
-  // xvid / divx — old MPEG-4 ASP, no modern browser plays it.
+  // xvid / divx - old MPEG-4 ASP, no modern browser plays it.
   { pattern: /\b(?:xvid|divx)\b/i, codec: "XviD", severity: "warn" },
 ];
 
@@ -47,9 +47,9 @@ const CONTAINER_TAGS: Array<{ pattern: RegExp; container: string; severity: Play
   { pattern: /\.mp4\b|\bmp4\b/i, container: "MP4", severity: "good" },
   // WEBM plays in Chrome/Firefox.
   { pattern: /\.webm\b|\bwebm\b/i, container: "WEBM", severity: "good" },
-  // MKV — Firefox never plays it; Chrome only with H.264 inside.
+  // MKV - Firefox never plays it; Chrome only with H.264 inside.
   { pattern: /\.mkv\b|\bmkv\b/i, container: "MKV", severity: "warn" },
-  // AVI — old, doesn't play.
+  // AVI - old, doesn't play.
   { pattern: /\.avi\b|\bavi\b/i, container: "AVI", severity: "warn" },
 ];
 
@@ -124,7 +124,7 @@ export function detectCodec(title: string): CodecHint {
  * Sort comparator that bubbles "good" results above "warn" / "unknown",
  * preserving the original (seeder-based) order within each bucket.
  *
- * Use as `[...results].sort(byPlayability)` — pure function, no input
+ * Use as `[...results].sort(byPlayability)` - pure function, no input
  * mutation, stable when severities tie.
  */
 export function byPlayability<T extends { title: string }>(a: T, b: T): number {
@@ -136,7 +136,7 @@ export function byPlayability<T extends { title: string }>(a: T, b: T): number {
  * Human-friendly explanation for the playback-failed overlay when the
  * underlying error is MEDIA_ERR_SRC_NOT_SUPPORTED (codec/container).
  *
- * Returns null when we can't detect a culprit — caller should fall
+ * Returns null when we can't detect a culprit - caller should fall
  * back to the generic message.
  */
 export function explainPlaybackFailure(title: string): string | null {

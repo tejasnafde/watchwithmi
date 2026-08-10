@@ -63,7 +63,7 @@ function countEmits(event: string, matchItemId?: string) {
     ).length;
 }
 
-describe("useRoom — queue operation in-flight dedupe (bug #3.5)", () => {
+describe("useRoom - queue operation in-flight dedupe (bug #3.5)", () => {
     it("removeFromQueue deduplicates rapid repeat calls for the same item_id", async () => {
         const { useRoom } = await import("@/hooks/useRoom");
         const { result } = renderHook(() => useRoom("ABCDEF", "alice"));

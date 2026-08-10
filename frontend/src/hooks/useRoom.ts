@@ -64,42 +64,42 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     hasConnectedRef.current = false;
 
-    console.log('🔌 Creating socket connection for room:', roomCode, 'user:', userName);
+    console.log('Creating socket connection for room:', roomCode, 'user:', userName);
     const newSocket = createSocket();
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
       if (!hasConnectedRef.current) {
         // First connection: join the room
-        console.log('✅ Socket connected, joining room...');
+        console.log('Socket connected, joining room...');
         hasConnectedRef.current = true;
         newSocket.emit('join_room', { room_code: roomCode, user_name: userName });
       } else {
         // Reconnection: backend should still have session within 30s grace period
-        console.log('✅ Socket reconnected, relying on backend session');
+        console.log('Socket reconnected, relying on backend session');
       }
       setConnected(true);
     });
 
     // Handle reconnection after grace period expired (re-join needed)
     newSocket.io.on('reconnect', () => {
-      console.log('🔄 Socket.IO reconnect event, re-joining room...');
+      console.log('Socket.IO reconnect event, re-joining room...');
       newSocket.emit('join_room', { room_code: roomCode, user_name: userName });
     });
 
     newSocket.on('disconnect', () => {
-      console.log('❌ Socket disconnected');
+      console.log('Socket disconnected');
       setConnected(false);
     });
 
     newSocket.on('error', (error: any) => {
-      console.error('🚨 Socket error:', error);
+      console.error('Socket error:', error);
 
       const errorMsg = error?.message || error?.detail || '';
 
       // If room not found, try to create it (but only once)
       if (errorMsg === 'Room not found') {
-        console.log('🏠 Room not found, creating new room:', roomCode);
+        console.log('Room not found, creating new room:', roomCode);
         newSocket.emit('create_room', { user_name: userName, room_code: roomCode });
       } else if (errorMsg) {
         setRoomError(errorMsg);
@@ -107,19 +107,19 @@ export const useRoom = (roomCode: string, userName: string) => {
     });
 
     newSocket.on('room_error', (error: any) => {
-      console.error('🚨 Room error:', error);
+      console.error('Room error:', error);
       const errorMsg = error?.message || error?.detail || 'An unknown error occurred';
       setRoomError(errorMsg);
     });
 
     newSocket.on('connect_error', (error: any) => {
-      console.error('❌ Socket connection error:', error);
+      console.error('Socket connection error:', error);
       setConnected(false);
     });
 
     // Handle users_updated event - backend sends users as object, convert to array
     newSocket.on('users_updated', (data: any) => {
-      console.log('👥 Users updated event received:', data);
+      console.log('Users updated event received:', data);
 
       // Convert users object to array
       const usersArray = Object.entries(data.users || {}).map(([id, user]: [string, any]) => ({
@@ -131,7 +131,7 @@ export const useRoom = (roomCode: string, userName: string) => {
         audio_enabled: user.audio_enabled || false,
       }));
 
-      console.log('👥 Setting users array after update:', usersArray);
+      console.log('Setting users array after update:', usersArray);
       setUsers(usersArray);
     });
 
@@ -147,7 +147,7 @@ export const useRoom = (roomCode: string, userName: string) => {
           const currentUrl = new URL(window.location.href);
           currentUrl.pathname = `/room/${data.room_code}`;
           window.history.replaceState({}, '', currentUrl.toString());
-          console.log('📍 Updated URL to match actual room code:', data.room_code);
+          console.log('Updated URL to match actual room code:', data.room_code);
         }
       }
 
@@ -175,12 +175,12 @@ export const useRoom = (roomCode: string, userName: string) => {
         }));
       }
 
-      console.log('👥 Setting users array after join/create:', usersArray);
+      console.log('Setting users array after join/create:', usersArray);
       setUsers(usersArray);
 
       // Set chat messages (backend might send 'chat' or 'chat_history').
       // Preserve msg.message_id so reaction_updated events can match historical
-      // messages — without this, reactions on messages loaded via room_joined
+      // messages - without this, reactions on messages loaded via room_joined
       // silently fail (bug #1 in docs/polishing/01-critical-bugs.md).
       const rawChat = data.chat || data.chat_history || [];
       if (Array.isArray(rawChat)) {
@@ -288,7 +288,7 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     // Unified play handler
     newSocket.on('media_play', (data: any) => {
-      console.log(' ▶️ Media play received:', data);
+      console.log('Media play received:', data);
       setCurrentMedia(prev => ({
         ...prev,
         state: 'playing',
@@ -298,7 +298,7 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     // Unified pause handler
     newSocket.on('media_pause', (data: any) => {
-      console.log(' ⏸️ Media pause received:', data);
+      console.log('Media pause received:', data);
       setCurrentMedia(prev => ({
         ...prev,
         state: 'paused',
@@ -308,7 +308,7 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     // Unified seek handler
     newSocket.on('media_seek', (data: any) => {
-      console.log(' ⏭️ Media seek received:', data);
+      console.log('Media seek received:', data);
       setCurrentMedia(prev => ({
         ...prev,
         timestamp: data.timestamp,
@@ -322,7 +322,7 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     // Handle user joined
     newSocket.on('user_joined', (data: any) => {
-      console.log('👤 User joined:', data);
+      console.log('User joined:', data);
       if (data.user) {
         setUsers(prev => {
           // Avoid duplicates
@@ -341,7 +341,7 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     // Handle user left
     newSocket.on('user_left', (data: any) => {
-      console.log('👤 User left:', data);
+      console.log('User left:', data);
       if (data.user_id) {
         setUsers(prev => prev.filter(u => u.id !== data.user_id));
       }
@@ -349,7 +349,7 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     // Handle media loading indicator
     newSocket.on('media_loading', (data: any) => {
-      console.log('⏳ Media loading:', data);
+      console.log('Media loading:', data);
       setCurrentMedia(prev => ({
         ...prev,
         loading: data.loading !== undefined ? data.loading : true,
@@ -358,13 +358,13 @@ export const useRoom = (roomCode: string, userName: string) => {
 
     // Handle queue updates
     newSocket.on('queue_updated', (data: any) => {
-      console.log('📋 Queue updated:', data);
+      console.log('Queue updated:', data);
       if (data.queue && Array.isArray(data.queue)) {
         setQueue(data.queue);
       }
       // Any queue_updated ack clears all in-flight op guards. The server
       // always broadcasts the full queue, so we can't distinguish whose
-      // op this acks — clearing all is safe because the UI is about to
+      // op this acks - clearing all is safe because the UI is about to
       // re-render with the authoritative state anyway.
       if (pendingQueueOpsRef.current.size > 0) {
         pendingQueueOpsRef.current.clear();
@@ -385,7 +385,7 @@ export const useRoom = (roomCode: string, userName: string) => {
     });
 
     return () => {
-      console.log('🔌 Disconnecting socket...');
+      console.log('Disconnecting socket...');
       // Remove all event listeners before disconnecting
       newSocket.off('connect');
       newSocket.off('disconnect');

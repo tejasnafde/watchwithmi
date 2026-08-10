@@ -15,7 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Plus } from 'lucide-react';
 import { choosePickerAnchor, type PickerAnchor } from '@/lib/pickerPlacement';
 
-const REACTION_EMOJIS = ['😂', '❤️', '👍', '👎', '🔥', '😮', '😢', '🎉'];
+const REACTION_EMOJIS = ['', '', '', '', '', '', '', ''];
 
 interface ChatPanelProps {
     messages: ChatMessage[];
@@ -25,9 +25,7 @@ interface ChatPanelProps {
     onToggleReaction?: (messageId: string, emoji: string) => void;
 }
 
-// Approximate picker width: 8 columns × 32px + gaps + padding. Kept in
-// sync with the grid below. Precise measurement is done at runtime via
-// the ref after mount.
+// Fallback only; the real width is measured from the ref after mount.
 const PICKER_ESTIMATED_WIDTH = 280;
 const PICKER_EDGE_MARGIN = 8;
 
@@ -75,7 +73,7 @@ function EmojiPicker({
     return (
         <div
             ref={ref}
-            className={`absolute bottom-full mb-1 ${anchor === 'right' ? 'right-0' : 'left-0'} z-50 bg-black border-2 border-white p-1.5 grid grid-cols-8 gap-1`}
+            className={`absolute bottom-full mb-1 ${anchor === 'right' ? 'right-0' : 'left-0'} z-50 grid grid-cols-4 gap-1 rounded-lg border border-border bg-card p-1.5 shadow-md`}
         >
             {REACTION_EMOJIS.map((emoji) => (
                 <button
@@ -84,7 +82,7 @@ function EmojiPicker({
                         onSelect(emoji);
                         onClose();
                     }}
-                    className="w-8 h-8 flex items-center justify-center text-base hover:bg-white/20 transition-colors"
+                    className="flex h-11 w-11 items-center justify-center rounded-md text-base transition-colors duration-150 hover:bg-accent"
                 >
                     {emoji}
                 </button>
@@ -125,24 +123,28 @@ function MessageReactions({
                     <button
                         key={emoji}
                         onClick={() => onToggle(emoji)}
-                        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono border transition-colors ${
+                        className={`inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs transition-colors duration-150 ${
                             isActive
-                                ? 'bg-white/20 border-white/40 text-white'
-                                : 'bg-transparent border-white/20 text-white/70 hover:border-white/40'
+                                ? 'border-primary bg-secondary text-foreground'
+                                : 'border-border bg-card text-muted-foreground hover:border-line-2 hover:text-foreground'
                         }`}
                     >
                         <span>{emoji}</span>
-                        <span>{users.length}</span>
+                        <span className="num">{users.length}</span>
                     </button>
                 );
             })}
             <div className="relative">
+                {/* 28px, not the house 44px: at 44px an inline chip is taller
+                    than the message it annotates. Clears WCAG 2.5.8 AA (24px). */}
                 <button
                     ref={triggerRef}
+                    data-testid="add-reaction"
                     onClick={() => setShowPicker(!showPicker)}
-                    className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-mono border border-white/20 text-white/50 hover:border-white/40 hover:text-white transition-colors"
+                    aria-label="Add reaction"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors duration-150 hover:border-line-2 hover:text-foreground"
                 >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-3 h-3" aria-hidden="true" />
                 </button>
                 {showPicker && (
                     <EmojiPicker
@@ -196,7 +198,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         <div
                             key={msg.id}
                             className={`${msg.isServer
-                                ? 'text-center text-sm text-white/60 italic'
+                                ? 'text-center text-sm text-muted-foreground italic'
                                 : msg.user_name === currentUserName
                                     ? 'text-right'
                                     : 'text-left'
@@ -204,13 +206,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         >
                             {!msg.isServer && (
                                 <div className="inline-block max-w-[80%]">
-                                    <div className="text-[10px] text-white/80 font-mono uppercase mb-1">
+                                    <div className="label mb-1">
                                         {msg.user_name}
                                     </div>
                                     <div
-                                        className={`px-4 py-2 border-2 ${msg.user_name === currentUserName
-                                            ? 'bg-white text-black border-white font-bold'
-                                            : 'bg-black text-white border-white'
+                                        className={`rounded-lg px-4 py-2 text-sm ${msg.user_name === currentUserName
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'border border-border bg-secondary text-foreground'
                                             }`}
                                     >
                                         {msg.message}
@@ -222,7 +224,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                                             onToggle={(emoji) => onToggleReaction(msg.message_id!, emoji)}
                                         />
                                     )}
-                                    <div className="text-[10px] text-white/60 font-mono mt-1 uppercase">
+                                    <div className="num mt-1 font-mono text-xs text-muted-foreground">
                                         {new Date(msg.timestamp).toLocaleTimeString()}
                                     </div>
                                 </div>
@@ -233,21 +235,23 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
             </ScrollArea>
 
-            <div className="shrink-0 p-4 border-t-2 border-white">
+            <div className="shrink-0 border-t border-border p-4">
                 <div className="flex gap-2">
                     <Input
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        placeholder="TYPE A MESSAGE..."
-                        className="flex-1 bg-black border-2 border-white text-white placeholder:text-white/40 font-mono"
+                        placeholder="Type a message..."
+                        className="h-11 flex-1"
                     />
                     <Button
                         onClick={handleSendMessage}
                         disabled={!messageInput.trim()}
-                        className="bg-white text-black hover:bg-gray-200 border-2 border-white rounded-none"
+                        size="icon"
+                        aria-label="Send message"
+                        className="h-11 w-11 shrink-0"
                     >
-                        <Send className="h-4 w-4" />
+                        <Send className="h-4 w-4" aria-hidden="true" />
                     </Button>
                 </div>
             </div>

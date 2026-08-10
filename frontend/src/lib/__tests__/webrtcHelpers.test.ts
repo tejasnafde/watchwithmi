@@ -15,7 +15,7 @@ import {
  */
 
 // ---------------------------------------------------------------------------
-// #4.3 — resolveGlareAction
+// #4.3 - resolveGlareAction
 // ---------------------------------------------------------------------------
 
 describe("resolveGlareAction (bug #4.3)", () => {
@@ -77,7 +77,7 @@ describe("resolveGlareAction (bug #4.3)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// #4.2 — stopVideoChatInOrder
+// #4.2 - stopVideoChatInOrder
 // ---------------------------------------------------------------------------
 
 describe("stopVideoChatInOrder (bug #4.2)", () => {
@@ -181,7 +181,7 @@ describe("stopVideoChatInOrder (bug #4.2)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// #4.4 — ICE-level cleanup decision
+// #4.4 - ICE-level cleanup decision
 // ---------------------------------------------------------------------------
 
 describe("shouldCleanupOnIceState (bug #4.4)", () => {

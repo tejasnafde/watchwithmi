@@ -11,12 +11,11 @@ import { CollapsiblePanel } from "@/components/CollapsiblePanel";
  *   the current state. Keyboard users can toggle with Space / Enter.
  * - Collapsed state hides the children from the DOM (not just visually)
  *   so focus order stays predictable and screen readers skip it.
- * - Shift-click on the header requests a "solo" — all other panels
+ * - Shift-click on the header requests a "solo" - all other panels
  *   collapse, this one stays open. We surface that via an optional
  *   onSolo callback; plain clicks call onToggle.
- * - Visual language stays brutalist: hover flips to bg-white text-black.
- *   That class combination is pinned so a future refactor can't quietly
- *   soften the aesthetic.
+ * - Header hover is a token class and carries no hardcoded palette colour.
+ *   Both halves are pinned so a future edit can't reintroduce a literal theme.
  */
 
 describe("CollapsiblePanel", () => {
@@ -133,7 +132,7 @@ describe("CollapsiblePanel", () => {
         expect(screen.getByRole("button", { name: /users.*3/i })).toBeInTheDocument();
     });
 
-    it("pins the brutalist hover class so the aesthetic can't regress silently", () => {
+    it("pins the themed hover class and stays free of hardcoded colours", () => {
         render(
             <CollapsiblePanel
                 title="USERS"
@@ -145,9 +144,13 @@ describe("CollapsiblePanel", () => {
             </CollapsiblePanel>,
         );
         const header = screen.getByRole("button", { name: /users/i });
-        // Exact hover tokens required: invert on hover with no rounding.
-        expect(header.className).toMatch(/hover:bg-white/);
-        expect(header.className).toMatch(/hover:text-black/);
-        expect(header.className).not.toMatch(/rounded/);
+        // Hover raises the surface with a semantic token, so the header
+        // themes itself in light and dark.
+        expect(header.className).toMatch(/hover:bg-secondary/);
+        // No literal palette colour may come back in.
+        expect(header.className).not.toMatch(/bg-(black|white|gray-)/);
+        expect(header.className).not.toMatch(/text-(black|white|gray-)/);
+        expect(header.className).not.toMatch(/border-(black|white|gray-)/);
+        expect(header.className).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
     });
 });
