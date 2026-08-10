@@ -81,7 +81,7 @@ export default function HomePage() {
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
               <Image src="/logo.svg" alt="" width={32} height={32} aria-hidden="true" />
             </div>
-            <h1 className="text-3xl md:text-4xl font-semibold">
+            <h1 className="text-2xl md:text-3xl font-semibold">
               WatchWithMi
             </h1>
           </div>

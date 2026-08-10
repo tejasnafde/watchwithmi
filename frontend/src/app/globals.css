@@ -8,7 +8,11 @@
 @custom-variant dark (&:where([data-theme="dark"] *));
 
 :root {
-  --accent: #FF7A5C;
+  /* The accent is a pair; tokens.css derives --accent from it per theme.
+     #FF7A5C is 2.37:1 on light --bg and fails, so light mode gets the darker
+     twin. This was the blocker that could not be fixed inside this app. */
+  --accent-light: #DB2800;   /* 4.51:1 on light --bg */
+  --accent-dark: #FF7A5C;    /* 7.71:1 on dark --bg */
   --r: 14px;
   --font-body: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
