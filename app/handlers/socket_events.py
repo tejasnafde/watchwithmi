@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 import socketio
 
 from ..config import MAX_USER_NAME_LENGTH
+from ..services.product_analytics import product_analytics
 from .rate_limit import (
     DEFAULT_MAX_EVENTS_PER_WINDOW,
     DEFAULT_WINDOW_SECONDS,
@@ -127,9 +128,10 @@ class SocketEventHandler:
     docs/polishing/05-security.md.
     """
 
-    def __init__(self, sio: socketio.AsyncServer, room_manager):
+    def __init__(self, sio: socketio.AsyncServer, room_manager, analytics=product_analytics):
         self.sio = sio
         self.room_manager = room_manager
+        self.analytics = analytics
 
         # Pull configuration from env (with sensible defaults). Tests can
         # overwrite `_rate_limiter` directly with a tighter cap.
@@ -327,6 +329,8 @@ class SocketEventHandler:
                     'queue': [item.to_dict() for item in room.queue]
                 }, room=sid)
 
+                self.analytics.track("room_created", "home")
+
                 logger.info(f" Room {room_code} created successfully by {user_name}")
             else:
                 await self.sio.emit('error', {'message': 'Failed to create room'}, room=sid)
@@ -424,6 +428,10 @@ class SocketEventHandler:
 
                 # Only notify others if this is a new user (not a reconnection)
                 if not existing_user:
+                    self.analytics.track("room_joined", "room")
+                    if updated_room.user_count >= 2 and not updated_room.analytics_activated:
+                        updated_room.analytics_activated = True
+                        self.analytics.track("room_activated", "room")
                     logger.info(f"🔔 Sending user_joined event for {user_name} to room {room_code} (excluding {sid})")
                     await self.sio.emit('user_joined', {
                         'user_id': sid,
@@ -536,6 +544,9 @@ class SocketEventHandler:
                     'timestamp': timestamp,
                     'user_name': user_name
                 }, room=room_code)
+                if room.user_count >= 2 and room.media.url and not room.analytics_playback:
+                    room.analytics_playback = True
+                    self.analytics.track("qualified_playback_reached", "room")
 
             elif action == 'pause':
                 timestamp = data.get('timestamp', room.media.timestamp)
