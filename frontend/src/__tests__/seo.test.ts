@@ -13,6 +13,7 @@ describe("WatchWithMi discovery", () => {
     expect(layout).toContain("alternates: { canonical");
     expect(layout).toContain("openGraph");
     expect(layout).toContain("twitter");
+    expect(layout).toContain("c3b832b326f54435bdb39fecfef3b1df");
     expect(robots).toContain("User-agent: GPTBot\nDisallow: /");
     expect(robots).toContain("Sitemap: https://watchwithmi.tn07.dev/sitemap.xml");
     expect(llms).toContain("# WatchWithMi");
