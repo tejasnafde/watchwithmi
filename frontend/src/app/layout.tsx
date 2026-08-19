@@ -63,6 +63,11 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://tn07.dev/design/tokens.css" />
         <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM summary" />
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+        <script
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token":"c3b832b326f54435bdb39fecfef3b1df"}'
+        ></script>
       </head>
       <body className="antialiased" suppressHydrationWarning={true}>
         <ErrorBoundary>{children}</ErrorBoundary>
