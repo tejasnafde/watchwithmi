@@ -1,0 +1,8 @@
+# WatchWithMi
+
+> A synchronized watch-party app with rooms, chat, queues, and peer video.
+
+## Canonical resources
+
+- [Open WatchWithMi](https://watchwithmi.tn07.dev/)
+- [Source](https://github.com/tejasnafde/watchwithmi)

@@ -22,9 +22,23 @@ const jetbrainsMono = JetBrains_Mono({
 const themeInit = `(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)}catch(e){document.documentElement.setAttribute("data-theme","dark")}})()`;
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://watchwithmi.tn07.dev"),
   title: "WatchWithMi - Watch Together",
   description:
     "Watch videos together in perfect sync with friends. Create rooms, chat, and enjoy synchronized video streaming.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "WatchWithMi - Watch Together",
+    description: "Create a room, add a video, and watch it together in sync.",
+    url: "/",
+    siteName: "WatchWithMi",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "WatchWithMi - Watch Together",
+    description: "Create a room, add a video, and watch it together in sync.",
+  },
   icons: {
     icon: "/logo.svg",
     apple: "/logo.svg",
@@ -47,6 +61,7 @@ export default function RootLayout({
     >
       <head>
         <link rel="stylesheet" href="https://tn07.dev/design/tokens.css" />
+        <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM summary" />
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
       <body className="antialiased" suppressHydrationWarning={true}>

@@ -102,6 +102,8 @@ class Room:
         self.chat: List[ChatMessage] = []
         self.queue: List[QueueItem] = []
         self.created_at = datetime.now().isoformat()
+        self.analytics_activated = False
+        self.analytics_playback = False
 
         logger.info(f"Room {room_code} created")
 
