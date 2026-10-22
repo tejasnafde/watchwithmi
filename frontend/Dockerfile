@@ -7,7 +7,7 @@
 # backend URL is a build arg, not a runtime env var. Changing it requires a
 # rebuild, which is why it is passed with --build-arg at deploy time.
 
-FROM node:22-slim AS builder
+FROM node:22.23.4-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -22,7 +22,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # ---- runtime ----
-FROM node:22-slim AS runner
+FROM node:22.23.4-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
