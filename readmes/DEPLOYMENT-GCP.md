@@ -49,7 +49,7 @@ gcloud --configuration=personal run deploy watchwithmi-api \
   --min-instances=0 --max-instances=1 --session-affinity \
   --timeout=3600 --cpu=1 --memory=512Mi \
   --set-env-vars="ENV=production,DEBUG=false,ENABLE_MEDIA_BRIDGE=false,CORS_ALLOWED_ORIGINS=<web-url>" \
-  --set-secrets="SECRET_KEY=WATCHWITHMI_SECRET_KEY:latest,YOUTUBE_API_KEY=WATCHWITHMI_YOUTUBE_API_KEY:latest"
+  --set-secrets="WATCHWITHMI_CONFIG=watchwithmi-config:latest"
 ```
 
 `--timeout=3600` is the Cloud Run request timeout and it bounds how long a
@@ -58,9 +58,11 @@ connection age, not on session length.
 
 `ENV=production` makes `validate_production_config()` refuse to boot unless
 `SECRET_KEY` and `CORS_ALLOWED_ORIGINS` are both set and not `*`. That is
-deliberate. Both secrets are in Secret Manager and are read by the default
-compute service account, which holds `roles/secretmanager.secretAccessor` on
-each.
+deliberate. `SECRET_KEY` and `YOUTUBE_API_KEY` live in one JSON Secret Manager
+secret, `watchwithmi-config`, keyed by env name. `load_config_blob()` in
+`app/config.py` expands it at import; on Cloud Run it refuses to boot without
+it. The default compute service account holds
+`roles/secretmanager.secretAccessor` on it (since 2026-11-04).
 
 ## Deploying the web frontend
 

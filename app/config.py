@@ -2,10 +2,47 @@
 Configuration module for WatchWithMi application.
 """
 
+import json
 import logging
 import os
 import platform
 from pathlib import Path
+
+CONFIG_BLOB_ENV = "WATCHWITHMI_CONFIG"
+CONFIG_BLOB_SECRET = "watchwithmi-config"
+
+
+def load_config_blob(environ=os.environ) -> None:
+    """Expand WATCHWITHMI_CONFIG, one JSON secret holding every credential.
+
+    Secret Manager bills per secret version per month, not per byte, so
+    SECRET_KEY and YOUTUBE_API_KEY live in one JSON secret
+    (`watchwithmi-config`), keyed by CONTAINER env name. Cloud Run maps one
+    secret to one env var, so the fan-out happens here, at import, before any
+    setting below reads os.environ.
+
+    Existing environment variables win (setdefault), so a locally exported
+    value or a per-secret ref still overrides the blob. Malformed JSON raises,
+    so a bad revision fails to start and Cloud Run keeps the previous one. On
+    Cloud Run (K_SERVICE is set) the blob is mandatory, so a deploy that
+    forgets --set-secrets fails at startup, not at the first YouTube search.
+    """
+    raw = environ.get(CONFIG_BLOB_ENV)
+    if not raw:
+        if environ.get("K_SERVICE"):
+            raise RuntimeError(
+                f"{CONFIG_BLOB_ENV} is not set but this is Cloud Run. The deploy must "
+                f"pass --set-secrets={CONFIG_BLOB_ENV}={CONFIG_BLOB_SECRET}:latest."
+            )
+        return
+    blob = json.loads(raw)
+    if not isinstance(blob, dict):
+        raise ValueError(f"{CONFIG_BLOB_ENV} must be a JSON object")
+    for key, value in blob.items():
+        environ.setdefault(key, str(value))
+
+
+load_config_blob()
 
 # Application settings
 APP_NAME = "WatchWithMi"
