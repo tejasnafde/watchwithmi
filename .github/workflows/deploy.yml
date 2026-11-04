@@ -60,6 +60,10 @@ jobs:
       # in process (app/services/room_manager.py), so a second instance splits
       # users in the same room across processes with no error. Do not raise it
       # without the Redis adapter.
+      #
+      # SECRET_KEY and YOUTUBE_API_KEY come from one JSON secret, expanded by
+      # load_config_blob() in app/config.py. --set-secrets replaces every old
+      # per-value ref.
       - name: Deploy API
         run: |
           gcloud run deploy watchwithmi-api \
@@ -67,7 +71,7 @@ jobs:
             --min-instances=0 --max-instances=1 --session-affinity \
             --timeout=3600 --cpu=1 --memory=512Mi \
             --set-env-vars="ENV=production,DEBUG=false,ENABLE_MEDIA_BRIDGE=false,CORS_ALLOWED_ORIGINS=$PUBLIC_URL" \
-            --set-secrets="SECRET_KEY=WATCHWITHMI_SECRET_KEY:latest,YOUTUBE_API_KEY=WATCHWITHMI_YOUTUBE_API_KEY:latest" \
+            --set-secrets="WATCHWITHMI_CONFIG=watchwithmi-config:latest" \
             --quiet
 
       - name: Smoke test
